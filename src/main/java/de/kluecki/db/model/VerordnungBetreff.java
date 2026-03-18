@@ -11,6 +11,9 @@ public class VerordnungBetreff {
 
     private String titel;
     private String bemerkung;
+    private Integer heftEintragID;
+
+    private Integer quelleID;
 
     public int getVerordnungBetreffID() {
         return verordnungBetreffID;
@@ -66,6 +69,22 @@ public class VerordnungBetreff {
 
     public void setBemerkung(String bemerkung) {
         this.bemerkung = bemerkung;
+    }
+
+    public Integer getQuelleID() {
+        return quelleID;
+    }
+
+    public void setQuelleID(Integer quelleID) {
+        this.quelleID = quelleID;
+    }
+
+    public Integer getHeftEintragID() {
+        return heftEintragID;
+    }
+
+    public void setHeftEintragID(Integer heftEintragID) {
+        this.heftEintragID = heftEintragID;
     }
 
     @Override

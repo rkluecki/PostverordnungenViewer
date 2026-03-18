@@ -95,16 +95,18 @@ public class VerordnungBetreffRepository {
     public void insert(VerordnungBetreff betreff) throws SQLException {
 
         String sql = """
+            
             INSERT INTO VerordnungBetreff
-            (
-                Gebiet,
-                BandJahr,
-                SeiteVon,
-                SeiteBis,
-                Titel,
-                Bemerkung
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
+               (
+                   Gebiet,
+                   BandJahr,
+                   SeiteVon,
+                   SeiteBis,
+                   Titel,
+                   Bemerkung,
+                   QuelleID
+               )
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
             """;
 
         PreparedStatement stmt = connection.prepareStatement(sql);
@@ -115,6 +117,7 @@ public class VerordnungBetreffRepository {
         stmt.setInt(4, betreff.getSeiteBis());
         stmt.setString(5, betreff.getTitel());
         stmt.setString(6, betreff.getBemerkung());
+        stmt.setInt(7, betreff.getQuelleID());
 
         stmt.executeUpdate();
     }
@@ -212,6 +215,45 @@ public class VerordnungBetreffRepository {
             v.setSeiteBis(rs.getInt("SeiteBis"));
             v.setTitel(rs.getString("Titel"));
             v.setBemerkung(rs.getString("Bemerkung"));
+
+            liste.add(v);
+        }
+
+        return liste;
+    }
+
+    public List<VerordnungBetreff> findByQuelleId(int quelleId) throws SQLException {
+
+        String sql = """
+        SELECT *
+        FROM VerordnungBetreff
+        WHERE QuelleID = ?
+        ORDER BY SeiteVon
+        """;
+
+        PreparedStatement stmt = connection.prepareStatement(sql);
+        stmt.setInt(1, quelleId);
+
+        ResultSet rs = stmt.executeQuery();
+
+        List<VerordnungBetreff> liste = new ArrayList<>();
+
+        while (rs.next()) {
+
+            VerordnungBetreff v = new VerordnungBetreff();
+
+            v.setVerordnungBetreffID(rs.getInt("VerordnungBetreffID"));
+            v.setGebiet(rs.getString("Gebiet"));
+            v.setBandJahr(rs.getString("BandJahr"));
+            v.setSeiteVon(rs.getInt("SeiteVon"));
+            v.setSeiteBis(rs.getInt("SeiteBis"));
+            v.setTitel(rs.getString("Titel"));
+            v.setBemerkung(rs.getString("Bemerkung"));
+
+            Object quelleIdObj = rs.getObject("QuelleID");
+            if (quelleIdObj != null) {
+                v.setQuelleID((Integer) quelleIdObj);
+            }
 
             liste.add(v);
         }

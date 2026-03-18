@@ -1,8 +1,10 @@
 package de.kluecki.db;
 
+import de.kluecki.db.model.HeftEintrag;
 import de.kluecki.db.model.Veroeffentlichung;
 import de.kluecki.db.model.VerordnungBetreff;
 import de.kluecki.db.print.PrintPdfService;
+import de.kluecki.db.repository.HeftEintragRepository;
 import de.kluecki.db.repository.VerordnungBetreffRepository;
 import javafx.application.Application;
 import javafx.scene.Scene;
@@ -54,10 +56,14 @@ public class PostverordnungenApp extends Application {
     private Integer markierteEndeSeite = null;
     private Label lblAktuellerBetreff;
     private VerordnungBetreffRepository betreffRepository;
+    private HeftEintragRepository heftEintragRepository;
     private String aktuellesGebiet;
     private String aktuellesBand;
     private TableView<Veroeffentlichung> tblVeroeffentlichungen;
+    private TableView<HeftEintrag> tblHeftEintraege;
     private ListView<VerordnungBetreff> lstBetreffeDetail;
+    private QuelleRepository quelleRepository;
+
 
 
     @Override
@@ -65,9 +71,19 @@ public class PostverordnungenApp extends Application {
 
         try {
             betreffRepository = new VerordnungBetreffRepository(DatabaseConnection.getConnection());
+            heftEintragRepository = new HeftEintragRepository(DatabaseConnection.getConnection());
+
+            //var liste = heftEintragRepository.findByHeft(1);
+            //System.out.println("HeftEinträge: " + liste.size());
+            //for (HeftEintrag he : liste) {
+            //    System.out.println(he.getHeftEintragID() + " | " + he.getTitel() + " | " + he.getNro());
+            //}
+
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        quelleRepository = new QuelleRepository();
 
         BorderPane root = new BorderPane();
 
@@ -99,6 +115,7 @@ public class PostverordnungenApp extends Application {
 """);
 
         tblVeroeffentlichungen = createVeroeffentlichungenTable();
+        //tblHeftEintraege = createHeftEintraegeTable();
 
         lstBetreffeDetail = new ListView<>();
         lstBetreffeDetail.setPrefHeight(160);
@@ -263,7 +280,30 @@ public class PostverordnungenApp extends Application {
     private VBox createNavigationPane() {
         Label lblGebiete = new Label("Gebiete");
         Label lblBaende = new Label("Jahr / Band");
+
         Label lblVeroeffentlichungen = new Label("Veröffentlichungen");
+
+        Button btnNeuVeroeff = new Button("+");
+        btnNeuVeroeff.setPrefWidth(30);
+
+        HBox headerVeroeffentlichungen = new HBox(10);
+        headerVeroeffentlichungen.getChildren().addAll(lblVeroeffentlichungen, btnNeuVeroeff);
+
+        btnNeuVeroeff.setOnAction(e -> {
+
+            Veroeffentlichung v =
+                    VeroeffentlichungWindow.show(
+                            aktuellesGebiet,
+                            aktuellesBand,
+                            aktuelleBildliste.size()
+                    );
+
+            if (v != null) {
+                tblVeroeffentlichungen.getItems().add(v);
+            }
+
+        });
+
         Label lblBetreffe = new Label("Betreffe");
         lblBetreffe.setStyle("-fx-font-weight: bold;");
         lblVeroeffentlichungen.setStyle("-fx-font-weight: bold;");
@@ -287,7 +327,7 @@ public class PostverordnungenApp extends Application {
                 gebietListView,
                 lblBaende,
                 bandListView,
-                lblVeroeffentlichungen,
+                headerVeroeffentlichungen,
                 tblVeroeffentlichungen,
                 lblBetreffe,
                 lstBetreffeDetail,
@@ -328,15 +368,105 @@ public class PostverordnungenApp extends Application {
         return navigation;
     }
 
+    private void neueVeroeffentlichungAnlegen() {
+
+        if (aktuellesGebiet == null || aktuellesBand == null) {
+            showAlert("Hinweis", "Bitte zuerst ein Gebiet und ein Jahr / Band auswählen.");
+            return;
+        }
+
+        TextInputDialog dialogTitel = new TextInputDialog();
+        dialogTitel.setTitle("Neue Veröffentlichung");
+        dialogTitel.setHeaderText("Titel der Veröffentlichung");
+        dialogTitel.setContentText("Titel:");
+        dialogTitel.initOwner(tblVeroeffentlichungen.getScene().getWindow());
+
+        Optional<String> resultTitel = dialogTitel.showAndWait();
+
+        if (resultTitel.isEmpty() || resultTitel.get().trim().isEmpty()) {
+            return;
+        }
+
+        String titel = resultTitel.get().trim();
+
+        TextInputDialog dialogNummer = new TextInputDialog();
+        dialogNummer.setTitle("Neue Veröffentlichung");
+        dialogNummer.setHeaderText("Nummer der Veröffentlichung");
+        dialogNummer.setContentText("Nummer:");
+        dialogNummer.initOwner(tblVeroeffentlichungen.getScene().getWindow());
+
+        Optional<String> resultNummer = dialogNummer.showAndWait();
+
+        if (resultNummer.isEmpty()) {
+            return;
+        }
+
+        String nummer = resultNummer.get().trim();
+
+        TextInputDialog dialogSeiteVon = new TextInputDialog();
+        dialogSeiteVon.setTitle("Neue Veröffentlichung");
+        dialogSeiteVon.setHeaderText("Startseite der Veröffentlichung");
+        dialogSeiteVon.setContentText("Seite von:");
+        dialogSeiteVon.initOwner(tblVeroeffentlichungen.getScene().getWindow());
+
+        Optional<String> resultSeiteVon = dialogSeiteVon.showAndWait();
+
+        if (resultSeiteVon.isEmpty() || resultSeiteVon.get().trim().isEmpty()) {
+            return;
+        }
+
+        int seiteVon = Integer.parseInt(resultSeiteVon.get().trim());
+
+        TextInputDialog dialogSeiteBis = new TextInputDialog();
+        dialogSeiteBis.setTitle("Neue Veröffentlichung");
+        dialogSeiteBis.setHeaderText("Letzte Seite der Veröffentlichung");
+        dialogSeiteBis.setContentText("Seite bis:");
+
+        Optional<String> resultSeiteBis = dialogSeiteBis.showAndWait();
+
+        if (resultSeiteBis.isEmpty()) {
+            return;
+        }
+
+        int seiteBis = Integer.parseInt(resultSeiteBis.get().trim());
+
+        Veroeffentlichung v = new Veroeffentlichung();
+
+        v.setTitel(titel);
+        v.setNummer(nummer);
+        v.setDatum(aktuellesBand);
+        v.setSeiteVon(seiteVon);
+        v.setSeiteBis(seiteBis);
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Eingabe");
+        alert.setHeaderText(null);
+        alert.setContentText(
+                "Gebiet: " + aktuellesGebiet +
+                        "\nBand/Jahr: " + aktuellesBand +
+                        "\nTitel: " + titel +
+                        "\nNummer: " + nummer +
+                        "\nSeite von: " + seiteVon +
+                        "\nSeite bis: " + seiteBis
+        );
+
+        alert.initOwner(tblVeroeffentlichungen.getScene().getWindow());
+        alert.showAndWait();
+
+        tblVeroeffentlichungen.getItems().add(v);
+    }
+
     private void ladeBetreffeZuVeroeffentlichung(Veroeffentlichung veroeffentlichung) {
         lstBetreffeDetail.getItems().clear();
 
-        try {
-            String band = bandListView.getSelectionModel().getSelectedItem();
-            String gebiet = gebietListView.getSelectionModel().getSelectedItem();
+        if (veroeffentlichung == null) {
+            return;
+        }
 
+        try {
             List<VerordnungBetreff> liste =
-                    betreffRepository.findByBand(band, gebiet);
+                    betreffRepository.findByQuelleId(veroeffentlichung.getQuelleId()); // ALT
+                // betreffRepository.findByHeftEintragId(...);   // NEU (kommt später)
 
             lstBetreffeDetail.getItems().addAll(liste);
 
@@ -1088,6 +1218,14 @@ public class PostverordnungenApp extends Application {
 
     private void speichereVerordnungBetreff(String titel) {
 
+        Veroeffentlichung aktuelleVeroeffentlichung =
+                tblVeroeffentlichungen.getSelectionModel().getSelectedItem();
+
+        if (aktuelleVeroeffentlichung == null) {
+            showAlert("Hinweis", "Bitte zuerst eine Veröffentlichung auswählen.");
+            return;
+        }
+
         if (markierteStartSeite == null || markierteEndeSeite == null) {
             System.out.println("Keine vollständige Markierung vorhanden");
             return;
@@ -1128,6 +1266,9 @@ public class PostverordnungenApp extends Application {
             betreff.setTitel(titel.trim());
             betreff.setBemerkung(null);
 
+            betreff.setQuelleID(aktuelleVeroeffentlichung.getQuelleId());
+            betreff.setHeftEintragID(1);   // TEST – wird später dynamisch
+
             betreffRepository.insert(betreff);
             updateBetreffListe();
             updateBetreffAnzeige(aktuellerBildIndex + 1);
@@ -1153,22 +1294,10 @@ public class PostverordnungenApp extends Application {
             tblVeroeffentlichungen.getItems().clear();
             lstBetreffeDetail.getItems().clear();
 
-            List<VerordnungBetreff> liste =
-                    betreffRepository.findByBand(aktuellesGebiet, aktuellesBand);
+            List<Veroeffentlichung> veroeffentlichungen =
+                    quelleRepository.findVeroeffentlichungenByBand(aktuellesGebiet, aktuellesBand);
 
-            for (VerordnungBetreff betreff : liste) {
-                Veroeffentlichung v = new Veroeffentlichung();
-                v.setQuelleId(betreff.getVerordnungBetreffID());
-                v.setNummer("");
-                v.setTitel(betreff.getTitel());
-                v.setDatum("");
-                v.setSeiteVon(betreff.getSeiteVon());
-                v.setSeiteBis(betreff.getSeiteBis());
-                v.setStatus("");
-                v.setEbeneSortierung(betreff.getSeiteVon());
-
-                tblVeroeffentlichungen.getItems().add(v);
-            }
+            tblVeroeffentlichungen.getItems().addAll(veroeffentlichungen);
 
         } catch (Exception e) {
             e.printStackTrace();
