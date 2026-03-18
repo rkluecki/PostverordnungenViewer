@@ -35,4 +35,33 @@ public class QuelleRepository {
 
         return quellen;
     }
+
+    public Integer findeQuelleId(int seiteVon, int seiteBis){
+
+        String sql = """
+        SELECT QuelleID
+        FROM Quelle
+        WHERE EbeneTyp = 'EINTRAG'
+        AND SeiteVon <= ?
+        AND SeiteBis >= ?
+    """;
+
+        try(Connection con = DatabaseConnection.getConnection();
+            java.sql.PreparedStatement ps = con.prepareStatement(sql)){
+
+            ps.setInt(1, seiteVon);
+            ps.setInt(2, seiteBis);
+
+            ResultSet rs = ps.executeQuery();
+
+            if(rs.next()){
+                return rs.getInt("QuelleID");
+            }
+
+        }catch(Exception ex){
+            ex.printStackTrace();
+        }
+
+        return null;
+    }
 }

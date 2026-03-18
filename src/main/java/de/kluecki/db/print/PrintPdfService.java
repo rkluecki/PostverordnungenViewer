@@ -5,6 +5,8 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
+
+import java.awt.*;
 import java.io.File;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -33,8 +35,7 @@ public class PrintPdfService {
         this.pageImageProvider = pageImageProvider;
     }
 
-    public void printSinglePage(Image image) {
-
+    public void printSinglePage(Image image, boolean sparmodus) {
         PrinterJob job = PrinterJob.createPrinterJob();
 
         if (job == null) {
@@ -43,12 +44,17 @@ public class PrintPdfService {
         }
 
         boolean proceed = job.showPrintDialog(null);
-
         if (!proceed) {
             return;
         }
 
-        ImageView imageView = new ImageView(image);
+        Image printImage = image;
+
+        if (sparmodus) {
+            printImage = convertToGrayLight(image);
+        }
+
+        ImageView imageView = new ImageView(printImage);
         imageView.setPreserveRatio(true);
 
         double printableWidth = job.getJobSettings().getPageLayout().getPrintableWidth();
@@ -204,7 +210,7 @@ public class PrintPdfService {
         }
     }
 
-    public void printRange(VerordnungBetreff betreff) {
+    public void printRange(VerordnungBetreff betreff, boolean sparmodus) {
 
         if (betreff == null) {
             System.out.println("Kein Verordnungsbetreff übergeben");
@@ -218,6 +224,11 @@ public class PrintPdfService {
 
         PrinterJob job = PrinterJob.createPrinterJob();
 
+        if (job == null) {
+            System.out.println("Kein Drucker gefunden");
+            return;
+        }
+
         String jobName = betreff.getTitel();
 
         if (jobName == null || jobName.isBlank()) {
@@ -225,11 +236,6 @@ public class PrintPdfService {
         }
 
         job.getJobSettings().setJobName(jobName);
-
-        if (job == null) {
-            System.out.println("Kein Drucker gefunden");
-            return;
-        }
 
         boolean proceed = job.showPrintDialog(null);
 
@@ -264,7 +270,13 @@ public class PrintPdfService {
                 continue;
             }
 
-            ImageView imageView = new ImageView(image);
+            Image printImage = image;
+
+            if (sparmodus) {
+                printImage = convertToGrayLight(image);
+            }
+
+            ImageView imageView = new ImageView(printImage);
             imageView.setPreserveRatio(true);
 
             double printableWidth = job.getJobSettings().getPageLayout().getPrintableWidth();
@@ -313,4 +325,40 @@ public class PrintPdfService {
             });
         }
     }
+
+    private Image convertToGrayLight(Image image) {
+
+        BufferedImage source = SwingFXUtils.fromFXImage(image, null);
+
+        BufferedImage result = new BufferedImage(
+                source.getWidth(),
+                source.getHeight(),
+                BufferedImage.TYPE_INT_RGB
+        );
+
+        for (int y = 0; y < source.getHeight(); y++) {
+            for (int x = 0; x < source.getWidth(); x++) {
+
+                int rgb = source.getRGB(x, y);
+
+                int r = (rgb >> 16) & 0xff;
+                int g = (rgb >> 8) & 0xff;
+                int b = rgb & 0xff;
+
+                int gray = (r + g + b) / 3;
+
+                int lifted = gray + 35;
+                if (lifted > 255) {
+                    lifted = 255;
+                }
+
+                int newRgb = (lifted << 16) | (lifted << 8) | lifted;
+                result.setRGB(x, y, newRgb);
+            }
+        }
+
+        return SwingFXUtils.toFXImage(result, null);
+    }
+
+
 }

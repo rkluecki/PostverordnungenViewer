@@ -3,10 +3,7 @@ package de.kluecki.db;
 import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Tooltip;
+import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -15,6 +12,8 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import de.kluecki.db.print.PrintPdfService;
+
+import java.util.Optional;
 
 
 public class DocumentViewerWindow {
@@ -239,11 +238,40 @@ public class DocumentViewerWindow {
         });
 
         btnPrint.setOnAction(e -> {
+
+            if (image == null) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Hinweis");
+                alert.setHeaderText(null);
+                alert.setContentText("Kein Bild zum Drucken vorhanden.");
+                alert.showAndWait();
+                return;
+            }
+
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Druckmodus wählen");
+            alert.setHeaderText("Wie soll gedruckt werden?");
+
+            ButtonType btnOriginalDruck = new ButtonType("Original (Farbe)");
+            ButtonType btnSparmodus = new ButtonType("Sparmodus");
+            ButtonType btnAbbrechen = new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+            alert.getButtonTypes().setAll(btnOriginalDruck, btnSparmodus, btnAbbrechen);
+
+            Optional<ButtonType> result = alert.showAndWait();
+
+            if (result.isEmpty() || result.get() == btnAbbrechen) {
+                return;
+            }
+
+            boolean sparmodus = result.get() == btnSparmodus;
+
             PrintPdfService service = new PrintPdfService(
                     "D:\\Postgeschichte_PC\\Postverordnungen",
                     (gebiet, bandJahr, seite) -> null
             );
-            service.printSinglePage(image);
+
+            service.printSinglePage(image, sparmodus);
         });
 
         btnPdf.setOnAction(e -> {
