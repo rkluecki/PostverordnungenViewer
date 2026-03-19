@@ -1,3 +1,17 @@
+/*
+ * Neue Zielstruktur
+ *
+ * Zweck:
+ * Repräsentiert einen Eintrag innerhalb eines Heftes
+ * (zentrale fachliche Einheit).
+ *
+ * Rolle im Projekt:
+ * Soll langfristig die alte Veröffentlichungsstruktur ersetzen.
+ *
+ * Fachliche Struktur:
+ * Heft -> HeftEintrag -> Inhaltseinheit
+ */
+
 package de.kluecki.db.model;
 
 import java.time.LocalDate;

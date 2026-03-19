@@ -1,10 +1,43 @@
+/*
+ * Hauptklasse der Anwendung Postverordnungen.
+ *
+ * Zweck:
+ * - Startet die JavaFX-Anwendung
+ * - baut Hauptfenster, Navigation und Dokumentansicht auf
+ * - verbindet UI, Bildanzeige und fachliche Auswahl
+ *
+ * Aktueller Stand:
+ * - Die UI arbeitet noch überwiegend mit der Altstruktur
+ *   rund um Veroeffentlichung und VerordnungBetreff.
+ * - Die neue Zielstruktur mit HeftEintrag ist fachlich und
+ *   technisch bereits vorbereitet, aber noch nicht vollständig
+ *   in die Oberfläche integriert.
+ *
+ * Fachliche Zielstruktur:
+ * Heft -> HeftEintrag -> Inhaltseinheit
+ *
+ * Wichtige Hinweise:
+ * - Diese Klasse enthält aktuell Alt- und Neulogik parallel.
+ * - Deshalb keine vorschnellen Umbauten in einem Schritt.
+ * - Änderungen nur klein, lokal und in lauffähigem Zustand.
+ *
+ * Später:
+ * - UI schrittweise stärker auf Heft und HeftEintrag ausrichten
+ * - Verantwortlichkeiten nach und nach aus dieser Klasse auslagern
+ */
+
 package de.kluecki.db;
 
+import de.kluecki.db.UI.DocumentViewerWindow;
+import de.kluecki.db.UI.InhaltseinheitenWindow;
+import de.kluecki.db.UI.VeroeffentlichungWindow;
+import de.kluecki.db.UI.VerordnungsSucheDialog;
 import de.kluecki.db.model.HeftEintrag;
 import de.kluecki.db.model.Veroeffentlichung;
 import de.kluecki.db.model.VerordnungBetreff;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.HeftEintragRepository;
+import de.kluecki.db.repository.QuelleRepository;
 import de.kluecki.db.repository.VerordnungBetreffRepository;
 import javafx.application.Application;
 import javafx.scene.Scene;
@@ -25,45 +58,59 @@ import javafx.scene.layout.Priority;
 
 public class PostverordnungenApp extends Application {
 
+    // Konfiguration
     private static final String ROOT_PATH = "D:\\Postgeschichte_PC\\Postverordnungen";
 
+    // Navigation links
     private ListView<String> gebietListView;
     private ListView<String> bandListView;
 
+    // Dokumentanzeige / Bild
     private ImageView imageView;
     private ScrollPane imageScrollPane;
     private Image currentImage;
 
+    // Bildnavigation
     private final List<Path> aktuelleBildliste = new ArrayList<>();
     private int aktuellerBildIndex = -1;
 
+    // Anzeigezustand Bild
     private double zoomFactor = 1.0;
     private boolean fitToWindow = true;
     private double rotationAngle = 0;
 
+    // Buttons Bildnavigation
     private Button btnErsteSeite;
     private Button btnZurueck;
     private Button btnWeiter;
     private Button btnLetzteSeite;
 
+    // Statusanzeige / UI-Labels
     private Label lblSeitenstand;
     private TextField txtSeiteDirekt;
-
     private Label lblBandTitel;
     private Label lblVerordnungsMarkierung;
-
-    private Integer markierteStartSeite = null;
-    private Integer markierteEndeSeite = null;
     private Label lblAktuellerBetreff;
-    private VerordnungBetreffRepository betreffRepository;
-    private HeftEintragRepository heftEintragRepository;
+
+    // Aktuelle fachliche Auswahl (Navigation)
     private String aktuellesGebiet;
     private String aktuellesBand;
-    private TableView<Veroeffentlichung> tblVeroeffentlichungen;
-    private TableView<HeftEintrag> tblHeftEintraege;
-    private ListView<VerordnungBetreff> lstBetreffeDetail;
-    private QuelleRepository quelleRepository;
+    private Integer markierteStartSeite = null;
+    private Integer markierteEndeSeite = null;
 
+    // Tabellen / Detailansichten
+    // Altstruktur (wird später ersetzt)
+    private TableView<Veroeffentlichung> tblVeroeffentlichungen; // Altstruktur
+
+    // Neue Zielstruktur
+    private TableView<HeftEintrag> tblHeftEintraege; // neue Zielstruktur
+
+    private ListView<VerordnungBetreff> lstBetreffeDetail;  // Übergangsstruktur
+
+    // Repository Zugriff (Datenbank)
+    private VerordnungBetreffRepository betreffRepository; // Alt / Übergang
+    private HeftEintragRepository heftEintragRepository; // neue Struktur
+    private QuelleRepository quelleRepository;  // Basisstruktur
 
 
     @Override

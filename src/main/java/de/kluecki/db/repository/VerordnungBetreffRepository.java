@@ -1,3 +1,16 @@
+/*
+ * Übergangsstruktur / Repository
+ *
+ * Zweck:
+ * Lädt VerordnungBetreff Daten aus der Datenbank.
+ *
+ * Rolle im Projekt:
+ * Wird noch von der bestehenden UI verwendet.
+ *
+ * Später:
+ * Funktion wird vermutlich durch HeftEintrag ersetzt.
+ */
+
 package de.kluecki.db.repository;
 
 import de.kluecki.db.DatabaseConnection;
@@ -86,6 +99,12 @@ public class VerordnungBetreffRepository {
             v.setTitel(rs.getString("Titel"));
             v.setBemerkung(rs.getString("Bemerkung"));
 
+            Object heftEintragObj = rs.getObject("HeftEintragID");
+
+            if (heftEintragObj != null) {
+                v.setHeftEintragID((Integer) heftEintragObj);
+            }
+
             return v;
         }
 
@@ -104,9 +123,10 @@ public class VerordnungBetreffRepository {
                    SeiteBis,
                    Titel,
                    Bemerkung,
-                   QuelleID
+                   QuelleID,
+                   HeftEintragID
                )
-                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
         PreparedStatement stmt = connection.prepareStatement(sql);
@@ -118,6 +138,12 @@ public class VerordnungBetreffRepository {
         stmt.setString(5, betreff.getTitel());
         stmt.setString(6, betreff.getBemerkung());
         stmt.setInt(7, betreff.getQuelleID());
+
+        if (betreff.getHeftEintragID() != null) {
+            stmt.setInt(8, betreff.getHeftEintragID());
+        } else {
+            stmt.setNull(8, Types.INTEGER);
+        }
 
         stmt.executeUpdate();
     }
@@ -249,6 +275,12 @@ public class VerordnungBetreffRepository {
             v.setSeiteBis(rs.getInt("SeiteBis"));
             v.setTitel(rs.getString("Titel"));
             v.setBemerkung(rs.getString("Bemerkung"));
+
+            Object heftEintragObj = rs.getObject("HeftEintragID");
+
+            if (heftEintragObj != null) {
+                v.setHeftEintragID((Integer) heftEintragObj);
+            }
 
             Object quelleIdObj = rs.getObject("QuelleID");
             if (quelleIdObj != null) {

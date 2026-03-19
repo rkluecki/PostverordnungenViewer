@@ -1,4 +1,4 @@
-package de.kluecki.db;
+package de.kluecki.db.UI;
 
 import de.kluecki.db.model.VerordnungBetreff;
 import de.kluecki.db.repository.VerordnungBetreffRepository;

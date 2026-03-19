@@ -1,3 +1,12 @@
+/*
+ * Zentrale Datenbankverbindung.
+ *
+ * Liefert Connection für alle Repository Klassen.
+ *
+ * Wichtig:
+ * Änderungen hier wirken sich auf gesamte DB Schicht aus.
+ */
+
 package de.kluecki.db;
 
 import java.sql.Connection;

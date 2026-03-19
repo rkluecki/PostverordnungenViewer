@@ -1,3 +1,18 @@
+/*
+ * Altstruktur / Übergangsklasse
+ *
+ * Zweck:
+ * Repräsentiert eine Veröffentlichung in der alten Datenstruktur.
+ *
+ * Rolle im Projekt:
+ * Wird aktuell noch von der UI verwendet,
+ * soll langfristig durch HeftEintrag ersetzt werden.
+ *
+ * Wichtig:
+ * Nicht vorschnell entfernen.
+ * Nur schrittweise ablösen.
+ */
+
 package de.kluecki.db.model;
 
 public class Veroeffentlichung {

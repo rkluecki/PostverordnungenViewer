@@ -1,3 +1,18 @@
+/*
+ * Übergangsstruktur
+ *
+ * Zweck:
+ * Beschreibt Betreff-Daten einer Veröffentlichung.
+ *
+ * Rolle im Projekt:
+ * Historisch gewachsene Struktur.
+ * Wird aktuell noch für Anzeige und Navigation verwendet.
+ *
+ * Später:
+ * Vermutlich nicht mehr notwendig,
+ * da Betreff direkt im HeftEintrag enthalten ist.
+ */
+
 package de.kluecki.db.model;
 
 public class VerordnungBetreff {

@@ -1,3 +1,16 @@
+/*
+ * Neue Zielstruktur / Repository
+ *
+ * Zweck:
+ * Zugriff auf HeftEintrag Daten.
+ *
+ * Rolle im Projekt:
+ * Zentrale Datenstruktur der neuen Architektur.
+ *
+ * Später:
+ * Soll die alte Veröffentlichungslogik ablösen.
+ */
+
 package de.kluecki.db.repository;
 
 import de.kluecki.db.model.HeftEintrag;

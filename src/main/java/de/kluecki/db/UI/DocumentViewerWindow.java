@@ -1,4 +1,4 @@
-package de.kluecki.db;
+package de.kluecki.db.UI;
 
 import javafx.geometry.Pos;
 import javafx.scene.Group;

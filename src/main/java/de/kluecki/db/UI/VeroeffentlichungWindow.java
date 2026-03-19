@@ -1,4 +1,4 @@
-package de.kluecki.db;
+package de.kluecki.db.UI;
 
 import de.kluecki.db.model.Veroeffentlichung;
 import javafx.geometry.Insets;

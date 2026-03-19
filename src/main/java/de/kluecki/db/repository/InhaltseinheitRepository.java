@@ -1,4 +1,7 @@
-package de.kluecki.db;
+package de.kluecki.db.repository;
+
+import de.kluecki.db.DatabaseConnection;
+import de.kluecki.db.InhaltTabellenEintrag;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;

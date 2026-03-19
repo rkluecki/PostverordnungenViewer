@@ -1,6 +1,9 @@
-package de.kluecki.db;
+package de.kluecki.db.UI;
 
+import de.kluecki.db.InhaltTabellenEintrag;
+import de.kluecki.db.InhaltTypen;
 import de.kluecki.db.model.Veroeffentlichung;
+import de.kluecki.db.repository.InhaltseinheitRepository;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;

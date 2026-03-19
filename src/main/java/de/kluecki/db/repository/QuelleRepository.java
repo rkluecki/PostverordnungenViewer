@@ -1,10 +1,13 @@
-package de.kluecki.db;
+package de.kluecki.db.repository;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+
+import de.kluecki.db.DatabaseConnection;
+import de.kluecki.db.Quelle;
 import de.kluecki.db.model.Veroeffentlichung;
 import java.sql.PreparedStatement;
 import java.sql.Date;

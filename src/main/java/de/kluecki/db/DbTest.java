@@ -1,5 +1,7 @@
 package de.kluecki.db;
 
+import de.kluecki.db.repository.QuelleRepository;
+
 import java.util.List;
 
 public class DbTest {

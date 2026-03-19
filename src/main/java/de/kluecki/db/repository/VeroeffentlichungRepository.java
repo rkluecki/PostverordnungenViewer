@@ -1,3 +1,17 @@
+/*
+ * Altstruktur / Repository
+ *
+ * Zweck:
+ * Lädt Veröffentlichungen aus der Datenbank.
+ *
+ * Rolle im Projekt:
+ * Wird aktuell noch von PostverordnungenApp genutzt.
+ * Entspricht nicht mehr der neuen Zielstruktur.
+ *
+ * Später:
+ * Schrittweise Ablösung durch HeftEintragRepository.
+ */
+
 package de.kluecki.db.repository;
 
 import de.kluecki.db.DatabaseConnection;
