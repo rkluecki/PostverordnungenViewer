@@ -161,8 +161,12 @@ public class PostverordnungenApp extends Application {
             -fx-text-fill: #444444;
 """);
 
+        // Tabellen
         tblVeroeffentlichungen = createVeroeffentlichungenTable();
-        //tblHeftEintraege = createHeftEintraegeTable();
+        tblHeftEintraege = createHeftEintraegeTable();
+
+        // Testgröße neue Struktur
+        tblHeftEintraege.setPrefHeight(180);
 
         lstBetreffeDetail = new ListView<>();
         lstBetreffeDetail.setPrefHeight(160);
@@ -324,11 +328,87 @@ public class PostverordnungenApp extends Application {
         return table;
     }
 
+    private TableView<HeftEintrag> createHeftEintraegeTable() {
+        TableView<HeftEintrag> table = new TableView<>();
+
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPrefWidth(320);
+        table.setPlaceholder(new Label("Keine HeftEinträge vorhanden"));
+
+        table.setStyle("""
+    -fx-font-size:12px;
+    -fx-selection-bar:#2b579a;
+    -fx-selection-bar-non-focused:#2b579a;
+    """);
+
+        table.setFixedCellSize(45);
+
+        TableColumn<HeftEintrag, String> colNro = new TableColumn<>("Nro");
+        colNro.setCellValueFactory(cellData ->
+                new SimpleStringProperty(
+                        cellData.getValue().getNro() != null
+                                ? cellData.getValue().getNro()
+                                : ""
+                )
+        );
+        colNro.setPrefWidth(70);
+        colNro.setSortable(false);
+
+        TableColumn<HeftEintrag, String> colTitel = new TableColumn<>("Titel");
+        colTitel.setCellValueFactory(cellData ->
+                new SimpleStringProperty(
+                        cellData.getValue().getTitel() != null
+                                ? cellData.getValue().getTitel()
+                                : ""
+                )
+        );
+        colTitel.setPrefWidth(180);
+
+        TableColumn<HeftEintrag, String> colDatum = new TableColumn<>("Datum");
+        colDatum.setCellValueFactory(cellData ->
+                new SimpleStringProperty(
+                        cellData.getValue().getDatum() != null
+                                ? cellData.getValue().getDatum().toString()
+                                : ""
+                )
+        );
+        colDatum.setPrefWidth(90);
+        colDatum.setSortable(false);
+
+        TableColumn<HeftEintrag, String> colSeite = new TableColumn<>("Seite");
+        colSeite.setCellValueFactory(cellData -> {
+            HeftEintrag eintrag = cellData.getValue();
+
+            String von = String.valueOf(eintrag.getSeiteVon());
+            String bis = String.valueOf(eintrag.getSeiteBis());
+
+            String seite;
+            if (!von.isBlank() && !bis.isBlank()) {
+                seite = von.equals(bis) ? von : von + "-" + bis;
+            } else if (!von.isBlank()) {
+                seite = von;
+            } else {
+                seite = "";
+            }
+
+            return new SimpleStringProperty(seite);
+        });
+        colSeite.setPrefWidth(80);
+        colSeite.setSortable(false);
+
+        table.getColumns().addAll(colNro, colTitel, colDatum, colSeite);
+
+        return table;
+    }
+
     private VBox createNavigationPane() {
         Label lblGebiete = new Label("Gebiete");
         Label lblBaende = new Label("Jahr / Band");
 
         Label lblVeroeffentlichungen = new Label("Veröffentlichungen");
+
+        Label lblHeftEintraege = new Label("HeftEinträge");
+        lblHeftEintraege.setStyle("-fx-font-weight: bold;");
 
         Button btnNeuVeroeff = new Button("+");
         btnNeuVeroeff.setPrefWidth(30);
@@ -376,6 +456,8 @@ public class PostverordnungenApp extends Application {
                 bandListView,
                 headerVeroeffentlichungen,
                 tblVeroeffentlichungen,
+                lblHeftEintraege,
+                tblHeftEintraege,
                 lblBetreffe,
                 lstBetreffeDetail,
                 btnInhaltseinheiten
@@ -412,6 +494,22 @@ public class PostverordnungenApp extends Application {
 
             }
         });
+
+        tblHeftEintraege.setOnMouseClicked(e -> {
+
+            HeftEintrag eintrag =
+                    tblHeftEintraege.getSelectionModel().getSelectedItem();
+
+            if (eintrag == null) return;
+
+            if (e.getClickCount() == 1) {
+
+                aktuellerBildIndex = eintrag.getSeiteVon() - 1;
+                ladeAktuellesBild();
+
+            }
+        });
+
         return navigation;
     }
 
@@ -857,6 +955,14 @@ public class PostverordnungenApp extends Application {
             lblBandTitel.setText(gebiet + " – " + band);
             resetVerordnungsMarkierung();
             updateBetreffListe();
+
+            tblHeftEintraege.getItems().clear();
+
+            try {
+                tblHeftEintraege.getItems().setAll(heftEintragRepository.findByHeft(1));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
             List<File> bilder = loadBilder(gebiet, band);
 
