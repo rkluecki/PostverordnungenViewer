@@ -8,6 +8,11 @@ public class InhaltTabellenEintrag {
     private String typ;
     private String beschreibung;
 
+    private String gebiet;
+    private String bandJahr;
+    private Integer seiteVon;
+    private Integer seiteBis;
+
     public InhaltTabellenEintrag(String nr, String titel, String seite) {
         this.nr = nr;
         this.titel = titel;
@@ -27,6 +32,27 @@ public class InhaltTabellenEintrag {
         this.seite = seite;
         this.typ = typ;
         this.beschreibung = beschreibung;
+    }
+
+    public InhaltTabellenEintrag(String nr,
+                                 String titel,
+                                 String seite,
+                                 String typ,
+                                 String beschreibung,
+                                 String gebiet,
+                                 String bandJahr,
+                                 Integer seiteVon,
+                                 Integer seiteBis) {
+
+        this.nr = nr;
+        this.titel = titel;
+        this.seite = seite;
+        this.typ = typ;
+        this.beschreibung = beschreibung;
+        this.gebiet = gebiet;
+        this.bandJahr = bandJahr;
+        this.seiteVon = seiteVon;
+        this.seiteBis = seiteBis;
     }
 
     public String getNr() {
@@ -67,5 +93,37 @@ public class InhaltTabellenEintrag {
 
     public void setBeschreibung(String beschreibung) {
         this.beschreibung = beschreibung;
+    }
+
+    public String getGebiet() {
+        return gebiet;
+    }
+
+    public void setGebiet(String gebiet) {
+        this.gebiet = gebiet;
+    }
+
+    public String getBandJahr() {
+        return bandJahr;
+    }
+
+    public void setBandJahr(String bandJahr) {
+        this.bandJahr = bandJahr;
+    }
+
+    public Integer getSeiteVon() {
+        return seiteVon;
+    }
+
+    public void setSeiteVon(Integer seiteVon) {
+        this.seiteVon = seiteVon;
+    }
+
+    public Integer getSeiteBis() {
+        return seiteBis;
+    }
+
+    public void setSeiteBis(Integer seiteBis) {
+        this.seiteBis = seiteBis;
     }
 }

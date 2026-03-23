@@ -18,7 +18,6 @@ import javafx.embed.swing.SwingFXUtils;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import de.kluecki.db.model.VerordnungBetreff;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.stage.Modality;
@@ -149,8 +148,13 @@ public class PrintPdfService {
 
     public void exportRangeToPdf(String gebiet, String bandJahr, int seiteVon, int seiteBis, String titel) {
 
+        if (gebiet == null || gebiet.isBlank() || bandJahr == null || bandJahr.isBlank()) {
+            System.out.println("Gebiet oder BandJahr fehlt");
+            return;
+        }
+
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Verordnung als PDF speichern");
+        fileChooser.setTitle("Inhalt als PDF speichern");
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("PDF-Dateien", "*.pdf")
         );
@@ -210,17 +214,17 @@ public class PrintPdfService {
         }
     }
 
-    public void printRange(VerordnungBetreff betreff, boolean sparmodus) {
+    public void printRange(String gebiet,
+                           String bandJahr,
+                           int seiteVon,
+                           int seiteBis,
+                           String titel,
+                           boolean sparmodus) {
 
-        if (betreff == null) {
-            System.out.println("Kein Verordnungsbetreff übergeben");
+        if (gebiet == null || gebiet.isBlank() || bandJahr == null || bandJahr.isBlank()) {
+            System.out.println("Gebiet oder BandJahr fehlt");
             return;
         }
-
-        String gebiet = betreff.getGebiet();
-        String bandJahr = betreff.getBandJahr();
-        int seiteVon = betreff.getSeiteVon();
-        int seiteBis = betreff.getSeiteBis();
 
         PrinterJob job = PrinterJob.createPrinterJob();
 
@@ -229,10 +233,10 @@ public class PrintPdfService {
             return;
         }
 
-        String jobName = betreff.getTitel();
+        String jobName = titel;
 
         if (jobName == null || jobName.isBlank()) {
-            jobName = "Verordnung";
+            jobName = "Inhalt";
         }
 
         job.getJobSettings().setJobName(jobName);
@@ -247,7 +251,7 @@ public class PrintPdfService {
         progressAlert.initStyle(StageStyle.UTILITY);
         progressAlert.initModality(Modality.NONE);
         progressAlert.setTitle("Druck läuft");
-        progressAlert.setHeaderText("Verordnung wird gedruckt");
+        progressAlert.setHeaderText("Inhalt wird gedruckt");
         progressAlert.setContentText("Bereite Druck vor...");
 
         Label progressLabel = new Label("Bereite Druck vor...");
@@ -291,7 +295,6 @@ public class PrintPdfService {
             boolean pageSuccess = job.printPage(pane);
 
             if (!pageSuccess) {
-
                 int fehlerSeite = seite;
 
                 Platform.runLater(() -> {
@@ -320,7 +323,7 @@ public class PrintPdfService {
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);
                 alert.setTitle("Druck fertig");
                 alert.setHeaderText(null);
-                alert.setContentText("Verordnung wurde erfolgreich gedruckt.");
+                alert.setContentText("Inhalt wurde erfolgreich gedruckt.");
                 alert.show();
             });
         }

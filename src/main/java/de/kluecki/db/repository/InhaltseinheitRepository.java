@@ -77,17 +77,22 @@ public class InhaltseinheitRepository {
         List<InhaltTabellenEintrag> liste = new ArrayList<>();
 
         String sql = """
-            SELECT ie.LfdNr,
-                   ie.Ueberschrift,
-                   ie.SeiteVon,
-                   ie.SeiteBis,
-                   it.Bezeichnung AS Typ,
-                   ie.Bemerkung
-            FROM Inhaltseinheit ie
-            LEFT JOIN Inhaltstyp it ON ie.InhaltstypID = it.InhaltstypID
-            WHERE ie.HeftEintragID = ?
-            ORDER BY ie.LfdNr
-        """;
+           SELECT ie.LfdNr,
+                  ie.Ueberschrift,
+                  ie.SeiteVon,
+                  ie.SeiteBis,
+                  it.Bezeichnung AS Typ,
+                  ie.Bemerkung,
+                  qBand.Region AS Gebiet,
+                  qBand.Jahr AS BandJahr
+         FROM Inhaltseinheit ie
+         INNER JOIN HeftEintrag he ON ie.HeftEintragID = he.HeftEintragID
+         INNER JOIN Heft h ON he.HeftID = h.HeftID
+         INNER JOIN Quelle qBand ON h.BandID = qBand.QuelleID
+         LEFT JOIN Inhaltstyp it ON ie.InhaltstypID = it.InhaltstypID
+         WHERE ie.HeftEintragID = ?
+         ORDER BY ie.LfdNr
+""";
 
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
@@ -112,8 +117,20 @@ public class InhaltseinheitRepository {
 
                 String typ = rs.getString("Typ");
                 String beschreibung = rs.getString("Bemerkung");
+                String gebiet = rs.getString("Gebiet");
+                String bandJahr = String.valueOf(rs.getInt("BandJahr"));
 
-                liste.add(new InhaltTabellenEintrag(nr, titel, seite, typ, beschreibung));
+                liste.add(new InhaltTabellenEintrag(
+                        nr,
+                        titel,
+                        seite,
+                        typ,
+                        beschreibung,
+                        gebiet,
+                        bandJahr,
+                        seiteVon,
+                        seiteBis
+                ));
             }
 
         } catch (Exception ex) {
