@@ -30,7 +30,6 @@ package de.kluecki.db;
 
 import de.kluecki.db.UI.DocumentViewerWindow;
 import de.kluecki.db.UI.InhaltseinheitenWindow;
-import de.kluecki.db.UI.VeroeffentlichungWindow;
 import de.kluecki.db.UI.VerordnungsSucheDialog;
 import de.kluecki.db.model.HeftEintrag;
 import de.kluecki.db.model.Veroeffentlichung;
@@ -40,21 +39,24 @@ import de.kluecki.db.repository.HeftEintragRepository;
 import de.kluecki.db.repository.QuelleRepository;
 import de.kluecki.db.repository.VerordnungBetreffRepository;
 import javafx.application.Application;
+import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.stage.Stage;
-
 import java.io.File;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.*;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.scene.layout.Priority;
+import de.kluecki.db.model.Heft;
+import de.kluecki.db.repository.HeftRepository;
+import javafx.scene.layout.GridPane;
+import javafx.scene.control.DatePicker;
 
 public class PostverordnungenApp extends Application {
 
@@ -64,6 +66,7 @@ public class PostverordnungenApp extends Application {
     // Navigation links
     private ListView<String> gebietListView;
     private ListView<String> bandListView;
+    private ListView<Heft> heftListView;
 
     // Dokumentanzeige / Bild
     private ImageView imageView;
@@ -89,7 +92,7 @@ public class PostverordnungenApp extends Application {
     private Label lblSeitenstand;
     private TextField txtSeiteDirekt;
     private Label lblBandTitel;
-    private Label lblVerordnungsMarkierung;
+    private Label lblSeitenmarkierung;
     private Label lblAktuellerBetreff;
 
     // Aktuelle fachliche Auswahl (Navigation)
@@ -110,7 +113,9 @@ public class PostverordnungenApp extends Application {
     // Repository Zugriff (Datenbank)
     private VerordnungBetreffRepository betreffRepository; // Alt / Übergang
     private HeftEintragRepository heftEintragRepository; // neue Struktur
+    private HeftRepository heftRepository;
     private QuelleRepository quelleRepository;  // Basisstruktur
+
 
 
     @Override
@@ -119,6 +124,7 @@ public class PostverordnungenApp extends Application {
         try {
             betreffRepository = new VerordnungBetreffRepository(DatabaseConnection.getConnection());
             heftEintragRepository = new HeftEintragRepository(DatabaseConnection.getConnection());
+            heftRepository = new HeftRepository(DatabaseConnection.getConnection());
 
             //var liste = heftEintragRepository.findByHeft(1);
             //System.out.println("HeftEinträge: " + liste.size());
@@ -141,14 +147,15 @@ public class PostverordnungenApp extends Application {
         gebietListView.getItems().addAll(loadGebiete());
 
         bandListView = new ListView<>();
+        heftListView = new ListView<>();
 
         HBox imageToolbar = createImageToolbar();
         HBox bildNavigation = createImageNavigationBar();
 
         lblBandTitel = new Label("Kein Band gewählt");
 
-        lblVerordnungsMarkierung = new Label("Keine Verordnung markiert");
-        lblVerordnungsMarkierung.setStyle("""
+        lblSeitenmarkierung = new Label("Keine Seitenmarkierung");
+        lblSeitenmarkierung.setStyle("""
             -fx-padding: 4 0 4 0;
             -fx-font-style: italic;
             -fx-text-fill: #444444;
@@ -405,48 +412,27 @@ public class PostverordnungenApp extends Application {
         Label lblGebiete = new Label("Gebiete");
         Label lblBaende = new Label("Jahr / Band");
 
-        Label lblVeroeffentlichungen = new Label("Veröffentlichungen");
+        Label lblHefte = new Label("Hefte");
+        lblHefte.setStyle("-fx-font-weight: bold;");
 
         Label lblHeftEintraege = new Label("HeftEinträge");
         lblHeftEintraege.setStyle("-fx-font-weight: bold;");
 
-        Button btnNeuVeroeff = new Button("+");
-        btnNeuVeroeff.setPrefWidth(30);
-
-        HBox headerVeroeffentlichungen = new HBox(10);
-        headerVeroeffentlichungen.getChildren().addAll(lblVeroeffentlichungen, btnNeuVeroeff);
-
-        btnNeuVeroeff.setOnAction(e -> {
-
-            Veroeffentlichung v =
-                    VeroeffentlichungWindow.show(
-                            aktuellesGebiet,
-                            aktuellesBand,
-                            aktuelleBildliste.size()
-                    );
-
-            if (v != null) {
-                tblVeroeffentlichungen.getItems().add(v);
-            }
-
-        });
-
         Label lblBetreffe = new Label("Betreffe");
         lblBetreffe.setStyle("-fx-font-weight: bold;");
-        lblVeroeffentlichungen.setStyle("-fx-font-weight: bold;");
 
         Button btnInhaltseinheiten = new Button("Inhalt");
         btnInhaltseinheiten.setMaxWidth(Double.MAX_VALUE);
 
         btnInhaltseinheiten.setOnAction(e -> {
-            Veroeffentlichung veroeffentlichung  = tblVeroeffentlichungen.getSelectionModel().getSelectedItem();
+            HeftEintrag heftEintrag = tblHeftEintraege.getSelectionModel().getSelectedItem();
 
-            if (veroeffentlichung == null) {
-                showAlert("Hinweis", "Bitte zuerst eine Veröffentlichung auswählen.");
+            if (heftEintrag == null) {
+                showAlert("Hinweis", "Bitte zuerst einen HeftEintrag auswählen.");
                 return;
             }
 
-            InhaltseinheitenWindow.open(veroeffentlichung);
+            InhaltseinheitenWindow.open(heftEintrag);
         });
 
         VBox navigation = new VBox(8,
@@ -454,8 +440,8 @@ public class PostverordnungenApp extends Application {
                 gebietListView,
                 lblBaende,
                 bandListView,
-                headerVeroeffentlichungen,
-                tblVeroeffentlichungen,
+                lblHefte,
+                heftListView,
                 lblHeftEintraege,
                 tblHeftEintraege,
                 lblBetreffe,
@@ -475,6 +461,7 @@ public class PostverordnungenApp extends Application {
 
         gebietListView.setPrefHeight(150);
         bandListView.setPrefHeight(250);
+        heftListView.setPrefHeight(120);
 
         VBox.setVgrow(tblVeroeffentlichungen, Priority.ALWAYS);
         VBox.setVgrow(lstBetreffeDetail, Priority.NEVER);
@@ -506,7 +493,7 @@ public class PostverordnungenApp extends Application {
 
                 aktuellerBildIndex = eintrag.getSeiteVon() - 1;
                 ladeAktuellesBild();
-
+                ladeBetreffeZuHeftEintrag(eintrag);
             }
         });
 
@@ -620,6 +607,24 @@ public class PostverordnungenApp extends Application {
         }
     }
 
+    private void ladeBetreffeZuHeftEintrag(HeftEintrag heftEintrag) {
+        lstBetreffeDetail.getItems().clear();
+
+        if (heftEintrag == null) {
+            return;
+        }
+
+        try {
+            List<VerordnungBetreff> liste =
+                    betreffRepository.findByHeftEintragId(heftEintrag.getHeftEintragID());
+
+            lstBetreffeDetail.getItems().addAll(liste);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
     private BorderPane createDocumentPane(HBox imageToolbar, HBox bildNavigation) {
         BorderPane documentPane = new BorderPane();
         documentPane.setStyle("""
@@ -638,7 +643,7 @@ public class PostverordnungenApp extends Application {
     }
 
     private VBox createDocumentHeader(HBox imageToolbar) {
-        VBox documentHeader = new VBox(6, lblBandTitel, lblVerordnungsMarkierung, lblAktuellerBetreff, imageToolbar);
+        VBox documentHeader = new VBox(6, lblBandTitel, lblSeitenmarkierung, lblAktuellerBetreff, imageToolbar);
         documentHeader.setStyle("""
             -fx-padding: 8;
             -fx-background-color: #f8f8f8;
@@ -654,6 +659,7 @@ public class PostverordnungenApp extends Application {
         Button btnFit = new Button("Anpassen");
         Button btnRotateLeft = new Button("⟲");
         Button btnRotateRight = new Button("⟳");
+        Button btnBetreffErfassen = new Button("Betreff erfassen");
         Button btnBetreffAnpassen = new Button("Betreff ändern");
         Button btnBetreffLoeschen = new Button("Betreff löschen");
         Button btnVerordnungPdf = new Button("Verordnung PDF");
@@ -661,8 +667,18 @@ public class PostverordnungenApp extends Application {
         Button btnVerordnungPrint = new Button("Verordnung drucken");
         btnVerordnungPrint.setTooltip(new Tooltip("Gesamte Verordnung drucken"));
 
-        Button btnStartVerordnung = new Button("Start Verordnung");
-        Button btnEndeVerordnung = new Button("Ende Verordnung");
+        Button btnStartSeitenmarkierung = new Button("Startseite markieren");
+        Button btnEndeSeitenmarkierung = new Button("Endseite markieren");
+        Button btnHeftErfassen = new Button("Heft erfassen");
+        btnHeftErfassen.setOnAction(e -> oeffneHeftDialog());
+
+        Button btnHeftAendern = new Button("Heft ändern");
+        btnHeftAendern.setOnAction(e -> heftAendern());
+
+        Button btnHeftEintragErfassen = new Button("HeftEintrag erfassen");
+        btnHeftEintragErfassen.setOnAction(e -> oeffneHeftEintragDialog());
+        Button btnHeftEintragAendern = new Button("HeftEintrag ändern");
+        btnHeftEintragAendern.setOnAction(e -> heftEintragAendern());
 
         btnZoomIn.setOnAction(e -> {
             if (fitToWindow) {
@@ -726,8 +742,8 @@ public class PostverordnungenApp extends Application {
                 try {
                     betreffRepository.update(selected);
                     updateBetreffListe();
-                    ladeBetreffeZuVeroeffentlichung(
-                            tblVeroeffentlichungen.getSelectionModel().getSelectedItem()
+                    ladeBetreffeZuHeftEintrag(
+                            tblHeftEintraege.getSelectionModel().getSelectedItem()
                     );
                 } catch (Exception ex) {
                     ex.printStackTrace();
@@ -759,8 +775,8 @@ public class PostverordnungenApp extends Application {
             try {
                 betreffRepository.delete(selected.getVerordnungBetreffID());
                 updateBetreffListe();
-                ladeBetreffeZuVeroeffentlichung(
-                        tblVeroeffentlichungen.getSelectionModel().getSelectedItem()
+                ladeBetreffeZuHeftEintrag(
+                        tblHeftEintraege.getSelectionModel().getSelectedItem()
                 );
                 updateBetreffAnzeige(aktuellerBildIndex + 1);
             } catch (Exception ex) {
@@ -768,14 +784,14 @@ public class PostverordnungenApp extends Application {
             }
         });
 
-        btnStartVerordnung.setOnAction(e -> {
+        btnStartSeitenmarkierung.setOnAction(e -> {
             if (aktuellerBildIndex < 0) return;
             markierteStartSeite = aktuellerBildIndex + 1;
             markierteEndeSeite = null;
-            updateVerordnungsMarkierung();
+            updateSeitenmarkierung();;
         });
 
-        btnEndeVerordnung.setOnAction(e -> {
+        btnEndeSeitenmarkierung.setOnAction(e -> {
             if (aktuellerBildIndex < 0) return;
 
             if (markierteStartSeite == null) {
@@ -791,36 +807,80 @@ public class PostverordnungenApp extends Application {
                 }
             }
 
-            updateVerordnungsMarkierung();
-
-            TextInputDialog dialog = new TextInputDialog();
-            dialog.setTitle("Verordnung speichern");
-            dialog.setHeaderText("Betreff der Verordnung eingeben");
-            dialog.setContentText("Betreff:");
-
-            Optional<String> result = dialog.showAndWait();
-
-            result.ifPresent(this::speichereVerordnungBetreff);
+            updateSeitenmarkierung();;
         });
-
         btnVerordnungPdf.setOnAction(e -> exportSelectedVerordnungToPdf());
         btnVerordnungPrint.setOnAction(e -> printSelectedVerordnung());
 
+        btnBetreffErfassen.setOnAction(e -> {
+
+            if (tblHeftEintraege.getSelectionModel().getSelectedItem() == null) {
+                showAlert("Hinweis", "Bitte zuerst einen HeftEintrag auswählen.");
+                return;
+            }
+
+            if (markierteStartSeite == null || markierteEndeSeite == null) {
+                showAlert("Hinweis", "Bitte zuerst einen Seitenbereich markieren.");
+                return;
+            }
+
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Neuer Betreff");
+            dialog.setHeaderText("Betreff erfassen");
+            dialog.setContentText("Titel:");
+
+            Optional<String> result = dialog.showAndWait();
+
+            if (result.isEmpty()) {
+                return;
+            }
+
+            speichereVerordnungBetreff(result.get());
+        });
+
         HBox imageToolbar = new HBox(
                 5,
+
+                // Bildsteuerung
                 btnZoomIn,
                 btnZoomOut,
                 btnFit,
                 btnRotateLeft,
                 btnRotateRight,
+
                 new Separator(),
-                btnStartVerordnung,
-                btnEndeVerordnung,
+
+                // Seitenmarkierung
+                btnStartSeitenmarkierung,
+                btnEndeSeitenmarkierung,
+
+                new Separator(),
+
+                // Heft
+                btnHeftErfassen,
+                btnHeftAendern,
+
+                new Separator(),
+
+                // Heftinhalt
+                btnHeftEintragErfassen,
+                btnHeftEintragAendern,
+
+                new Separator(),
+
+                // Betreff
+                btnBetreffErfassen,
                 btnBetreffAnpassen,
                 btnBetreffLoeschen,
+
+                new Separator(),
+
+                // Ausgabe
                 btnVerordnungPrint,
                 btnVerordnungPdf
         );
+
+        imageToolbar.setPadding(new Insets(5));
 
         imageToolbar.setStyle("""
             -fx-padding: 5;
@@ -953,15 +1013,16 @@ public class PostverordnungenApp extends Application {
             aktuellesGebiet = gebiet;
             aktuellesBand = band;
             lblBandTitel.setText(gebiet + " – " + band);
-            resetVerordnungsMarkierung();
+            resetSeitenmarkierung();
             updateBetreffListe();
 
+            heftListView.getItems().clear();
             tblHeftEintraege.getItems().clear();
+            lstBetreffeDetail.getItems().clear();
 
-            try {
-                tblHeftEintraege.getItems().setAll(heftEintragRepository.findByHeft(1));
-            } catch (Exception e) {
-                e.printStackTrace();
+            int bandId = ermittleBandId(gebiet, band);
+            if (bandId > 0) {
+                heftListView.getItems().setAll(heftRepository.findByBand(bandId));
             }
 
             List<File> bilder = loadBilder(gebiet, band);
@@ -982,6 +1043,35 @@ public class PostverordnungenApp extends Application {
                 updateNavigationState();
             }
         });
+
+        heftListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue == null) return;
+
+            Integer seiteVon = newValue.getSeiteVon();
+
+            if (seiteVon > 0 && seiteVon <= aktuelleBildliste.size()) {
+                aktuellerBildIndex = seiteVon - 1;
+                ladeAktuellesBild();
+            }
+
+            tblHeftEintraege.getItems().clear();
+            lstBetreffeDetail.getItems().clear();
+
+            try {
+                tblHeftEintraege.getItems().setAll(
+                        heftEintragRepository.findByHeft(newValue.getHeftID())
+                );
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+    }
+
+    private int ermittleBandId(String gebiet, String band) {
+        System.out.println("ermittleBandId -> Gebiet: [" + gebiet + "], Band: [" + band + "]");
+        int bandId = quelleRepository.findBandId(gebiet, band);
+        System.out.println("ermittleBandId -> Ergebnis BandID: " + bandId);
+        return bandId;
     }
 
     private void configureKeyboardNavigation(BorderPane root) {
@@ -1037,24 +1127,24 @@ public class PostverordnungenApp extends Application {
         );
     }
 
-    private void resetVerordnungsMarkierung() {
+    private void resetSeitenmarkierung(){
         markierteStartSeite = null;
         markierteEndeSeite = null;
-        updateVerordnungsMarkierung();
+        updateSeitenmarkierung();;
     }
 
-    private void updateVerordnungsMarkierung() {
-        if (lblVerordnungsMarkierung == null) return;
+    private void updateSeitenmarkierung(){
+        if (lblSeitenmarkierung == null) return;
 
         if (markierteStartSeite == null && markierteEndeSeite == null) {
-            lblVerordnungsMarkierung.setText("Keine Verordnung markiert");
+            lblSeitenmarkierung.setText("Keine Seitenmarkierung");
         } else if (markierteStartSeite != null && markierteEndeSeite == null) {
-            lblVerordnungsMarkierung.setText("Verordnung: Start Seite " + markierteStartSeite);
+            lblSeitenmarkierung.setText("Seitenmarkierung: Startseite " + markierteStartSeite);
         } else if (markierteStartSeite != null && markierteEndeSeite != null && markierteStartSeite.equals(markierteEndeSeite)) {
-            lblVerordnungsMarkierung.setText("Verordnung: Seite " + markierteStartSeite);
+            lblSeitenmarkierung.setText("Seitenmarkierung: Seite " + markierteStartSeite);
         } else {
-            lblVerordnungsMarkierung.setText(
-                    "Verordnung: Seite " + markierteStartSeite + " bis " + markierteEndeSeite
+            lblSeitenmarkierung.setText(
+                    "Seitenmarkierung: Seite " + markierteStartSeite + " bis " + markierteEndeSeite
             );
         }
     }
@@ -1371,16 +1461,16 @@ public class PostverordnungenApp extends Application {
 
     private void speichereVerordnungBetreff(String titel) {
 
-        Veroeffentlichung aktuelleVeroeffentlichung =
-                tblVeroeffentlichungen.getSelectionModel().getSelectedItem();
+        HeftEintrag aktuellerHeftEintrag =
+                tblHeftEintraege.getSelectionModel().getSelectedItem();
 
-        if (aktuelleVeroeffentlichung == null) {
-            showAlert("Hinweis", "Bitte zuerst eine Veröffentlichung auswählen.");
+        if (aktuellerHeftEintrag == null) {
+            showAlert("Hinweis", "Bitte zuerst einen HeftEintrag auswählen.");
             return;
         }
 
         if (markierteStartSeite == null || markierteEndeSeite == null) {
-            System.out.println("Keine vollständige Markierung vorhanden");
+            showAlert("Hinweis", "Bitte zuerst einen Seitenbereich markieren.");
             return;
         }
 
@@ -1391,43 +1481,78 @@ public class PostverordnungenApp extends Application {
 
         try {
 
-            VerordnungBetreff betreff = new VerordnungBetreff();
-
-            betreff.setGebiet(aktuellesGebiet);
-            betreff.setBandJahr(aktuellesBand);
-
             int vonSeite = Math.min(markierteStartSeite, markierteEndeSeite);
             int bisSeite = Math.max(markierteStartSeite, markierteEndeSeite);
+
+            Integer heftVon = aktuellerHeftEintrag.getSeiteVon();
+            Integer heftBis = aktuellerHeftEintrag.getSeiteBis();
+
+            if (heftVon == null || heftBis == null) {
+                showAlert("Hinweis", "Der ausgewählte HeftEintrag hat keinen gültigen Seitenbereich.");
+                return;
+            }
+
+            if (vonSeite < heftVon || bisSeite > heftBis) {
+                showAlert(
+                        "Hinweis",
+                        "Der Betreff liegt außerhalb des Seitenbereichs des ausgewählten HeftEintrags.\n\n" +
+                                "HeftEintrag: Seite " + heftVon + "–" + heftBis + "\n" +
+                                "Betreff: Seite " + vonSeite + "–" + bisSeite
+                );
+                return;
+            }
 
             VerordnungBetreff konflikt =
                     hatUeberschneidungMitBestehendemBereich(vonSeite, bisSeite);
 
             if (konflikt != null) {
-                showAlert("Hinweis",
+                showAlert(
+                        "Hinweis",
                         "Überschneidung mit:\n" +
                                 konflikt.getTitel() +
                                 " (Seiten " +
                                 konflikt.getSeiteVon() +
                                 "–" +
                                 konflikt.getSeiteBis() +
-                                ")");
+                                ")"
+                );
                 return;
             }
 
+            VerordnungBetreff betreff = new VerordnungBetreff();
+            betreff.setGebiet(aktuellesGebiet);
+            betreff.setBandJahr(aktuellesBand);
             betreff.setSeiteVon(vonSeite);
             betreff.setSeiteBis(bisSeite);
             betreff.setTitel(titel.trim());
             betreff.setBemerkung(null);
 
-            betreff.setQuelleID(aktuelleVeroeffentlichung.getQuelleId());
-            betreff.setHeftEintragID(1);   // TEST – wird später dynamisch
+            betreff.setHeftEintragID(aktuellerHeftEintrag.getHeftEintragID());
 
             betreffRepository.insert(betreff);
-            updateBetreffListe();
+
+// Betreffe für den aktuell ausgewählten HeftEintrag sauber neu laden
+            List<VerordnungBetreff> liste =
+                    betreffRepository.findByHeftEintragId(aktuellerHeftEintrag.getHeftEintragID());
+
+            lstBetreffeDetail.getItems().setAll(liste);
+
+// neu angelegten Betreff möglichst direkt wieder selektieren
+            for (VerordnungBetreff b : liste) {
+                if (Objects.equals(b.getTitel(), betreff.getTitel())
+                        && b.getSeiteVon() == betreff.getSeiteVon()
+                        && b.getSeiteBis() == betreff.getSeiteBis()) {
+                    lstBetreffeDetail.getSelectionModel().select(b);
+                    lstBetreffeDetail.scrollTo(b);
+                    break;
+                }
+            }
+
             updateBetreffAnzeige(aktuellerBildIndex + 1);
+
             markierteStartSeite = null;
             markierteEndeSeite = null;
-            updateVerordnungsMarkierung();
+            updateSeitenmarkierung();
 
             System.out.println("Betreff gespeichert");
 
@@ -1440,17 +1565,16 @@ public class PostverordnungenApp extends Application {
 
         try {
 
-            if (aktuellesGebiet == null || aktuellesBand == null) {
+            lstBetreffeDetail.getItems().clear();
+
+            HeftEintrag aktuellerEintrag =
+                    tblHeftEintraege.getSelectionModel().getSelectedItem();
+
+            if (aktuellerEintrag == null) {
                 return;
             }
 
-            tblVeroeffentlichungen.getItems().clear();
-            lstBetreffeDetail.getItems().clear();
-
-            List<Veroeffentlichung> veroeffentlichungen =
-                    quelleRepository.findVeroeffentlichungenByBand(aktuellesGebiet, aktuellesBand);
-
-            tblVeroeffentlichungen.getItems().addAll(veroeffentlichungen);
+            ladeBetreffeZuHeftEintrag(aktuellerEintrag);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -1483,5 +1607,465 @@ public class PostverordnungenApp extends Application {
             e.printStackTrace();
         }
 
+    }
+
+    private void oeffneHeftEintragDialog() {
+
+        Heft aktuellesHeft = heftListView.getSelectionModel().getSelectedItem();
+
+        if (aktuellesHeft == null) {
+            showAlert("Hinweis", "Bitte zuerst ein Heft auswählen.");
+            return;
+        }
+
+        if (markierteStartSeite == null || markierteEndeSeite == null) {
+            showAlert("Hinweis", "Bitte zuerst einen Seitenbereich markieren.");
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Neuen HeftEintrag anlegen");
+        dialog.setHeaderText("HeftEintrag aus markiertem Seitenbereich anlegen");
+
+        ButtonType speichernButtonType = new ButtonType("Speichern", ButtonBar.ButtonData.OK_DONE);
+        ButtonType abbrechenButtonType = new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(speichernButtonType, abbrechenButtonType);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setStyle("-fx-padding: 10;");
+
+        TextField txtNro = new TextField();
+        TextField txtTitel = new TextField();
+
+        DatePicker dpDatum = new DatePicker();
+
+        TextField txtSeiteVon = new TextField(String.valueOf(markierteStartSeite));
+        txtSeiteVon.setEditable(false);
+
+        TextField txtSeiteBis = new TextField(String.valueOf(markierteEndeSeite));
+        txtSeiteBis.setEditable(false);
+
+        grid.add(new Label("Nro:"), 0, 0);
+        grid.add(txtNro, 1, 0);
+
+        grid.add(new Label("Titel:"), 0, 1);
+        grid.add(txtTitel, 1, 1);
+
+        grid.add(new Label("Datum:"), 0, 2);
+        grid.add(dpDatum, 1, 2);
+
+        grid.add(new Label("Seite von:"), 0, 3);
+        grid.add(txtSeiteVon, 1, 3);
+
+        grid.add(new Label("Seite bis:"), 0, 4);
+        grid.add(txtSeiteBis, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+
+        if (result.isEmpty() || result.get() != speichernButtonType) {
+            return;
+        }
+
+        String nro = txtNro.getText() != null ? txtNro.getText().trim() : "";
+        String titel = txtTitel.getText() != null ? txtTitel.getText().trim() : "";
+
+        if (titel.isEmpty()) {
+            showAlert("Hinweis", "Bitte einen Titel eingeben.");
+            return;
+        }
+
+        try {
+            HeftEintrag eintrag = new HeftEintrag();
+
+            // Diese Setter bitte ggf. an deine echte HeftEintrag-Klasse anpassen
+            eintrag.setHeftID(aktuellesHeft.getHeftID());
+            eintrag.setHeftEintragTypID(1);
+            eintrag.setNro(nro);
+            eintrag.setTitel(titel);
+            eintrag.setDatum(dpDatum.getValue());
+            eintrag.setSeiteVon(markierteStartSeite);
+            eintrag.setSeiteBis(markierteEndeSeite);
+
+            // Diesen Methoden-Namen bitte ggf. an dein Repository anpassen
+            heftEintragRepository.insert(eintrag);
+
+            tblHeftEintraege.getItems().setAll(
+                    heftEintragRepository.findByHeft(aktuellesHeft.getHeftID())
+            );
+
+            tblHeftEintraege.getSelectionModel().select(eintrag);
+            lstBetreffeDetail.getItems().clear();
+
+            markierteStartSeite = null;
+            markierteEndeSeite = null;
+            updateSeitenmarkierung();;
+
+            showAlert("Erfolg", "HeftEintrag wurde angelegt.");
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showAlert("Fehler", "HeftEintrag konnte nicht gespeichert werden:\n" + ex.getMessage());
+        }
+    }
+
+    private void oeffneHeftEintragDialog(HeftEintrag eintrag) {
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("HeftEintrag ändern");
+        dialog.setHeaderText("HeftEintrag bearbeiten");
+
+        ButtonType speichernButtonType =
+                new ButtonType("Speichern", ButtonBar.ButtonData.OK_DONE);
+
+        ButtonType abbrechenButtonType =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                speichernButtonType,
+                abbrechenButtonType
+        );
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setStyle("-fx-padding: 10;");
+
+        TextField txtNro = new TextField(eintrag.getNro());
+        TextField txtTitel = new TextField(eintrag.getTitel());
+
+        DatePicker dpDatum =
+                new DatePicker(eintrag.getDatum());
+
+        TextField txtSeiteVon =
+                new TextField(String.valueOf(eintrag.getSeiteVon()));
+
+        TextField txtSeiteBis =
+                new TextField(String.valueOf(eintrag.getSeiteBis()));
+
+        txtSeiteVon.setEditable(false);
+        txtSeiteBis.setEditable(false);
+
+        grid.add(new Label("Nro:"),0,0);
+        grid.add(txtNro,1,0);
+
+        grid.add(new Label("Titel:"),0,1);
+        grid.add(txtTitel,1,1);
+
+        grid.add(new Label("Datum:"),0,2);
+        grid.add(dpDatum,1,2);
+
+        grid.add(new Label("Seite von:"),0,3);
+        grid.add(txtSeiteVon,1,3);
+
+        grid.add(new Label("Seite bis:"),0,4);
+        grid.add(txtSeiteBis,1,4);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+
+        if (result.isEmpty() || result.get() != speichernButtonType) {
+            return;
+        }
+
+        String nro = txtNro.getText().trim();
+        String titel = txtTitel.getText().trim();
+
+        if (titel.isEmpty()) {
+            showAlert("Hinweis","Titel darf nicht leer sein.");
+            return;
+        }
+
+        eintrag.setNro(nro);
+        eintrag.setTitel(titel);
+        eintrag.setDatum(dpDatum.getValue());
+
+        updateHeftEintrag(eintrag);
+
+    }
+
+    private void updateHeftEintrag(HeftEintrag eintrag){
+
+        try{
+
+            heftEintragRepository.update(eintrag);
+
+            Heft heft =
+                    heftListView.getSelectionModel().getSelectedItem();
+
+            List<HeftEintrag> liste =
+                    heftEintragRepository.findByHeft(heft.getHeftID());
+
+            tblHeftEintraege.getItems().setAll(liste);
+
+            for(HeftEintrag h : liste){
+
+                if(h.getHeftEintragID() ==
+                        eintrag.getHeftEintragID()){
+
+                    tblHeftEintraege
+                            .getSelectionModel()
+                            .select(h);
+
+                    break;
+                }
+            }
+
+            showAlert("Erfolg",
+                    "HeftEintrag wurde geändert.");
+
+        }
+        catch(Exception e){
+
+            e.printStackTrace();
+
+            showAlert("Fehler",
+                    "HeftEintrag konnte nicht geändert werden.");
+        }
+    }
+
+    private void oeffneHeftDialog() {
+        oeffneHeftDialog(null);
+    }
+
+    private void oeffneHeftDialog(HeftEingabe eingabe) {
+
+        boolean istAendern = eingabe != null;
+
+        if (!istAendern && (markierteStartSeite == null || markierteEndeSeite == null)) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Keine Seitenmarkierung");
+            alert.setHeaderText(null);
+            alert.setContentText("Bitte zuerst einen Seitenbereich markieren.");
+            alert.showAndWait();
+            return;
+        }
+
+        Dialog<HeftEingabe> dialog = new Dialog<>();
+
+        if (istAendern) {
+            dialog.setTitle("Heft ändern");
+            dialog.setHeaderText("Vorhandenes Heft bearbeiten");
+        } else {
+            dialog.setTitle("Heft erfassen");
+            dialog.setHeaderText("Heft aus markiertem Seitenbereich anlegen (" +
+                    markierteStartSeite + " bis " + markierteEndeSeite + ")");
+        }
+
+        ButtonType btnOKType     = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancelType = ButtonType.CANCEL;
+
+        dialog.getDialogPane().getButtonTypes().addAll(btnOKType, btnCancelType);
+
+        // Buttons als Button holen (wichtig für setDefaultButton / setCancelButton)
+        Button btnOk     = (Button) dialog.getDialogPane().lookupButton(btnOKType);
+        Button btnCancel = (Button) dialog.getDialogPane().lookupButton(btnCancelType);
+
+        // Default- & Cancel-Verhalten abschalten → Enter triggert NICHT mehr automatisch OK/Cancel
+        btnOk.setDefaultButton(false);
+        btnCancel.setCancelButton(false);
+
+        btnOk.setDisable(true);  // anfangs deaktiviert
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+
+        TextField txtHeftNummer = new TextField(eingabe != null ? eingabe.nummer() : "");
+        txtHeftNummer.setPromptText("z. B. I, IV, XII");
+
+        DatePicker dpDatum = new DatePicker(eingabe != null ? eingabe.datum() : null);
+        dpDatum.setPromptText("Ausgabedatum");
+
+        TextField txtOrt = new TextField(eingabe != null ? eingabe.ort() : "");
+        txtOrt.setPromptText("z. B. Berlin, Wien, ...");
+
+        // Live-Validierung: OK-Button nur aktiv wenn Heftnummer gefüllt
+        txtHeftNummer.textProperty().addListener((obs, old, neu) ->
+                btnOk.setDisable(neu == null || neu.trim().isEmpty()));
+        btnOk.setDisable(txtHeftNummer.getText() == null || txtHeftNummer.getText().trim().isEmpty());
+
+        // Enter in Heftnummer → zu Datum
+        txtHeftNummer.setOnAction(e -> dpDatum.requestFocus());
+
+        // Enter / Return im DatePicker-Editor → zu Ort (wichtig: EventFilter!)
+        TextField dateEditor = (TextField) dpDatum.getEditor();
+        dateEditor.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                txtOrt.requestFocus();
+                event.consume();
+            }
+        });
+
+        // Enter NUR im letzten Feld (Ort) → Dialog bestätigen
+        txtOrt.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                if (!btnOk.isDisabled()) {
+                    dialog.setResult(new HeftEingabe(
+                            txtHeftNummer.getText().trim(),
+                            dpDatum.getValue(),
+                            txtOrt.getText().trim()
+                    ));
+                    dialog.close();
+                }
+                event.consume();
+            }
+        });
+
+        grid.add(new Label("Heftnummer (römisch):"), 0, 0);
+        grid.add(txtHeftNummer, 1, 0);
+
+        grid.add(new Label("Datum:"), 0, 1);
+        grid.add(dpDatum, 1, 1);
+
+        grid.add(new Label("Ort:"), 0, 2);
+        grid.add(txtOrt, 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+
+        // ResultConverter für Klick auf OK-Button
+        dialog.setResultConverter(dialogBtn -> {
+            if (dialogBtn == btnOKType) {
+                String nummer = txtHeftNummer.getText().trim();
+                LocalDate datum = dpDatum.getValue();
+                String ort = txtOrt.getText().trim();
+
+                if (nummer.isEmpty()) return null;
+
+                return new HeftEingabe(nummer, datum, ort);
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(result -> {
+
+            if (eingabe == null) {
+                speichereHeft(result);
+            } else {
+                updateHeft(result);
+            }
+
+        });
+    }
+
+    private record HeftEingabe(String nummer, LocalDate datum, String ort) {
+        @Override
+        public String toString() {
+            return "Heft " + nummer + " | " + datum + " | " + ort;
+        }
+    }
+
+    private void speichereHeft(HeftEingabe eingabe) {
+
+        if (eingabe == null) {
+            return;
+        }
+
+        Heft heft = new Heft();
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            showAlert("Fehler", "BandID konnte nicht ermittelt werden.");
+            return;
+        }
+
+        heft.setBandID(bandId);
+        heft.setHeftNummer(eingabe.nummer());
+        heft.setAusgabeDatum(eingabe.datum());
+        heft.setSeiteVon(markierteStartSeite);
+        heft.setSeiteBis(markierteEndeSeite);
+        heft.setIstAktiv(true);
+        heft.setSortierung(0);
+
+        System.out.println("Heft erzeugt:");
+        System.out.println("BandID: " + heft.getBandID());
+        System.out.println("Nummer: " + heft.getHeftNummer());
+        System.out.println("Seiten: " + heft.getSeiteVon() + " - " + heft.getSeiteBis());
+
+        try {
+            heftRepository.insert(heft);
+
+            heftListView.getItems().setAll(
+                    heftRepository.findByBand(heft.getBandID())
+            );
+
+            System.out.println("Heft gespeichert");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateHeft(HeftEingabe eingabe) {
+
+        Heft heft = heftListView.getSelectionModel().getSelectedItem();
+
+        if (heft == null) {
+            return;
+        }
+
+        heft.setHeftNummer(eingabe.nummer());
+        heft.setAusgabeDatum(eingabe.datum());
+
+        try {
+
+            heftRepository.update(heft);
+
+            List<Heft> liste = heftRepository.findByBand(heft.getBandID());
+            heftListView.getItems().setAll(liste);
+
+            for (Heft h : liste) {
+                if (h.getHeftID() == heft.getHeftID()) {
+                    heftListView.getSelectionModel().select(h);
+                    break;
+                }
+            }
+
+            showAlert("Erfolg", "Heft wurde geändert.");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert("Fehler", "Heft konnte nicht geändert werden.");
+        }
+    }
+
+    private void heftAendern() {
+
+        Heft heft = heftListView.getSelectionModel().getSelectedItem();
+
+        if (heft == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Kein Heft gewählt");
+            alert.setHeaderText(null);
+            alert.setContentText("Bitte zuerst ein Heft auswählen.");
+            alert.showAndWait();
+            return;
+        }
+
+        HeftEingabe eingabe = new HeftEingabe(
+                heft.getHeftNummer(),
+                heft.getAusgabeDatum(),
+                ""
+        );
+
+        oeffneHeftDialog(eingabe);
+    }
+
+    private void heftEintragAendern() {
+
+        HeftEintrag eintrag =
+                tblHeftEintraege.getSelectionModel().getSelectedItem();
+
+        if (eintrag == null) {
+            showAlert("Hinweis", "Bitte zuerst einen HeftEintrag auswählen.");
+            return;
+        }
+
+        oeffneHeftEintragDialog(eintrag);
     }
 }

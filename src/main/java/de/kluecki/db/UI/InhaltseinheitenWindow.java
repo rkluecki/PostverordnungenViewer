@@ -2,7 +2,7 @@ package de.kluecki.db.UI;
 
 import de.kluecki.db.InhaltTabellenEintrag;
 import de.kluecki.db.InhaltTypen;
-import de.kluecki.db.model.Veroeffentlichung;
+import de.kluecki.db.model.HeftEintrag;
 import de.kluecki.db.repository.InhaltseinheitRepository;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -28,9 +28,11 @@ public class InhaltseinheitenWindow {
     private static ComboBox<String> cmbTyp;
     private static TextArea txtBeschreibung;
 
-    public static void open(Veroeffentlichung veroeffentlichung) {
+    public static void open(HeftEintrag heftEintrag) {
 
         txtNr = new TextField();
+        txtNr.setEditable(false);
+        txtNr.setFocusTraversable(false);
         txtTitel = new TextField();
         txtSeiteVon = new TextField();
         txtSeiteBis = new TextField();
@@ -88,14 +90,19 @@ public class InhaltseinheitenWindow {
         stage.setTitle("Inhalt");
         stage.initModality(Modality.APPLICATION_MODAL);
 
-        Label lblKopf = new Label("Betreff");
+        Label lblKopf = new Label("HeftEintrag");
         lblKopf.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
 
-        Label lblBetreff = new Label(veroeffentlichung.getTitel());
+        Label lblBetreff = new Label(heftEintrag.getTitel());
 
-        Label lblSeiten = new Label(
-                "Seiten: " + veroeffentlichung.getSeiteVon() + " - " + veroeffentlichung.getSeiteBis()
-        );
+        String seitenText;
+        if (heftEintrag.getSeiteBis() == null || heftEintrag.getSeiteBis().equals(heftEintrag.getSeiteVon())) {
+            seitenText = "Seiten: " + heftEintrag.getSeiteVon();
+        } else {
+            seitenText = "Seiten: " + heftEintrag.getSeiteVon() + " - " + heftEintrag.getSeiteBis();
+        }
+
+        Label lblSeiten = new Label(seitenText);
 
         VBox topBox = new VBox(6, lblKopf, lblBetreff, lblSeiten);
         topBox.setPadding(new Insets(10));
@@ -108,7 +115,7 @@ public class InhaltseinheitenWindow {
         InhaltseinheitRepository repository = new InhaltseinheitRepository();
 
         daten.clear();
-        daten.addAll(repository.findByQuelleId(veroeffentlichung.getQuelleId()));
+        daten.addAll(repository.findByHeftEintragId(heftEintrag.getHeftEintragID()));
 
         TableColumn<InhaltTabellenEintrag, String> colNr = new TableColumn<>("Nr.");
         TableColumn<InhaltTabellenEintrag, String> colTitel = new TableColumn<>("Titel");
@@ -171,6 +178,8 @@ public class InhaltseinheitenWindow {
 
         table.setItems(daten);
 
+        txtNr.setText(ermittleNaechsteNr(table));
+
         table.getSelectionModel().selectedItemProperty().addListener((obs, alt, neu) -> {
             if (neu == null) {
                 return;
@@ -213,14 +222,19 @@ public class InhaltseinheitenWindow {
         Button btnLoeschen = new Button("Löschen");
 
         btnNeu.setOnAction(e -> {
+
             table.getSelectionModel().clearSelection();
-            txtNr.clear();
+
             txtNr.setText(ermittleNaechsteNr(table));
+
             txtTitel.clear();
             txtSeiteVon.clear();
             txtSeiteBis.clear();
-            cmbTyp.setValue(null);
+
+            cmbTyp.getSelectionModel().clearSelection();
+
             txtBeschreibung.clear();
+
             Platform.runLater(() -> txtTitel.requestFocus());
         });
 
@@ -230,6 +244,24 @@ public class InhaltseinheitenWindow {
             String titel = txtTitel.getText().trim();
             String seiteVon = txtSeiteVon.getText().trim();
             String seiteBis = txtSeiteBis.getText().trim();
+
+            if (nr.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Hinweis");
+                alert.setHeaderText(null);
+                alert.setContentText("Bitte eine Nummer eingeben.");
+                alert.showAndWait();
+                return;
+            }
+
+            if (!nr.matches("\\d+")) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Hinweis");
+                alert.setHeaderText(null);
+                alert.setContentText("Die Nummer muss numerisch sein.");
+                alert.showAndWait();
+                return;
+            }
 
             if (!seiteBis.isEmpty()) {
                 int von = Integer.parseInt(seiteVon);
@@ -287,6 +319,37 @@ public class InhaltseinheitenWindow {
                 seiteBisInt = Integer.parseInt(seiteBis);
             }
 
+            int heftVon = heftEintrag.getSeiteVon();
+            int heftBis = heftEintrag.getSeiteBis();
+
+            if (seiteVonInt < heftVon) {
+
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Hinweis");
+                alert.setHeaderText(null);
+                alert.setContentText(
+                        "Seite liegt vor dem HeftEintrag Bereich.\n" +
+                                "Erlaubt: " + heftVon + " - " + heftBis
+                );
+
+                alert.showAndWait();
+                return;
+            }
+
+            if (seiteBisInt != null && seiteBisInt > heftBis) {
+
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Hinweis");
+                alert.setHeaderText(null);
+                alert.setContentText(
+                        "Seite liegt hinter dem HeftEintrag Bereich.\n" +
+                                "Erlaubt: " + heftVon + " - " + heftBis
+                );
+
+                alert.showAndWait();
+                return;
+            }
+
             String seite = seiteVon;
             if (!seiteBis.isEmpty()) {
                 if (seiteVon.equals(seiteBis)) {
@@ -298,6 +361,54 @@ public class InhaltseinheitenWindow {
 
             InhaltTabellenEintrag aktuellBearbeitet =
                     table.getSelectionModel().getSelectedItem();
+
+            for (InhaltTabellenEintrag eintrag : table.getItems()) {
+
+                if (eintrag == aktuellBearbeitet) {
+                    continue;
+                }
+
+                String vorhandeneSeite = eintrag.getSeite();
+
+                int vorhandenVon;
+                int vorhandenBis;
+
+                if (vorhandeneSeite.contains("-")) {
+
+                    String[] teile = vorhandeneSeite.split("-");
+
+                    vorhandenVon = Integer.parseInt(teile[0].trim());
+                    vorhandenBis = Integer.parseInt(teile[1].trim());
+
+                } else {
+
+                    vorhandenVon = Integer.parseInt(vorhandeneSeite);
+                    vorhandenBis = vorhandenVon;
+                }
+
+                int neuVon = seiteVonInt;
+                int neuBis = seiteBisInt != null ? seiteBisInt : seiteVonInt;
+
+                boolean ueberschneidung =
+                        neuVon <= vorhandenBis &&
+                                neuBis >= vorhandenVon;
+
+                if (ueberschneidung) {
+
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Hinweis");
+                    alert.setHeaderText(null);
+                    alert.setContentText(
+                            "Überschneidung mit Inhalt Nr. "
+                                    + eintrag.getNr()
+                                    + " (" + eintrag.getSeite() + ")"
+                    );
+
+                    alert.showAndWait();
+
+                    return;
+                }
+            }
 
             for (InhaltTabellenEintrag eintrag : table.getItems()) {
                 if (eintrag == aktuellBearbeitet) {
@@ -314,29 +425,45 @@ public class InhaltseinheitenWindow {
                 }
             }
 
-            repository.insert(
-                    veroeffentlichung.getQuelleId(),
-                    lfdNr,
-                    titel,
-                    inhaltstypId,
-                    seiteVonInt,
-                    seiteBisInt,
-                    beschreibung
-            );
+            if (aktuellBearbeitet == null) {
+                repository.insert(
+                        heftEintrag.getHeftEintragID(),
+                        lfdNr,
+                        titel,
+                        inhaltstypId,
+                        seiteVonInt,
+                        seiteBisInt,
+                        beschreibung
+                );
+            }
 
             if (aktuellBearbeitet == null) {
                 InhaltTabellenEintrag neuerEintrag =
                         new InhaltTabellenEintrag(nr, titel, seite, typ, beschreibung);
                 daten.add(neuerEintrag);
                 table.getSelectionModel().select(neuerEintrag);
-            } else {
+
+                txtNr.setText(ermittleNaechsteNr(table));
+            } else{
+
+                repository.update(
+                        heftEintrag.getHeftEintragID(),
+                        lfdNr,
+                        titel,
+                        inhaltstypId,
+                        seiteVonInt,
+                        seiteBisInt,
+                        beschreibung
+                );
+
                 aktuellBearbeitet.setNr(nr);
                 aktuellBearbeitet.setTitel(titel);
                 aktuellBearbeitet.setSeite(seite);
                 aktuellBearbeitet.setTyp(typ);
                 aktuellBearbeitet.setBeschreibung(beschreibung);
+
                 table.refresh();
-            }
+            };
         });
 
         btnLoeschen.setOnAction(e -> {
@@ -358,10 +485,18 @@ public class InhaltseinheitenWindow {
             confirm.setContentText("Eintrag wirklich löschen?");
 
             if (confirm.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+
+                int lfdNr = Integer.parseInt(ausgewaehlt.getNr());
+
+                repository.deleteByHeftEintragIdUndLfdNr(
+                        heftEintrag.getHeftEintragID(),
+                        lfdNr
+                );
+
                 daten.remove(ausgewaehlt);
                 table.getSelectionModel().clearSelection();
 
-                txtNr.clear();
+                txtNr.setText(ermittleNaechsteNr(table));
                 txtTitel.clear();
                 txtSeiteVon.clear();
                 txtSeiteBis.clear();

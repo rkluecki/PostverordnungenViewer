@@ -12,7 +12,7 @@ import java.util.List;
 public class InhaltseinheitRepository {
 
     public void insert(
-            int verordnungBetreffId,
+            int heftEintragId,
             int lfdNr,
             String ueberschrift,
             int inhaltstypId,
@@ -22,14 +22,14 @@ public class InhaltseinheitRepository {
     ) {
         String sql = """
             INSERT INTO Inhaltseinheit
-            (VerordnungBetreffID, LfdNr, Ueberschrift, InhaltstypID, SeiteVon, SeiteBis, Bemerkung, IstUnsicher, ErstelltAm)
+            (HeftEintragID, LfdNr, Ueberschrift, InhaltstypID, SeiteVon, SeiteBis, Bemerkung, IstUnsicher, ErstelltAm)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0, SYSDATETIME())
         """;
 
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setInt(1, verordnungBetreffId);
+            ps.setInt(1, heftEintragId);
             ps.setInt(2, lfdNr);
             ps.setString(3, ueberschrift);
             ps.setInt(4, inhaltstypId);
@@ -72,27 +72,27 @@ public class InhaltseinheitRepository {
         return null;
     }
 
-    public java.util.List<InhaltTabellenEintrag> findByVerordnungBetreffId(int verordnungBetreffId) {
+    public List<InhaltTabellenEintrag> findByHeftEintragId(int heftEintragId) {
 
-        java.util.List<InhaltTabellenEintrag> liste = new java.util.ArrayList<>();
+        List<InhaltTabellenEintrag> liste = new ArrayList<>();
 
         String sql = """
-        SELECT ie.LfdNr,
-               ie.Ueberschrift,
-               ie.SeiteVon,
-               ie.SeiteBis,
-               it.Bezeichnung AS Typ,
-               ie.Bemerkung
-        FROM Inhaltseinheit ie
-        LEFT JOIN Inhaltstyp it ON ie.InhaltstypID = it.InhaltstypID
-        WHERE ie.VerordnungBetreffID = ?
-        ORDER BY ie.LfdNr
-    """;
+            SELECT ie.LfdNr,
+                   ie.Ueberschrift,
+                   ie.SeiteVon,
+                   ie.SeiteBis,
+                   it.Bezeichnung AS Typ,
+                   ie.Bemerkung
+            FROM Inhaltseinheit ie
+            LEFT JOIN Inhaltstyp it ON ie.InhaltstypID = it.InhaltstypID
+            WHERE ie.HeftEintragID = ?
+            ORDER BY ie.LfdNr
+        """;
 
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setInt(1, verordnungBetreffId);
+            ps.setInt(1, heftEintragId);
 
             ResultSet rs = ps.executeQuery();
 
@@ -123,7 +123,69 @@ public class InhaltseinheitRepository {
         return liste;
     }
 
-    public List<InhaltTabellenEintrag> findByQuelleId(int quelleId) {
-        return new ArrayList<>();
+    public void deleteByHeftEintragIdUndLfdNr(int heftEintragId, int lfdNr) {
+
+        String sql = """
+        DELETE FROM Inhaltseinheit
+        WHERE HeftEintragID = ? AND LfdNr = ?
+    """;
+
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, heftEintragId);
+            ps.setInt(2, lfdNr);
+
+            ps.executeUpdate();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    public void update(
+            int heftEintragId,
+            int lfdNr,
+            String ueberschrift,
+            int inhaltstypId,
+            int seiteVon,
+            Integer seiteBis,
+            String bemerkung
+         ) {
+
+        String sql = """
+        UPDATE Inhaltseinheit
+        SET Ueberschrift = ?,
+            InhaltstypID = ?,
+            SeiteVon = ?,
+            SeiteBis = ?,
+            Bemerkung = ?
+        WHERE HeftEintragID = ?
+        AND LfdNr = ?
+    """;
+
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, ueberschrift);
+            ps.setInt(2, inhaltstypId);
+            ps.setInt(3, seiteVon);
+
+            if (seiteBis == null) {
+                ps.setNull(4, java.sql.Types.INTEGER);
+            } else {
+                ps.setInt(4, seiteBis);
+            }
+
+            ps.setString(5, bemerkung);
+
+            ps.setInt(6, heftEintragId);
+            ps.setInt(7, lfdNr);
+
+            ps.executeUpdate();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 }

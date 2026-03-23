@@ -83,4 +83,72 @@ public class HeftEintragRepository {
 
         return liste;
     }
+
+    public void insert(HeftEintrag eintrag) throws Exception {
+
+        String sql = """
+    INSERT INTO HeftEintrag
+    (HeftID, HeftEintragTypID, Nro, Titel, Datum, SeiteVon, SeiteBis)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, eintrag.getHeftID());
+            stmt.setInt(2, eintrag.getHeftEintragTypID());
+            stmt.setString(3, eintrag.getNro());
+            stmt.setString(4, eintrag.getTitel());
+
+            if (eintrag.getDatum() != null) {
+                stmt.setDate(5, java.sql.Date.valueOf(eintrag.getDatum()));
+            } else {
+                stmt.setNull(5, java.sql.Types.DATE);
+            }
+
+            stmt.setInt(6, eintrag.getSeiteVon());
+            stmt.setInt(7, eintrag.getSeiteBis());
+
+            stmt.executeUpdate();
+        }
+    }
+
+    public void update(HeftEintrag eintrag) {
+
+        String sql = """
+        UPDATE dbo.HeftEintrag
+        SET HeftID = ?,
+            HeftEintragTypID = ?,
+            Nro = ?,
+            Titel = ?,
+            Datum = ?,
+            SeiteVon = ?,
+            SeiteBis = ?
+        WHERE HeftEintragID = ?
+        """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+            stmt.setInt(1, eintrag.getHeftID());
+            stmt.setInt(2, eintrag.getHeftEintragTypID());
+
+            stmt.setString(3, eintrag.getNro());
+            stmt.setString(4, eintrag.getTitel());
+
+            if (eintrag.getDatum() != null) {
+                stmt.setDate(5, Date.valueOf(eintrag.getDatum()));
+            } else {
+                stmt.setNull(5, Types.DATE);
+            }
+
+            stmt.setInt(6, eintrag.getSeiteVon());
+            stmt.setInt(7, eintrag.getSeiteBis());
+
+            stmt.setInt(8, eintrag.getHeftEintragID());
+
+            stmt.executeUpdate();
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Fehler beim Aktualisieren des HeftEintrags.", e);
+        }
+    }
+
 }

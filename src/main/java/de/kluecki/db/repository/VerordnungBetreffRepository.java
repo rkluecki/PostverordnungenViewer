@@ -292,4 +292,48 @@ public class VerordnungBetreffRepository {
 
         return liste;
     }
+
+    public List<VerordnungBetreff> findByHeftEintragId(int heftEintragId) throws SQLException {
+
+        String sql = """
+        SELECT *
+        FROM VerordnungBetreff
+        WHERE HeftEintragID = ?
+        ORDER BY SeiteVon
+        """;
+
+        PreparedStatement stmt = connection.prepareStatement(sql);
+        stmt.setInt(1, heftEintragId);
+
+        ResultSet rs = stmt.executeQuery();
+
+        List<VerordnungBetreff> liste = new ArrayList<>();
+
+        while (rs.next()) {
+
+            VerordnungBetreff v = new VerordnungBetreff();
+
+            v.setVerordnungBetreffID(rs.getInt("VerordnungBetreffID"));
+            v.setGebiet(rs.getString("Gebiet"));
+            v.setBandJahr(rs.getString("BandJahr"));
+            v.setSeiteVon(rs.getInt("SeiteVon"));
+            v.setSeiteBis(rs.getInt("SeiteBis"));
+            v.setTitel(rs.getString("Titel"));
+            v.setBemerkung(rs.getString("Bemerkung"));
+
+            Object heftEintragObj = rs.getObject("HeftEintragID");
+            if (heftEintragObj != null) {
+                v.setHeftEintragID((Integer) heftEintragObj);
+            }
+
+            Object quelleIdObj = rs.getObject("QuelleID");
+            if (quelleIdObj != null) {
+                v.setQuelleID((Integer) quelleIdObj);
+            }
+
+            liste.add(v);
+        }
+
+        return liste;
+    }
 }

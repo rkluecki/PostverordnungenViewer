@@ -127,4 +127,41 @@ public class QuelleRepository {
 
         return liste;
     }
+
+    public int findBandId(String gebiet, String band) {
+
+        System.out.println("findBandId Gebiet: [" + gebiet + "]");
+        System.out.println("findBandId Band: [" + band + "]");
+
+        String sql = """
+        SELECT TOP 1 QuelleID
+        FROM Quelle
+        WHERE EbeneTyp = 'BAND'
+          AND Land = ?
+          AND Jahr = ?
+        ORDER BY QuelleID
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, gebiet);
+            ps.setInt(2, Integer.parseInt(band));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("QuelleID");
+                }
+            }
+
+            System.out.println("findBandId -> kein Treffer");
+
+        } catch (NumberFormatException ex) {
+            System.out.println("Band/Jahr ist keine Zahl: " + band);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        return 0;
+    }
 }
