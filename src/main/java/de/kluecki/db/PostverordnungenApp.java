@@ -35,6 +35,8 @@ import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.HeftEintragRepository;
 import de.kluecki.db.repository.QuelleRepository;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -54,6 +56,7 @@ import de.kluecki.db.repository.HeftRepository;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.DatePicker;
 import de.kluecki.db.repository.InhaltseinheitRepository;
+
 
 public class PostverordnungenApp extends Application {
 
@@ -1431,13 +1434,107 @@ public class PostverordnungenApp extends Application {
 
         TextField txtOrt = new TextField(eingabe != null ? eingabe.ort() : "");
         txtOrt.setPromptText("z. B. Berlin, Wien, ...");
-        TextField txtSeiteVon = new TextField(
-                eingabe != null && eingabe.seiteVon() != null ? String.valueOf(eingabe.seiteVon()) : ""
-        );
 
-        TextField txtSeiteBis = new TextField(
-                eingabe != null && eingabe.seiteBis() != null ? String.valueOf(eingabe.seiteBis()) : ""
-        );
+        String initialSeiteVon = "";
+        String initialSeiteBis = "";
+
+        if (eingabe != null) {
+            if (eingabe.seiteVon() != null) {
+                initialSeiteVon = String.valueOf(eingabe.seiteVon());
+            }
+
+            if (eingabe.seiteBis() != null) {
+                initialSeiteBis = String.valueOf(eingabe.seiteBis());
+            }
+        }
+        else if (markierteStartSeite != null && markierteEndeSeite != null) {
+            initialSeiteVon = String.valueOf(markierteStartSeite);
+            initialSeiteBis = String.valueOf(markierteEndeSeite);
+        }
+
+        TextField txtSeiteVon = new TextField(initialSeiteVon);
+        TextField txtSeiteBis = new TextField(initialSeiteBis);
+
+        txtSeiteVon.setTextFormatter(new TextFormatter<>(change ->
+                change.getControlNewText().matches("\\d*") ? change : null));
+
+        txtSeiteBis.setTextFormatter(new TextFormatter<>(change ->
+                change.getControlNewText().matches("\\d*") ? change : null));
+
+        txtSeiteVon.setOnAction(e -> txtSeiteBis.requestFocus());
+
+        txtSeiteBis.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                btnOk.requestFocus();
+                event.consume();
+            }
+        });
+
+        txtSeiteVon.setPrefWidth(80);
+        txtSeiteBis.setPrefWidth(80);
+
+        btnOk.addEventFilter(ActionEvent.ACTION, event -> {
+            String nummer = txtHeftNummer.getText().trim();
+            String seiteVonText = txtSeiteVon.getText().trim();
+            String seiteBisText = txtSeiteBis.getText().trim();
+
+            if (nummer.isEmpty()) {
+                showAlert("Fehler", "Bitte eine Heftnummer eingeben.");
+                event.consume();
+                return;
+            }
+
+            if (seiteVonText.isEmpty() || seiteBisText.isEmpty()) {
+                showAlert("Fehler", "Bitte Seite von und Seite bis eingeben.");
+                event.consume();
+                return;
+            }
+
+            try {
+                int seiteVon = Integer.parseInt(seiteVonText);
+                int seiteBis = Integer.parseInt(seiteBisText);
+
+                if (seiteBis < seiteVon) {
+                    showAlert("Fehler", "Seite bis darf nicht kleiner als Seite von sein.");
+                    event.consume();
+                }
+
+                int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+                Integer aktuelleHeftId = null;
+
+                if (istAendern) {
+                    Heft aktuellesHeft = heftListView.getSelectionModel().getSelectedItem();
+                    if (aktuellesHeft != null) {
+                        aktuelleHeftId = aktuellesHeft.getHeftID();
+                    }
+                }
+
+                if (hatUeberschneidungMitVorhandenemHeft(
+                        bandId,
+                        seiteVon,
+                        seiteBis,
+                        aktuelleHeftId
+                )) {
+                    showAlert("Fehler", "Der Seitenbereich überschneidet sich mit einem vorhandenen Heft.");
+                    event.consume();
+                }
+
+                List<File> bilder = loadBilder(aktuellesGebiet, aktuellesBand);
+                int maxSeiten = bilder.size();
+
+                if (seiteVon < 1 || seiteBis > maxSeiten) {
+                    showAlert("Fehler",
+                            "Der Seitenbereich muss zwischen 1 und " + maxSeiten + " liegen.");
+                    event.consume();
+                    return;
+                }
+
+            } catch (NumberFormatException ex) {
+                showAlert("Fehler", "Seite von und Seite bis müssen Zahlen sein.");
+                event.consume();
+            }
+        });
 
         // Live-Validierung: OK-Button nur aktiv wenn Heftnummer gefüllt
         txtHeftNummer.textProperty().addListener((obs, old, neu) ->
@@ -1456,19 +1553,9 @@ public class PostverordnungenApp extends Application {
             }
         });
 
-        // Enter NUR im letzten Feld (Ort) → Dialog bestätigen
         txtOrt.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
-                if (!btnOk.isDisabled()) {
-                    dialog.setResult(new HeftEingabe(
-                            txtHeftNummer.getText().trim(),
-                            dpDatum.getValue(),
-                            txtOrt.getText().trim(),
-                            Integer.parseInt(txtSeiteVon.getText().trim()),
-                            Integer.parseInt(txtSeiteBis.getText().trim())
-                    ));
-                    dialog.close();
-                }
+                txtSeiteVon.requestFocus();
                 event.consume();
             }
         });
@@ -1499,18 +1586,20 @@ public class PostverordnungenApp extends Application {
 
                 if (nummer.isEmpty()) return null;
 
-                Integer seiteVon = txtSeiteVon.getText().trim().isEmpty()
-                        ? null
-                        : Integer.parseInt(txtSeiteVon.getText().trim());
+                if (txtSeiteVon.getText().trim().isEmpty() || txtSeiteBis.getText().trim().isEmpty()) {
+                    showAlert("Fehler", "Seite von und Seite bis müssen angegeben werden.");
+                    return null;
+                }
 
-                Integer seiteBis = txtSeiteBis.getText().trim().isEmpty()
-                        ? null
-                        : Integer.parseInt(txtSeiteBis.getText().trim());
+                Integer seiteVon = Integer.parseInt(txtSeiteVon.getText().trim());
+                Integer seiteBis = Integer.parseInt(txtSeiteBis.getText().trim());
 
                 return new HeftEingabe(nummer, datum, ort, seiteVon, seiteBis);
             }
             return null;
         });
+
+        Platform.runLater(() -> txtHeftNummer.requestFocus());
 
         dialog.showAndWait().ifPresent(result -> {
 
@@ -1550,6 +1639,7 @@ public class PostverordnungenApp extends Application {
         heft.setAusgabeDatum(eingabe.datum());
         heft.setSeiteVon(markierteStartSeite);
         heft.setSeiteBis(markierteEndeSeite);
+
         heft.setIstAktiv(true);
         heft.setSortierung(0);
 
@@ -1559,6 +1649,16 @@ public class PostverordnungenApp extends Application {
         System.out.println("Seiten: " + heft.getSeiteVon() + " - " + heft.getSeiteBis());
 
         try {
+            if (hatUeberschneidungMitVorhandenemHeft(
+                    heft.getBandID(),
+                    heft.getSeiteVon(),
+                    heft.getSeiteBis(),
+                    null
+            )) {
+                showAlert("Fehler", "Der Seitenbereich überschneidet sich mit einem vorhandenen Heft.");
+                return;
+            }
+
             heftRepository.insert(heft);
 
             heftListView.getItems().setAll(
@@ -1579,10 +1679,27 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
+        if (eingabe.seiteVon() > eingabe.seiteBis()) {
+            showAlert("Fehler", "Seite bis darf nicht kleiner als Seite von sein.");
+            return;
+        }
+
         heft.setHeftNummer(eingabe.nummer());
         heft.setAusgabeDatum(eingabe.datum());
 
+        heft.setSeiteVon(eingabe.seiteVon());
+        heft.setSeiteBis(eingabe.seiteBis());
+
         try {
+            if (hatUeberschneidungMitVorhandenemHeft(
+                    heft.getBandID(),
+                    heft.getSeiteVon(),
+                    heft.getSeiteBis(),
+                    heft.getHeftID()
+            )) {
+                showAlert("Fehler", "Der Seitenbereich überschneidet sich mit einem vorhandenen Heft.");
+                return;
+            }
 
             heftRepository.update(heft);
 
@@ -1684,5 +1801,22 @@ public class PostverordnungenApp extends Application {
         }
 
         return aktuelleBildliste.size();
+    }
+
+    private boolean hatUeberschneidungMitVorhandenemHeft(int bandId, int seiteVon, int seiteBis, Integer aktuelleHeftId) {
+        List<Heft> vorhandeneHefte = heftRepository.findByBand(bandId);
+
+        for (Heft vorhandenesHeft : vorhandeneHefte) {
+
+            if (aktuelleHeftId != null && vorhandenesHeft.getHeftID() == aktuelleHeftId) {
+                continue;
+            }
+
+            if (seiteVon <= vorhandenesHeft.getSeiteBis() && seiteBis >= vorhandenesHeft.getSeiteVon()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
