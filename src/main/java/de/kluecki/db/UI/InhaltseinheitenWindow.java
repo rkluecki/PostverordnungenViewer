@@ -441,9 +441,17 @@ public class InhaltseinheitenWindow {
                 InhaltTabellenEintrag neuerEintrag =
                         new InhaltTabellenEintrag(nr, titel, seite, typ, beschreibung);
                 daten.add(neuerEintrag);
-                table.getSelectionModel().select(neuerEintrag);
+
+                table.getSelectionModel().clearSelection();
 
                 txtNr.setText(ermittleNaechsteNr(table));
+                txtTitel.clear();
+                txtSeiteVon.clear();
+                txtSeiteBis.clear();
+                cmbTyp.setValue(null);
+                txtBeschreibung.clear();
+
+                Platform.runLater(() -> txtTitel.requestFocus());
             } else{
 
                 repository.update(

@@ -30,13 +30,10 @@ package de.kluecki.db;
 
 import de.kluecki.db.UI.DocumentViewerWindow;
 import de.kluecki.db.UI.InhaltseinheitenWindow;
-import de.kluecki.db.UI.VerordnungsSucheDialog;
 import de.kluecki.db.model.HeftEintrag;
-import de.kluecki.db.model.VerordnungBetreff;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.HeftEintragRepository;
 import de.kluecki.db.repository.QuelleRepository;
-import de.kluecki.db.repository.VerordnungBetreffRepository;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -56,7 +53,6 @@ import de.kluecki.db.model.Heft;
 import de.kluecki.db.repository.HeftRepository;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.DatePicker;
-import de.kluecki.db.InhaltTabellenEintrag;
 import de.kluecki.db.repository.InhaltseinheitRepository;
 
 public class PostverordnungenApp extends Application {
@@ -109,7 +105,6 @@ public class PostverordnungenApp extends Application {
     private ListView<InhaltTabellenEintrag> lstInhalteDetail;
 
     // Repository Zugriff (Datenbank)
-    private VerordnungBetreffRepository betreffRepository; // Alt / Übergang
     private HeftEintragRepository heftEintragRepository; // neue Struktur
     private HeftRepository heftRepository;
     private QuelleRepository quelleRepository;  // Basisstruktur
@@ -120,7 +115,6 @@ public class PostverordnungenApp extends Application {
     public void start(Stage stage) {
 
         try {
-            betreffRepository = new VerordnungBetreffRepository(DatabaseConnection.getConnection());
             heftEintragRepository = new HeftEintragRepository(DatabaseConnection.getConnection());
             heftRepository = new HeftRepository(DatabaseConnection.getConnection());
 
@@ -225,22 +219,9 @@ public class PostverordnungenApp extends Application {
         Menu menuBearbeiten = new Menu("Bearbeiten");
         Menu menuAnsicht = new Menu("Ansicht");
         Menu menuHilfe = new Menu("Hilfe");
-        MenuItem menuSucheVerordnungen = new MenuItem("Verordnungen suchen");
-        menuBearbeiten.getItems().add(menuSucheVerordnungen);
-
-        menuSucheVerordnungen.setOnAction(e -> {
-
-         VerordnungsSucheDialog dialog =
-                 new VerordnungsSucheDialog(
-                            betreffRepository,
-                            loadGebiete(),
-                            selected -> springeZuVerordnung(selected)
-                 );
-
-         dialog.open();
-        });
 
         menuBar.getMenus().addAll(menuDatei, menuBearbeiten, menuAnsicht, menuHilfe);
+
         return menuBar;
     }
 
@@ -721,7 +702,39 @@ public class PostverordnungenApp extends Application {
 
             int bandId = ermittleBandId(gebiet, band);
             if (bandId > 0) {
-                heftListView.getItems().setAll(heftRepository.findByBand(bandId));
+                List<Heft> hefte = heftRepository.findByBand(bandId);
+
+                heftListView.setCellFactory(param -> new ListCell<>() {
+                    @Override
+                    protected void updateItem(Heft heft, boolean empty) {
+                        super.updateItem(heft, empty);
+
+                        if (empty || heft == null) {
+                            setText(null);
+                        } else {
+
+                            String text = "Heft " + heft.getHeftNummer();
+
+                            if (heft.getSeiteVon() > 0) {
+
+                                if (heft.getSeiteBis() > 0 &&
+                                        heft.getSeiteVon() != heft.getSeiteBis()) {
+
+                                    text += " (" + heft.getSeiteVon() +
+                                            "–" + heft.getSeiteBis() + ")";
+
+                                } else {
+
+                                    text += " (" + heft.getSeiteVon() + ")";
+                                }
+                            }
+
+                            setText(text);
+                        }
+                    }
+                });
+
+                heftListView.getItems().setAll(hefte);
             }
 
             List<File> bilder = loadBilder(gebiet, band);
@@ -757,13 +770,28 @@ public class PostverordnungenApp extends Application {
             lstInhalteDetail.getItems().clear();
 
             try {
-                tblHeftEintraege.getItems().setAll(
-                        heftEintragRepository.findByHeft(newValue.getHeftID())
-                );
+                List<HeftEintrag> liste =
+                        heftEintragRepository.findByHeft(newValue.getHeftID());
+
+                tblHeftEintraege.getItems().setAll(liste);
+                tblHeftEintraege.getSelectionModel().clearSelection();
+
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         });
+
+        tblHeftEintraege.getSelectionModel().selectedItemProperty().addListener((o, alt, neu) -> {
+
+            if (neu == null) return;
+
+            aktuellerBildIndex = neu.getSeiteVon() - 1;
+            ladeAktuellesBild();
+
+            ladeInhalteZuHeftEintrag(neu);
+
+        });
+
     }
 
     private int ermittleBandId(String gebiet, String band) {
@@ -802,20 +830,6 @@ public class PostverordnungenApp extends Application {
         String quelle = aktuellesGebiet != null ? aktuellesGebiet : "";
         String jahr = aktuellesBand != null ? aktuellesBand : "";
         String typ = "Seite " + (aktuellerBildIndex >= 0 ? (aktuellerBildIndex + 1) : "-");
-
-        VerordnungBetreff betreff = null;
-
-        try {
-            if (betreffRepository != null && aktuellesGebiet != null && aktuellesBand != null && aktuellerBildIndex >= 0) {
-                betreff = betreffRepository.findForPage(
-                        aktuellesGebiet,
-                        aktuellesBand,
-                        aktuellerBildIndex + 1
-                );
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
 
         DocumentViewerWindow.open(
                 currentImage,
@@ -1118,29 +1132,8 @@ public class PostverordnungenApp extends Application {
 
     private void updateInhaltAnzeige(int aktuelleSeite) {
 
-        try {
+            lblAktuellerInhalt.setText("Inhalt über HeftEintrag auswählen");
 
-            VerordnungBetreff betreff =
-                    betreffRepository.findForPage(aktuellesGebiet, aktuellesBand, aktuelleSeite);
-
-            if (betreff != null) {
-
-                lblAktuellerInhalt.setText(
-                        "Inhalt: " + betreff.getTitel() +
-                                " (S. " + betreff.getSeiteVon() +
-                                "–" + betreff.getSeiteBis() + ")"
-                );
-
-            } else {
-
-                lblAktuellerInhalt.setText("Kein Inhaltseintrag auf dieser Seite");
-                lstInhalteDetail.getSelectionModel().clearSelection();
-
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     private void updateInhaltListe() {
@@ -1161,34 +1154,6 @@ public class PostverordnungenApp extends Application {
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    private void springeZuVerordnung(VerordnungBetreff betreff) {
-
-        try {
-
-            String gebiet = betreff.getGebiet();
-            String band = betreff.getBandJahr();
-
-            gebietListView.getSelectionModel().select(gebiet);
-
-            bandListView.getSelectionModel().select(band);
-
-            int seite = betreff.getSeiteVon();
-
-            if (seite > 0 && seite <= aktuelleBildliste.size()) {
-
-                aktuellerBildIndex = seite - 1;
-
-                ladeAktuellesBild();
-
-            }
-
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-
     }
 
     private void oeffneHeftEintragDialog() {
@@ -1466,6 +1431,13 @@ public class PostverordnungenApp extends Application {
 
         TextField txtOrt = new TextField(eingabe != null ? eingabe.ort() : "");
         txtOrt.setPromptText("z. B. Berlin, Wien, ...");
+        TextField txtSeiteVon = new TextField(
+                eingabe != null && eingabe.seiteVon() != null ? String.valueOf(eingabe.seiteVon()) : ""
+        );
+
+        TextField txtSeiteBis = new TextField(
+                eingabe != null && eingabe.seiteBis() != null ? String.valueOf(eingabe.seiteBis()) : ""
+        );
 
         // Live-Validierung: OK-Button nur aktiv wenn Heftnummer gefüllt
         txtHeftNummer.textProperty().addListener((obs, old, neu) ->
@@ -1491,7 +1463,9 @@ public class PostverordnungenApp extends Application {
                     dialog.setResult(new HeftEingabe(
                             txtHeftNummer.getText().trim(),
                             dpDatum.getValue(),
-                            txtOrt.getText().trim()
+                            txtOrt.getText().trim(),
+                            Integer.parseInt(txtSeiteVon.getText().trim()),
+                            Integer.parseInt(txtSeiteBis.getText().trim())
                     ));
                     dialog.close();
                 }
@@ -1508,6 +1482,12 @@ public class PostverordnungenApp extends Application {
         grid.add(new Label("Ort:"), 0, 2);
         grid.add(txtOrt, 1, 2);
 
+        grid.add(new Label("Seite von:"), 0, 3);
+        grid.add(txtSeiteVon, 1, 3);
+
+        grid.add(new Label("Seite bis:"), 0, 4);
+        grid.add(txtSeiteBis, 1, 4);
+
         dialog.getDialogPane().setContent(grid);
 
         // ResultConverter für Klick auf OK-Button
@@ -1519,7 +1499,15 @@ public class PostverordnungenApp extends Application {
 
                 if (nummer.isEmpty()) return null;
 
-                return new HeftEingabe(nummer, datum, ort);
+                Integer seiteVon = txtSeiteVon.getText().trim().isEmpty()
+                        ? null
+                        : Integer.parseInt(txtSeiteVon.getText().trim());
+
+                Integer seiteBis = txtSeiteBis.getText().trim().isEmpty()
+                        ? null
+                        : Integer.parseInt(txtSeiteBis.getText().trim());
+
+                return new HeftEingabe(nummer, datum, ort, seiteVon, seiteBis);
             }
             return null;
         });
@@ -1535,7 +1523,7 @@ public class PostverordnungenApp extends Application {
         });
     }
 
-    private record HeftEingabe(String nummer, LocalDate datum, String ort) {
+    private record HeftEingabe(String nummer, LocalDate datum, String ort, Integer seiteVon, Integer seiteBis) {
         @Override
         public String toString() {
             return "Heft " + nummer + " | " + datum + " | " + ort;
@@ -1628,11 +1616,12 @@ public class PostverordnungenApp extends Application {
             alert.showAndWait();
             return;
         }
-
         HeftEingabe eingabe = new HeftEingabe(
                 heft.getHeftNummer(),
                 heft.getAusgabeDatum(),
-                ""
+                "",
+                heft.getSeiteVon(),
+                heft.getSeiteBis()
         );
 
         oeffneHeftDialog(eingabe);
@@ -1671,6 +1660,12 @@ public class PostverordnungenApp extends Application {
             return eintrag.getSeiteVon();
         }
 
+        Heft heft = heftListView.getSelectionModel().getSelectedItem();
+
+        if (heft != null && heft.getSeiteVon() > 0) {
+            return heft.getSeiteVon();
+        }
+
         return 1;
     }
 
@@ -1678,8 +1673,14 @@ public class PostverordnungenApp extends Application {
 
         HeftEintrag eintrag = tblHeftEintraege.getSelectionModel().getSelectedItem();
 
-        if (eintrag != null && eintrag.getSeiteBis() != null) {
+        if (eintrag != null && eintrag.getSeiteBis() > 0) {
             return eintrag.getSeiteBis();
+        }
+
+        Heft heft = heftListView.getSelectionModel().getSelectedItem();
+
+        if (heft != null && heft.getSeiteBis() > 0) {
+            return heft.getSeiteBis();
         }
 
         return aktuelleBildliste.size();
