@@ -151,4 +151,117 @@ public class HeftEintragRepository {
         }
     }
 
+    public boolean hatEintraegeZuHeft(int heftId) {
+        String sql = """
+        SELECT COUNT(*)
+        FROM dbo.HeftEintrag
+        WHERE HeftID = ?
+    """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, heftId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
+    public List<HeftEintrag> findByTitelContains(String suchtext) throws SQLException {
+        List<HeftEintrag> liste = new ArrayList<>();
+
+        String sql = """
+              SELECT HeftEintragID, HeftID, HeftEintragTypID, Nro, Titel, Datum,
+                     SeiteVon, SeiteBis, Sortierung, Bemerkung, IstAktiv
+              FROM dbo.HeftEintrag
+              WHERE Titel IS NOT NULL
+              AND LOWER(Titel) LIKE LOWER(?)
+              ORDER BY Titel
+              """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, "%" + suchtext + "%");
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    HeftEintrag eintrag = new HeftEintrag();
+
+                    eintrag.setHeftEintragID(rs.getInt("HeftEintragID"));
+                    eintrag.setHeftID(rs.getInt("HeftID"));
+                    eintrag.setHeftEintragTypID(rs.getInt("HeftEintragTypID"));
+                    eintrag.setNro(rs.getString("Nro"));
+                    eintrag.setTitel(rs.getString("Titel"));
+
+                    if (rs.getDate("Datum") != null) {
+                        eintrag.setDatum(rs.getDate("Datum").toLocalDate());
+                    }
+
+                    eintrag.setSeiteVon(rs.getInt("SeiteVon"));
+                    eintrag.setSeiteBis(rs.getInt("SeiteBis"));
+                    eintrag.setSortierung(rs.getInt("Sortierung"));
+                    eintrag.setBemerkung(rs.getString("Bemerkung"));
+                    eintrag.setIstAktiv(rs.getBoolean("IstAktiv"));
+
+                    liste.add(eintrag);
+                }
+            }
+        }
+
+        return liste;
+    }
+
+    public List<HeftEintrag> findByTitelContainsAndBandId(String suchtext, int bandId) throws SQLException {
+        List<HeftEintrag> liste = new ArrayList<>();
+
+        String sql = """
+    SELECT HeftEintragID, HeftID, HeftEintragTypID, Nro, Titel, Datum,
+           SeiteVon, SeiteBis, Sortierung, Bemerkung, IstAktiv
+    FROM dbo.HeftEintrag
+    WHERE Titel IS NOT NULL
+      AND LOWER(Titel) LIKE LOWER(?)
+      AND HeftID IN (
+          SELECT HeftID
+          FROM dbo.Heft
+          WHERE BandID = ?
+      )
+    ORDER BY Titel
+    """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, "%" + suchtext + "%");
+            stmt.setInt(2, bandId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    HeftEintrag eintrag = new HeftEintrag();
+
+                    eintrag.setHeftEintragID(rs.getInt("HeftEintragID"));
+                    eintrag.setHeftID(rs.getInt("HeftID"));
+                    eintrag.setHeftEintragTypID(rs.getInt("HeftEintragTypID"));
+                    eintrag.setNro(rs.getString("Nro"));
+                    eintrag.setTitel(rs.getString("Titel"));
+
+                    if (rs.getDate("Datum") != null) {
+                        eintrag.setDatum(rs.getDate("Datum").toLocalDate());
+                    }
+
+                    eintrag.setSeiteVon(rs.getInt("SeiteVon"));
+                    eintrag.setSeiteBis(rs.getInt("SeiteBis"));
+                    eintrag.setSortierung(rs.getInt("Sortierung"));
+                    eintrag.setBemerkung(rs.getString("Bemerkung"));
+                    eintrag.setIstAktiv(rs.getBoolean("IstAktiv"));
+
+                    liste.add(eintrag);
+                }
+            }
+        }
+
+        return liste;
+    }
 }

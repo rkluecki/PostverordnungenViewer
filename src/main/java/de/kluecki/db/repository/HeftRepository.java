@@ -21,12 +21,12 @@ public class HeftRepository {
         List<Heft> liste = new ArrayList<>();
 
         String sql = """
-                SELECT HeftID, BandID, HeftNummer, Titel, AusgabeDatum,
-                       SeiteVon, SeiteBis, Bemerkung, Sortierung, IstAktiv
-                FROM dbo.Heft
-                WHERE BandID = ?
-                ORDER BY Sortierung, HeftNummer
-                """;
+        SELECT HeftID, BandID, HeftNummer, Titel, AusgabeDatum,
+               SeiteVon, SeiteBis, Ort, Bemerkung, Sortierung, IstAktiv
+        FROM dbo.Heft
+        WHERE BandID = ?
+        ORDER BY Sortierung, HeftNummer
+        """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, bandID);
@@ -46,6 +46,7 @@ public class HeftRepository {
 
                     h.setSeiteVon(rs.getInt("SeiteVon"));
                     h.setSeiteBis(rs.getInt("SeiteBis"));
+                    h.setOrt(rs.getString("Ort"));
                     h.setBemerkung(rs.getString("Bemerkung"));
                     h.setSortierung(rs.getInt("Sortierung"));
                     h.setIstAktiv(rs.getBoolean("IstAktiv"));
@@ -64,9 +65,9 @@ public class HeftRepository {
         String sql = """
             INSERT INTO dbo.Heft
                 (BandID, HeftNummer, Titel, AusgabeDatum,
-                 SeiteVon, SeiteBis, Bemerkung, Sortierung, IstAktiv)
+                 SeiteVon, SeiteBis, Ort,Bemerkung, Sortierung, IstAktiv)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -82,9 +83,10 @@ public class HeftRepository {
 
             stmt.setInt(5, heft.getSeiteVon());
             stmt.setInt(6, heft.getSeiteBis());
-            stmt.setString(7, heft.getBemerkung());
-            stmt.setInt(8, heft.getSortierung());
-            stmt.setBoolean(9, heft.isIstAktiv());
+            stmt.setString(7, heft.getOrt());
+            stmt.setString(8, heft.getBemerkung());
+            stmt.setInt(9, heft.getSortierung());
+            stmt.setBoolean(10, heft.isIstAktiv());
 
             stmt.executeUpdate();
 
@@ -96,14 +98,15 @@ public class HeftRepository {
     public void update(Heft heft) {
 
         String sql = """
-        UPDATE dbo.Heft
-        SET HeftNummer = ?,
-            AusgabeDatum = ?,
-            SeiteVon = ?,
-            SeiteBis = ?,
-            Sortierung = ?,
-            IstAktiv = ?
-        WHERE HeftID = ?
+           UPDATE dbo.Heft
+           SET HeftNummer = ?,
+               AusgabeDatum = ?,
+               SeiteVon = ?,
+               SeiteBis = ?,
+               Ort = ?,
+               Sortierung = ?,
+               IstAktiv = ?
+           WHERE HeftID = ?
         """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -118,13 +121,82 @@ public class HeftRepository {
 
             stmt.setInt(3, heft.getSeiteVon());
             stmt.setInt(4, heft.getSeiteBis());
-            stmt.setInt(5, heft.getSortierung());
+            stmt.setString(5, heft.getOrt());
+            stmt.setInt(6, heft.getSortierung());
 
-            stmt.setBoolean(6, heft.isIstAktiv());
-            stmt.setInt(7, heft.getHeftID());
+            stmt.setBoolean(7, heft.isIstAktiv());
+            stmt.setInt(8, heft.getHeftID());
             stmt.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Fehler beim Aktualisieren des Hefts.", e);
         }
+    }
+
+    public boolean hatHefteZuBand(int bandId) {
+
+        String sql = """
+        SELECT COUNT(*)
+        FROM dbo.Heft
+        WHERE BandID = ?
+        """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, bandId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
+    public void delete(int heftId) throws SQLException {
+        String sql = """
+        DELETE FROM dbo.Heft
+        WHERE HeftID = ?
+    """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, heftId);
+            stmt.executeUpdate();
+        }
+    }
+
+    public Heft findById(int heftId) throws Exception {
+
+        String sql = "SELECT * FROM Heft WHERE HeftID = ?";
+
+        try (var ps = connection.prepareStatement(sql)) {
+
+            ps.setInt(1, heftId);
+
+            try (var rs = ps.executeQuery()) {
+
+                if (rs.next()) {
+
+                    Heft heft = new Heft();
+
+                    heft.setHeftID(rs.getInt("HeftID"));
+                    heft.setBandID(rs.getInt("BandID"));
+                    heft.setHeftNummer(rs.getString("HeftNummer"));
+                    heft.setAusgabeDatum(rs.getDate("AusgabeDatum") != null
+                            ? rs.getDate("AusgabeDatum").toLocalDate()
+                            : null);
+                    heft.setOrt(rs.getString("Ort"));
+                    heft.setSeiteVon(rs.getInt("SeiteVon"));
+                    heft.setSeiteBis(rs.getInt("SeiteBis"));
+
+                    return heft;
+                }
+            }
+        }
+
+        return null;
     }
 }

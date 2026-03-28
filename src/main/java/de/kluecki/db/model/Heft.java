@@ -14,6 +14,7 @@ public class Heft {
     private String bemerkung;
     private int sortierung;
     private boolean istAktiv;
+    private String ort;
 
     public int getHeftID() {
         return heftID;
@@ -93,6 +94,14 @@ public class Heft {
 
     public void setIstAktiv(boolean istAktiv) {
         this.istAktiv = istAktiv;
+    }
+
+    public String getOrt() {
+        return ort;
+    }
+
+    public void setOrt(String ort) {
+        this.ort = ort;
     }
 
     @Override

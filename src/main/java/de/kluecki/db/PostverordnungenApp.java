@@ -48,6 +48,9 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import java.io.File;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.*;
 import javafx.beans.property.SimpleStringProperty;
@@ -56,12 +59,10 @@ import de.kluecki.db.repository.HeftRepository;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.DatePicker;
 import de.kluecki.db.repository.InhaltseinheitRepository;
+import de.kluecki.db.config.Config;
 
 
 public class PostverordnungenApp extends Application {
-
-    // Konfiguration
-    private static final String ROOT_PATH = "D:\\Postgeschichte_PC\\Postverordnungen";
 
     // Navigation links
     private ListView<String> gebietListView;
@@ -94,6 +95,7 @@ public class PostverordnungenApp extends Application {
     private Label lblBandTitel;
     private Label lblSeitenmarkierung;
     private Label lblAktuellerInhalt;
+    private Label statusLabel;
 
     // Aktuelle fachliche Auswahl (Navigation)
     private String aktuellesGebiet;
@@ -112,6 +114,8 @@ public class PostverordnungenApp extends Application {
     private HeftRepository heftRepository;
     private QuelleRepository quelleRepository;  // Basisstruktur
 
+    // Sonstiges
+    private List<String> gebieteCache = null;
 
 
     @Override
@@ -203,6 +207,7 @@ public class PostverordnungenApp extends Application {
         root.setCenter(mainPane);
 
         configureSelectionListeners();
+        configureHeftEintragListener();
         configureKeyboardNavigation(root);
 
         updateImageView();
@@ -221,15 +226,447 @@ public class PostverordnungenApp extends Application {
         Menu menuDatei = new Menu("Datei");
         Menu menuBearbeiten = new Menu("Bearbeiten");
         Menu menuAnsicht = new Menu("Ansicht");
+        Menu menuStammdaten = new Menu("Stammdaten");
+        Menu menuSuche = new Menu("Suche");
+
+        MenuItem mnuHeftEintraegeSuchen = new MenuItem("HeftEinträge suchen...");
+
+        mnuHeftEintraegeSuchen.setOnAction(e -> {
+
+            if (aktuellesGebiet == null || aktuellesBand == null) {
+                showAlert("Hinweis", "Die Suche funktioniert derzeit nur innerhalb eines ausgewählten Band/Jahr. Bitte zuerst Gebiet und Band/Jahr auswählen.");
+                return;
+            }
+
+            int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+            if (bandId <= 0) {
+                showAlert("Fehler", "BandID konnte nicht ermittelt werden.");
+                return;
+            }
+
+            de.kluecki.db.UI.HeftEintragSucheDialog.show(
+                    bandId,
+                    aktuellesGebiet,
+                    loadGebiete(),
+                    heftEintrag -> {
+                        if (heftEintrag != null) {
+                            waehleHeftInListeAus(heftEintrag.getHeftID());
+                            waehleHeftEintragInTabelleAus(heftEintrag.getHeftEintragID());
+                        }
+                    }
+            );
+        });
+
+        menuSuche.getItems().add(mnuHeftEintraegeSuchen);
+
         Menu menuHilfe = new Menu("Hilfe");
 
-        menuBar.getMenus().addAll(menuDatei, menuBearbeiten, menuAnsicht, menuHilfe);
+        MenuItem miBandJahrAnlegen = new MenuItem("Band/Jahr anlegen");
+        miBandJahrAnlegen.setOnAction(e -> oeffneBandJahrDialog());
 
+        MenuItem miBandJahrLoeschen = new MenuItem("Band/Jahr löschen");
+        miBandJahrLoeschen.setOnAction(e -> oeffneBandJahrLoeschenDialog());
+
+        MenuItem mnuGebiet = new MenuItem("Gebiet anlegen");
+        mnuGebiet.setOnAction(e -> oeffneGebietDialog());
+
+        MenuItem miGebietUmbenennen = new MenuItem("Gebiet umbenennen");
+        miGebietUmbenennen.setOnAction(e -> oeffneGebietUmbenennenDialog());
+
+        MenuItem miGebietLoeschen = new MenuItem("Gebiet löschen");
+        miGebietLoeschen.setOnAction(e -> oeffneGebietLoeschenDialog());
+
+        menuStammdaten.getItems().add(miBandJahrAnlegen);
+        menuStammdaten.getItems().add(miBandJahrLoeschen);
+        menuStammdaten.getItems().add(mnuGebiet);
+        menuStammdaten.getItems().add(miGebietUmbenennen);
+        menuStammdaten.getItems().add(miGebietLoeschen);
+
+        menuBar.getMenus().addAll(
+                menuDatei,
+                menuBearbeiten,
+                menuAnsicht,
+                menuStammdaten,
+                menuSuche,
+                menuHilfe);
         return menuBar;
     }
 
+    private void oeffneBandJahrLoeschenDialog() {
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Band/Jahr löschen");
+        dialog.setHeaderText("Band/Jahr entfernen");
+
+        ButtonType loeschenButtonType =
+                new ButtonType("Löschen", ButtonBar.ButtonData.OK_DONE);
+        ButtonType abbrechenButtonType =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                loeschenButtonType,
+                abbrechenButtonType
+        );
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+
+        ComboBox<String> cmbGebiet = new ComboBox<>();
+        cmbGebiet.getItems().addAll(loadGebiete());
+        cmbGebiet.setPrefWidth(220);
+
+        ComboBox<String> cmbBand = new ComboBox<>();
+        cmbBand.setPrefWidth(220);
+
+        cmbGebiet.setOnAction(e -> {
+            String gebiet = cmbGebiet.getValue();
+
+            if (gebiet != null) {
+                cmbBand.getItems().setAll(loadBaende(gebiet));
+            }
+        });
+
+        grid.add(new Label("Gebiet:"), 0, 0);
+        grid.add(cmbGebiet, 1, 0);
+
+        grid.add(new Label("Band/Jahr:"), 0, 1);
+        grid.add(cmbBand, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Button btnLoeschen =
+                (Button) dialog.getDialogPane().lookupButton(loeschenButtonType);
+
+        btnLoeschen.addEventFilter(ActionEvent.ACTION, event -> {
+
+            String gebiet = cmbGebiet.getValue();
+            String band = cmbBand.getValue();
+
+            if (gebiet == null) {
+                showAlert("Fehler", "Bitte ein Gebiet auswählen.");
+                event.consume();
+                return;
+            }
+
+            if (band == null) {
+                showAlert("Fehler", "Bitte ein Band/Jahr auswählen.");
+                event.consume();
+                return;
+            }
+
+            int bandId = ermittleBandId(gebiet, band);
+
+            if (heftRepository.hatHefteZuBand(bandId)) {
+                showAlert("Fehler", "Band kann nicht gelöscht werden, solange noch Hefte existieren.");
+                event.consume();
+                return;
+            }
+
+            File rootDir = new File(Config.getImageRootPath());
+            File gebietDir = new File(rootDir, gebiet);
+            File bandDir = new File(gebietDir, band);
+
+            File[] inhalt = bandDir.listFiles();
+
+            if (inhalt != null && inhalt.length > 0) {
+                showAlert("Fehler", "Band kann nur gelöscht werden, wenn der Ordner leer ist.");
+                event.consume();
+                return;
+            }
+
+            try {
+                quelleRepository.deleteBand(bandId);
+
+                if (bandDir.exists() && !bandDir.delete()) {
+                    showAlert("Fehler", "Band wurde in der DB gelöscht, aber der Ordner konnte nicht gelöscht werden.");
+                    event.consume();
+                    return;
+                }
+
+                List<String> baende = loadBaende(gebiet);
+                bandListView.getItems().setAll(baende);
+                updateStatusLabel(baende.size());
+
+                bandListView.getSelectionModel().clearSelection();
+
+                heftListView.getItems().clear();
+                tblHeftEintraege.getItems().clear();
+                lstInhalteDetail.getItems().clear();
+
+                if (gebiet.equals(aktuellesGebiet) && band.equals(aktuellesBand)) {
+                    aktuellesBand = null;
+                    lblBandTitel.setText("Kein Band gewählt");
+                    aktuelleBildliste.clear();
+                    aktuellerBildIndex = -1;
+                    currentImage = null;
+                    imageView.setImage(null);
+                    resetSeitenmarkierung();
+                    updateNavigationState();
+                }
+
+                showAlert("Erfolg", "Band/Jahr wurde gelöscht.");
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                showAlert("Fehler", "Band/Jahr konnte nicht gelöscht werden.");
+                event.consume();
+            }
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void oeffneGebietLoeschenDialog() {
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Gebiet löschen");
+        dialog.setHeaderText("Vorhandenes Gebiet löschen");
+
+        ButtonType loeschenButtonType =
+                new ButtonType("Löschen", ButtonBar.ButtonData.OK_DONE);
+        ButtonType abbrechenButtonType =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                loeschenButtonType,
+                abbrechenButtonType
+        );
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+
+        ComboBox<String> cmbGebiet = new ComboBox<>();
+        cmbGebiet.getItems().addAll(loadGebiete());
+        cmbGebiet.setPrefWidth(220);
+
+        grid.add(new Label("Gebiet:"), 0, 0);
+        grid.add(cmbGebiet, 1, 0);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Button btnLoeschen =
+                (Button) dialog.getDialogPane().lookupButton(loeschenButtonType);
+
+        btnLoeschen.addEventFilter(ActionEvent.ACTION, event -> {
+            String gebiet = cmbGebiet.getValue();
+
+            if (gebiet == null || gebiet.isBlank()) {
+                showAlert("Fehler", "Bitte ein Gebiet auswählen.");
+                event.consume();
+                return;
+            }
+
+            if (quelleRepository.hatBaenderZuGebiet(gebiet)) {
+                showAlert("Fehler", "Gebiet kann nicht gelöscht werden, solange noch Band/Jahr-Daten in der DB vorhanden sind.");
+                event.consume();
+                return;
+            }
+
+            File rootDir = new File(Config.getImageRootPath());
+            File gebietDir = new File(rootDir, gebiet);
+
+            File[] inhalt = gebietDir.listFiles();
+
+            if (inhalt != null && inhalt.length > 0) {
+                showAlert("Fehler", "Gebiet kann nur gelöscht werden, wenn es leer ist.");
+                event.consume();
+                return;
+            }
+
+            if (!gebietDir.delete()) {
+                showAlert("Fehler", "Gebiet konnte nicht gelöscht werden.");
+                event.consume();
+                return;
+            }
+
+            invalidateGebieteCache();
+
+            gebietListView.getItems().setAll(loadGebiete());
+            gebietListView.getSelectionModel().clearSelection();
+            bandListView.getItems().clear();
+            heftListView.getItems().clear();
+            tblHeftEintraege.getItems().clear();
+            lstInhalteDetail.getItems().clear();
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void oeffneGebietUmbenennenDialog() {
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Gebiet umbenennen");
+        dialog.setHeaderText("Vorhandenes Gebiet umbenennen");
+
+        ButtonType speichernButtonType =
+                new ButtonType("Speichern", ButtonBar.ButtonData.OK_DONE);
+        ButtonType abbrechenButtonType =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                speichernButtonType,
+                abbrechenButtonType
+        );
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+
+        ComboBox<String> cmbGebiet = new ComboBox<>();
+        cmbGebiet.getItems().addAll(loadGebiete());
+        cmbGebiet.setPrefWidth(220);
+
+        TextField txtNeuerName = new TextField();
+        txtNeuerName.setPromptText("Neuer Gebietsname");
+
+        grid.add(new Label("Gebiet:"), 0, 0);
+        grid.add(cmbGebiet, 1, 0);
+
+        grid.add(new Label("Neuer Name:"), 0, 1);
+        grid.add(txtNeuerName, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Button btnSpeichern =
+                (Button) dialog.getDialogPane().lookupButton(speichernButtonType);
+
+        btnSpeichern.addEventFilter(ActionEvent.ACTION, event -> {
+
+            String altesGebiet = cmbGebiet.getValue();
+            String neuerName = txtNeuerName.getText().trim();
+
+            if (altesGebiet == null || altesGebiet.isBlank()) {
+                showAlert("Fehler", "Bitte ein Gebiet auswählen.");
+                event.consume();
+                return;
+            }
+
+            if (neuerName.isBlank()) {
+                showAlert("Fehler", "Bitte einen neuen Namen eingeben.");
+                event.consume();
+                return;
+            }
+
+            if (neuerName.matches(".*[\\\\/:*?\"<>|].*")) {
+                showAlert("Fehler", "Der neue Name enthält ungültige Zeichen.");
+                event.consume();
+                return;
+            }
+
+            File rootDir = new File(Config.getImageRootPath());
+            File alterOrdner = new File(rootDir, altesGebiet);
+            File neuerOrdner = new File(rootDir, neuerName);
+
+            if (neuerOrdner.exists()) {
+                showAlert("Fehler", "Ein Gebiet mit diesem Namen existiert bereits.");
+                event.consume();
+                return;
+            }
+
+            if (!alterOrdner.renameTo(neuerOrdner)) {
+                showAlert("Fehler", "Gebiet konnte nicht umbenannt werden.");
+                event.consume();
+                return;
+            }
+
+            invalidateGebieteCache();
+
+            gebietListView.getItems().setAll(loadGebiete());
+            gebietListView.getSelectionModel().select(neuerName);
+            gebietListView.scrollTo(neuerName);
+            gebietListView.requestFocus();
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void oeffneGebietDialog() {
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Gebiet anlegen");
+        dialog.setHeaderText("Neues Gebiet erfassen");
+
+        ButtonType speichernButtonType =
+                new ButtonType("Speichern", ButtonBar.ButtonData.OK_DONE);
+        ButtonType abbrechenButtonType =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                speichernButtonType,
+                abbrechenButtonType
+        );
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+
+        TextField txtGebiet = new TextField();
+        txtGebiet.setPromptText("z.B. Preußen");
+
+        grid.add(new Label("Gebiet:"), 0, 0);
+        grid.add(txtGebiet, 1, 0);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Button btnSpeichern =
+                (Button) dialog.getDialogPane().lookupButton(speichernButtonType);
+
+        btnSpeichern.addEventFilter(ActionEvent.ACTION, event -> {
+
+            String gebiet = txtGebiet.getText().trim();
+
+            if (gebiet.isBlank()) {
+                showAlert("Fehler", "Bitte ein Gebiet eingeben.");
+                event.consume();
+                return;
+            }
+
+            if (gebiet.matches(".*[\\\\/:*?\"<>|].*")) {
+                showAlert("Fehler", "Gebiet enthält ungültige Zeichen.");
+                event.consume();
+                return;
+            }
+
+            File rootDir = new File(Config.getImageRootPath());
+            File gebietDir = new File(rootDir, gebiet);
+
+            List<String> vorhandeneGebiete = loadGebiete();
+
+            for (String g : vorhandeneGebiete) {
+                if (g.equalsIgnoreCase(gebiet)) {
+                    showAlert("Fehler", "Gebiet existiert bereits.");
+                    event.consume();
+                    return;
+                }
+            }
+
+            if (!gebietDir.mkdir()) {
+                showAlert("Fehler", "Gebiet konnte nicht angelegt werden.");
+                event.consume();
+                return;
+            }
+
+            invalidateGebieteCache();
+
+            gebietListView.getItems().setAll(loadGebiete());
+            gebietListView.getSelectionModel().select(gebiet);
+            gebietListView.scrollTo(gebiet);
+            gebietListView.requestFocus();
+
+        });
+
+        dialog.showAndWait();
+    }
+
     private HBox createStatusBar() {
-        Label statusLabel = new Label("0 Quellen geladen");
+        statusLabel = new Label("0 Quellen geladen");
         statusLabel.setId("statusLabel");
 
         HBox statusBar = new HBox(statusLabel);
@@ -339,7 +776,7 @@ public class PostverordnungenApp extends Application {
                 return;
             }
 
-            InhaltseinheitenWindow.open(heftEintrag);
+            InhaltseinheitenWindow.open(heftEintrag, () -> ladeInhalteZuHeftEintrag(heftEintrag));
         });
 
         VBox navigation = new VBox(8,
@@ -410,6 +847,26 @@ public class PostverordnungenApp extends Application {
         }
     }
 
+    private void waehleHeftInListeAus(int heftId) {
+        for (Heft heft : heftListView.getItems()) {
+            if (heft.getHeftID() == heftId) {
+                heftListView.getSelectionModel().select(heft);
+                heftListView.scrollTo(heft);
+                return;
+            }
+        }
+    }
+
+    private void waehleHeftEintragInTabelleAus(int heftEintragId) {
+        for (HeftEintrag eintrag : tblHeftEintraege.getItems()) {
+            if (eintrag.getHeftEintragID() == heftEintragId) {
+                tblHeftEintraege.getSelectionModel().select(eintrag);
+                tblHeftEintraege.scrollTo(eintrag);
+                return;
+            }
+        }
+    }
+
     private BorderPane createDocumentPane(HBox imageToolbar, HBox bildNavigation) {
         BorderPane documentPane = new BorderPane();
         documentPane.setStyle("""
@@ -457,6 +914,9 @@ public class PostverordnungenApp extends Application {
 
         Button btnHeftAendern = new Button("Heft ändern");
         btnHeftAendern.setOnAction(e -> heftAendern());
+
+        Button btnHeftLoeschen = new Button("Heft löschen");
+        btnHeftLoeschen.setOnAction(e -> heftLoeschen());
 
         Button btnHeftEintragErfassen = new Button("HeftEintrag erfassen");
         btnHeftEintragErfassen.setOnAction(e -> oeffneHeftEintragDialog());
@@ -545,6 +1005,7 @@ public class PostverordnungenApp extends Application {
                 // Heft
                 btnHeftErfassen,
                 btnHeftAendern,
+                btnHeftLoeschen,
 
                 new Separator(),
 
@@ -568,6 +1029,51 @@ public class PostverordnungenApp extends Application {
         """);
 
         return imageToolbar;
+    }
+
+    private void heftLoeschen() {
+
+        Heft heft = heftListView.getSelectionModel().getSelectedItem();
+
+        if (heft == null) {
+            showAlert("Hinweis", "Bitte zuerst ein Heft auswählen.");
+            return;
+        }
+
+        if (heftEintragRepository.hatEintraegeZuHeft(heft.getHeftID())) {
+            showAlert("Fehler", "Heft kann nicht gelöscht werden, solange noch HeftEinträge vorhanden sind.");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Heft löschen");
+        confirm.setHeaderText(null);
+        confirm.setContentText("Soll das ausgewählte Heft wirklich gelöscht werden?");
+
+        Optional<ButtonType> result = confirm.showAndWait();
+
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return;
+        }
+
+        try {
+            heftRepository.delete(heft.getHeftID());
+
+            int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+            heftListView.getItems().setAll(heftRepository.findByBand(bandId));
+            heftListView.getSelectionModel().clearSelection();
+
+            tblHeftEintraege.getItems().clear();
+            lstInhalteDetail.getItems().clear();
+
+            resetSeitenmarkierung();
+
+            showAlert("Erfolg", "Heft wurde gelöscht.");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert("Fehler", "Heft konnte nicht gelöscht werden.");
+        }
     }
 
     private HBox createImageNavigationBar() {
@@ -683,8 +1189,16 @@ public class PostverordnungenApp extends Application {
     private void configureSelectionListeners() {
 
         gebietListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
-            if (newValue == null) return;
-            bandListView.getItems().setAll(loadBaende(newValue));
+
+            if (newValue == null) {
+                updateStatusLabel(0);
+                return;
+            }
+
+            List<String> baende = loadBaende(newValue);
+            bandListView.getItems().setAll(baende);
+
+            updateStatusLabel(baende.size());
         });
 
         bandListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
@@ -748,6 +1262,7 @@ public class PostverordnungenApp extends Application {
             if (!bilder.isEmpty()) {
                 for (File bild : bilder) {
                     aktuelleBildliste.add(bild.toPath());
+
                 }
 
                 aktuellerBildIndex = 0;
@@ -794,8 +1309,29 @@ public class PostverordnungenApp extends Application {
             ladeInhalteZuHeftEintrag(neu);
 
         });
-
     }
+
+    private void springeZuSeite(int seite) {
+        if (aktuelleBildliste.isEmpty()) {
+            System.out.println("DEBUG: springeZuSeite - Keine Bilder geladen!");
+            return;
+        }
+        if (seite < 1 || seite > aktuelleBildliste.size()) {
+            System.out.println("DEBUG: springeZuSeite - Ungültige Seitenzahl: " + seite);
+            return;
+        }
+
+        aktuellerBildIndex = seite - 1;
+        updateImageView();
+        updateNavigationState();
+
+        if (lblSeitenstand != null) {
+            lblSeitenstand.setText(seite + " / " + aktuelleBildliste.size());
+        }
+
+        System.out.println("DEBUG: Bild gewechselt zu Seite " + seite);
+    }
+
 
     private int ermittleBandId(String gebiet, String band) {
         System.out.println("ermittleBandId -> Gebiet: [" + gebiet + "], Band: [" + band + "]");
@@ -966,7 +1502,17 @@ public class PostverordnungenApp extends Application {
     }
 
     private List<String> loadGebiete() {
-        File rootDir = new File(ROOT_PATH);
+
+        if (gebieteCache == null) {
+            gebieteCache = loadGebieteFromFilesystem();
+        }
+
+        return gebieteCache;
+    }
+
+    private List<String> loadGebieteFromFilesystem() {
+
+        File rootDir = new File(Config.getImageRootPath());
 
         if (!rootDir.exists() || !rootDir.isDirectory()) {
             return List.of();
@@ -983,26 +1529,20 @@ public class PostverordnungenApp extends Application {
                 .toList();
     }
 
+    private List<String> loadGebieteFromDatabase() {
+        return List.of();
+    }
+
+    private void invalidateGebieteCache() {
+        gebieteCache = null;
+    }
+
     private List<String> loadBaende(String gebiet) {
-        File gebietDir = new File(ROOT_PATH, gebiet);
-
-        if (!gebietDir.exists() || !gebietDir.isDirectory()) {
-            return List.of();
-        }
-
-        File[] dirs = gebietDir.listFiles(File::isDirectory);
-        if (dirs == null) {
-            return List.of();
-        }
-
-        return Arrays.stream(dirs)
-                .map(File::getName)
-                .sorted()
-                .toList();
+        return quelleRepository.findBandTitelByGebiet(gebiet);
     }
 
     private List<File> loadBilder(String gebiet, String band) {
-        File bandDir = new File(new File(ROOT_PATH, gebiet), band);
+        File bandDir = new File(new File(Config.getImageRootPath(), gebiet), band);
 
         if (!bandDir.exists() || !bandDir.isDirectory()) {
             return List.of();
@@ -1040,7 +1580,7 @@ public class PostverordnungenApp extends Application {
 
     private PrintPdfService createPrintPdfService() {
         return new PrintPdfService(
-                ROOT_PATH,
+                Config.getImageRootPath(),
                 this::loadImageForPage
         );
     }
@@ -1137,6 +1677,16 @@ public class PostverordnungenApp extends Application {
 
             lblAktuellerInhalt.setText("Inhalt über HeftEintrag auswählen");
 
+    }
+
+    private void updateStatusLabel(int anzahlQuellen) {
+        if (statusLabel != null) {
+            if (anzahlQuellen == 1) {
+                statusLabel.setText("1 Quelle geladen");
+            } else {
+                statusLabel.setText(anzahlQuellen + " Quellen geladen");
+            }
+        }
     }
 
     private void updateInhaltListe() {
@@ -1637,8 +2187,9 @@ public class PostverordnungenApp extends Application {
         heft.setBandID(bandId);
         heft.setHeftNummer(eingabe.nummer());
         heft.setAusgabeDatum(eingabe.datum());
-        heft.setSeiteVon(markierteStartSeite);
-        heft.setSeiteBis(markierteEndeSeite);
+        heft.setOrt(eingabe.ort());
+        heft.setSeiteVon(eingabe.seiteVon());
+        heft.setSeiteBis(eingabe.seiteBis());
 
         heft.setIstAktiv(true);
         heft.setSortierung(0);
@@ -1661,8 +2212,10 @@ public class PostverordnungenApp extends Application {
 
             heftRepository.insert(heft);
 
+            int bandIdReload = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
             heftListView.getItems().setAll(
-                    heftRepository.findByBand(heft.getBandID())
+                    heftRepository.findByBand(bandIdReload)
             );
 
             System.out.println("Heft gespeichert");
@@ -1686,6 +2239,7 @@ public class PostverordnungenApp extends Application {
 
         heft.setHeftNummer(eingabe.nummer());
         heft.setAusgabeDatum(eingabe.datum());
+        heft.setOrt(eingabe.ort());
 
         heft.setSeiteVon(eingabe.seiteVon());
         heft.setSeiteBis(eingabe.seiteBis());
@@ -1736,7 +2290,7 @@ public class PostverordnungenApp extends Application {
         HeftEingabe eingabe = new HeftEingabe(
                 heft.getHeftNummer(),
                 heft.getAusgabeDatum(),
-                "",
+                heft.getOrt(),
                 heft.getSeiteVon(),
                 heft.getSeiteBis()
         );
@@ -1819,4 +2373,153 @@ public class PostverordnungenApp extends Application {
 
         return false;
     }
+
+    private void oeffneBandJahrDialog() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Band/Jahr anlegen");
+        dialog.setHeaderText("Neue Stammdaten für Band/Jahr erfassen");
+
+        ButtonType speichernButtonType =
+                new ButtonType("Speichern", ButtonBar.ButtonData.OK_DONE);
+        ButtonType abbrechenButtonType =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                speichernButtonType,
+                abbrechenButtonType
+        );
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+
+        ComboBox<String> cmbGebiet = new ComboBox<>();
+        cmbGebiet.getItems().addAll(loadGebiete());
+        cmbGebiet.setPrefWidth(220);
+
+        TextField txtJahr = new TextField();
+        txtJahr.setPromptText("z. B. 1846");
+
+        txtJahr.setTextFormatter(new TextFormatter<>(change ->
+                change.getControlNewText().matches("\\d*") ? change : null));
+
+        grid.add(new Label("Gebiet:"), 0, 0);
+        grid.add(cmbGebiet, 1, 0);
+
+        grid.add(new Label("Jahr/Band:"), 0, 1);
+        grid.add(txtJahr, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Button btnSpeichern =
+                (Button) dialog.getDialogPane().lookupButton(speichernButtonType);
+
+        btnSpeichern.addEventFilter(ActionEvent.ACTION, event -> {
+            String gebiet = cmbGebiet.getValue();
+            String jahr = txtJahr.getText().trim();
+
+            if (gebiet == null || gebiet.isBlank()) {
+                showAlert("Fehler", "Bitte ein Gebiet auswählen.");
+                event.consume();
+                return;
+            }
+
+            if (jahr.isBlank()) {
+                showAlert("Fehler", "Bitte ein Jahr/Band eingeben.");
+                event.consume();
+                return;
+            }
+
+            int jahrInt = Integer.parseInt(jahr);
+
+            if (quelleRepository.bandExistiert(gebiet, jahrInt)) {
+                showAlert("Fehler", "Dieses Band/Jahr existiert bereits.");
+                event.consume();
+            }
+        });
+
+        Optional<ButtonType> result = dialog.showAndWait();
+
+        if (result.isEmpty() || result.get() != speichernButtonType) {
+            return;
+        }
+
+        String gebiet = cmbGebiet.getValue();
+        String jahr = txtJahr.getText().trim();
+
+        try {
+            int jahrInt = Integer.parseInt(jahr);
+
+            if (quelleRepository.bandExistiert(gebiet, jahrInt)) {
+                showAlert("Fehler", "Dieses Band/Jahr existiert bereits.");
+                return;
+            }
+
+            quelleRepository.insertBand(gebiet, jahrInt);
+
+            int bandId = ermittleBandId(gebiet, String.valueOf(jahrInt));
+
+            File rootDir = new File(Config.getImageRootPath());
+            File gebietDir = new File(rootDir, gebiet);
+            File bandDir = new File(gebietDir, String.valueOf(jahrInt));
+
+            if (!gebietDir.exists()) {
+                try {
+                    quelleRepository.deleteBand(bandId);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+
+                showAlert("Fehler", "Gebietsordner existiert nicht.");
+                return;
+            }
+
+            if (!bandDir.exists() && !bandDir.mkdir()) {
+                try {
+                    quelleRepository.deleteBand(bandId);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+
+                showAlert("Fehler", "Band/Jahr-Ordner konnte nicht angelegt werden.");
+                return;
+            }
+
+            invalidateGebieteCache();
+
+            // Bandliste neu laden
+            gebietListView.getSelectionModel().select(gebiet);
+
+            List<String> baende = loadBaende(gebiet);
+            bandListView.getItems().setAll(baende);
+            updateStatusLabel(baende.size());
+
+            bandListView.getSelectionModel().select(String.valueOf(jahrInt));
+            bandListView.scrollTo(String.valueOf(jahrInt));
+            bandListView.requestFocus();
+
+            showAlert("Erfolg", "Band/Jahr wurde angelegt.");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert("Fehler", "Band/Jahr konnte nicht angelegt werden.");
+        }
+    }
+
+    private void configureHeftEintragListener() {
+        tblHeftEintraege.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
+            if (newSelection != null) {
+                int seiteVon = newSelection.getSeiteVon();
+
+                System.out.println("DEBUG: HeftEintrag ausgewählt → Seite " + seiteVon
+                        + " (" + newSelection.getTitel() + ")");
+
+                if (seiteVon > 0) {
+                    springeZuSeite(seiteVon);
+                }
+            }
+        });
+    }
+
 }

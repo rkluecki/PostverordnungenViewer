@@ -28,7 +28,7 @@ public class InhaltseinheitenWindow {
     private static ComboBox<String> cmbTyp;
     private static TextArea txtBeschreibung;
 
-    public static void open(HeftEintrag heftEintrag) {
+    public static void open(HeftEintrag heftEintrag, Runnable onChanged)  {
 
         txtNr = new TextField();
         txtNr.setEditable(false);
@@ -435,6 +435,10 @@ public class InhaltseinheitenWindow {
                         seiteBisInt,
                         beschreibung
                 );
+
+                if (onChanged != null) {
+                    onChanged.run();
+                }
             }
 
             if (aktuellBearbeitet == null) {
@@ -463,6 +467,10 @@ public class InhaltseinheitenWindow {
                         seiteBisInt,
                         beschreibung
                 );
+
+                if (onChanged != null) {
+                    onChanged.run();
+                }
 
                 aktuellBearbeitet.setNr(nr);
                 aktuellBearbeitet.setTitel(titel);
@@ -500,6 +508,10 @@ public class InhaltseinheitenWindow {
                         heftEintrag.getHeftEintragID(),
                         lfdNr
                 );
+
+                if (onChanged != null) {
+                    onChanged.run();
+                }
 
                 daten.remove(ausgewaehlt);
                 table.getSelectionModel().clearSelection();
@@ -547,7 +559,7 @@ public class InhaltseinheitenWindow {
         });
 
         stage.setScene(scene);
-        stage.show();
+        stage.showAndWait();
     }
 
     private static String ermittleNaechsteNr(TableView<InhaltTabellenEintrag> table) {
