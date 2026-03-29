@@ -193,6 +193,18 @@ public class PostverordnungenApp extends Application {
             }
         });
 
+        lstInhalteDetail.getSelectionModel().selectedItemProperty().addListener((obs, alt, neu) -> {
+            if (neu == null) {
+                return;
+            }
+
+            int seiteVon = neu.getSeiteVon();
+
+            if (seiteVon > 0) {
+                springeZuSeite(seiteVon);
+            }
+        });
+
         currentImage = new Image(getClass().getResourceAsStream("/images/VA842_A001.gif"));
         imageScrollPane = createImageViewer();
 
@@ -251,7 +263,10 @@ public class PostverordnungenApp extends Application {
                 }
             }
 
+            Stage ownerStage = (Stage) menuBar.getScene().getWindow();
+
             de.kluecki.db.UI.HeftEintragSucheDialog.show(
+                    ownerStage,
                     bandId,
                     gewaehltesGebiet,
                     aktuellesBand,
@@ -782,7 +797,11 @@ public class PostverordnungenApp extends Application {
                 return;
             }
 
-            InhaltseinheitenWindow.open(heftEintrag, () -> ladeInhalteZuHeftEintrag(heftEintrag));
+            InhaltseinheitenWindow.open(heftEintrag, () -> {
+            }, seite -> {
+                aktuellerBildIndex = seite - 1;
+                ladeAktuellesBild();
+            });
         });
 
         VBox navigation = new VBox(8,
@@ -1223,6 +1242,23 @@ public class PostverordnungenApp extends Application {
 
         gebietListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
 
+            bandListView.getSelectionModel().clearSelection();
+            heftListView.getSelectionModel().clearSelection();
+            tblHeftEintraege.getSelectionModel().clearSelection();
+            lstInhalteDetail.getSelectionModel().clearSelection();
+
+            bandListView.getItems().clear();
+            heftListView.getItems().clear();
+            tblHeftEintraege.getItems().clear();
+            lstInhalteDetail.getItems().clear();
+
+            aktuellesGebiet = newValue;
+            aktuellesBand = null;
+
+            lblBandTitel.setText("Kein Band gewählt");
+            lblAktuellerInhalt.setText("Kein Inhaltseintrag auf dieser Seite");
+            resetSeitenmarkierung();
+
             if (newValue == null) {
                 updateStatusLabel(0);
                 return;
@@ -1230,8 +1266,12 @@ public class PostverordnungenApp extends Application {
 
             List<String> baende = loadBaende(newValue);
             bandListView.getItems().setAll(baende);
-
             updateStatusLabel(baende.size());
+
+            if (!baende.isEmpty()) {
+                bandListView.getSelectionModel().selectFirst();
+                bandListView.scrollTo(0);
+            }
         });
 
         bandListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
@@ -1349,18 +1389,14 @@ public class PostverordnungenApp extends Application {
             System.out.println("DEBUG: springeZuSeite - Keine Bilder geladen!");
             return;
         }
+
         if (seite < 1 || seite > aktuelleBildliste.size()) {
             System.out.println("DEBUG: springeZuSeite - Ungültige Seitenzahl: " + seite);
             return;
         }
 
         aktuellerBildIndex = seite - 1;
-        updateImageView();
-        updateNavigationState();
-
-        if (lblSeitenstand != null) {
-            lblSeitenstand.setText(seite + " / " + aktuelleBildliste.size());
-        }
+        ladeAktuellesBild();
 
         System.out.println("DEBUG: Bild gewechselt zu Seite " + seite);
     }

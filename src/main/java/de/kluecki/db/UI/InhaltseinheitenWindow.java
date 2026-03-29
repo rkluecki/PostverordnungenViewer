@@ -18,6 +18,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import java.util.function.IntConsumer;
 
 public class InhaltseinheitenWindow {
 
@@ -28,7 +29,7 @@ public class InhaltseinheitenWindow {
     private static ComboBox<String> cmbTyp;
     private static TextArea txtBeschreibung;
 
-    public static void open(HeftEintrag heftEintrag, Runnable onChanged)  {
+    public static void open(HeftEintrag heftEintrag, Runnable onChanged, IntConsumer onSeiteAuswaehlen) {
 
         txtNr = new TextField();
         txtNr.setEditable(false);
@@ -197,6 +198,13 @@ public class InhaltseinheitenWindow {
             } else {
                 txtSeiteVon.setText(neu.getSeite());
                 txtSeiteBis.clear();
+            }
+
+            if (onSeiteAuswaehlen != null) {
+                String seiteText = txtSeiteVon.getText().trim();
+                if (!seiteText.isEmpty()) {
+                    onSeiteAuswaehlen.accept(Integer.parseInt(seiteText));
+                }
             }
         });
 

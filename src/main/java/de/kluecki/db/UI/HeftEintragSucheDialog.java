@@ -19,11 +19,17 @@ import javafx.application.Platform;
 import java.sql.SQLException;
 
 public class HeftEintragSucheDialog {
+    private static String letzterSuchtext = "";
 
-    public static void show(int bandId, String gebiet, String band, List<String> gebiete, Consumer<HeftEintrag> onSelect) {
+    public static void show(Stage ownerStage, int bandId, String gebiet, String band, List<String> gebiete, Consumer<HeftEintrag> onSelect)  {
         Stage stage = new Stage();
         stage.setTitle("Suche HeftEinträge");
         stage.initModality(Modality.APPLICATION_MODAL);
+
+
+        if (ownerStage != null) {
+            stage.initOwner(ownerStage);
+        }
 
         Label lblGebiet = new Label("Gebiet:");
         ComboBox<String> cmbGebiet = new ComboBox<>();
@@ -33,7 +39,20 @@ public class HeftEintragSucheDialog {
 
         Label lblTitel = new Label("Titel enthält:");
         TextField txtTitel = new TextField();
+        HBox.setHgrow(txtTitel, Priority.ALWAYS);
+        txtTitel.setMinWidth(150);
+        txtTitel.setText(letzterSuchtext);
         txtTitel.setPromptText("Suchtext eingeben");
+
+        TableColumn<HeftEintrag, String> colGebiet = new TableColumn<>("Gebiet");
+        colGebiet.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        data.getValue().getGebietAnzeige() != null
+                                ? data.getValue().getGebietAnzeige()
+                                : ""
+                )
+        );
+        colGebiet.setPrefWidth(110);
 
         TableColumn<HeftEintrag, String> colBand = new TableColumn<>("Band/Jahr");
         colBand.setCellValueFactory(data -> {
@@ -48,13 +67,62 @@ public class HeftEintragSucheDialog {
             return new SimpleStringProperty(band != null ? band : "");
         });
 
+        TableColumn<HeftEintrag, String> colHeft = new TableColumn<>("Heft");
+        colHeft.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        data.getValue().getHeftNummerAnzeige() != null
+                                ? data.getValue().getHeftNummerAnzeige()
+                                : ""
+                )
+        );
+
+        colHeft.setPrefWidth(70);
+        colHeft.setMaxWidth(90);
+
         Button btnSuchen = new Button("Suchen");
         Button btnSchliessen = new Button("Schließen");
         Label lblTreffer = new Label("");
 
+        ToggleGroup suchModusGruppe = new ToggleGroup();
+
+        RadioButton rbGebiet = new RadioButton("gewähltes Gebiet");
+        rbGebiet.setToggleGroup(suchModusGruppe);
+        rbGebiet.setSelected(true);
+
+        RadioButton rbBand = new RadioButton("nur aktuelles Band");
+        rbBand.setToggleGroup(suchModusGruppe);
+
+        RadioButton rbAlleGebiete = new RadioButton("alle Gebiete");
+        rbAlleGebiete.setToggleGroup(suchModusGruppe);
+
+        rbBand.selectedProperty().addListener((obs, alt, neu) -> {
+
+            if (neu) {
+                cmbGebiet.setValue(gebiet);
+                cmbGebiet.setDisable(true);
+            } else {
+                cmbGebiet.setDisable(false);
+            }
+
+        });
+
+        VBox suchModusBox = new VBox(3, rbGebiet, rbBand, rbAlleGebiete);
+
         txtTitel.setOnAction(e -> btnSuchen.fire());
 
         TableView<HeftEintrag> table = new TableView<>();
+
+        table.getSelectionModel().selectedItemProperty().addListener((obs, alt, neu) -> {
+
+            if (neu == null) {
+                return;
+            }
+
+            if (onSelect != null) {
+                Platform.runLater(() -> onSelect.accept(neu));
+            }
+
+        });
 
         TableColumn<HeftEintrag, Number> colId = new TableColumn<>("ID");
         colId.setCellValueFactory(data ->
@@ -74,7 +142,7 @@ public class HeftEintragSucheDialog {
         colSeiteBis.setCellValueFactory(data ->
                 new SimpleIntegerProperty(data.getValue().getSeiteBis()));
 
-        table.getColumns().addAll(colId, colTitel, colBand, colSeiteVon, colSeiteBis);
+        table.getColumns().addAll(colId, colTitel, colGebiet, colBand, colHeft, colSeiteVon, colSeiteBis);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         table.setRowFactory(tv -> {
@@ -119,6 +187,21 @@ public class HeftEintragSucheDialog {
 
             String suchtext = txtTitel.getText();
 
+            if (rbBand.isSelected() && bandId <= 0) {
+
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+
+                alert.setTitle("Hinweis");
+                alert.setHeaderText(null);
+                alert.setContentText("Bitte zuerst ein Band auswählen.");
+
+                alert.showAndWait();
+
+                return;
+            }
+
+            letzterSuchtext = suchtext;
+
             if (suchtext == null || suchtext.isBlank()) {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.setTitle("Hinweis");
@@ -138,13 +221,49 @@ public class HeftEintragSucheDialog {
 
                 List<HeftEintrag> treffer;
 
-                if (bandId <= 0 || (ausgewaehltesGebiet != null && !ausgewaehltesGebiet.equals(gebiet))) {
-                    treffer = repo.findByTitelContainsAndGebiet(suchtext, ausgewaehltesGebiet);
-                } else {
+                if (rbBand.isSelected()
+                        && bandId > 0
+                        && ausgewaehltesGebiet != null
+                        && ausgewaehltesGebiet.equals(gebiet)) {
+
                     treffer = repo.findByTitelContainsAndBandId(suchtext, bandId);
+
+                } else if (rbAlleGebiete.isSelected()) {
+
+                    treffer = repo.findByTitelContains(suchtext);
+
+                } else {
+
+                    treffer = repo.findByTitelContainsAndGebiet(suchtext, ausgewaehltesGebiet);
                 }
 
+                treffer.sort((a, b) -> {
+
+                    String bandA = a.getBandJahrAnzeige() != null ? a.getBandJahrAnzeige() : "";
+                    String bandB = b.getBandJahrAnzeige() != null ? b.getBandJahrAnzeige() : "";
+
+                    int bandVergleich = bandA.compareTo(bandB);
+
+                    if (bandVergleich != 0) {
+                        return bandVergleich;
+                    }
+
+                    String heftA = a.getHeftNummerAnzeige() != null ? a.getHeftNummerAnzeige() : "";
+                    String heftB = b.getHeftNummerAnzeige() != null ? b.getHeftNummerAnzeige() : "";
+
+                    int heftVergleich = heftA.compareTo(heftB);
+
+                    if (heftVergleich != 0) {
+                        return heftVergleich;
+                    }
+
+                    return Integer.compare(a.getSeiteVon(), b.getSeiteVon());
+                });
+
                 table.getItems().addAll(treffer);
+
+                colSeiteVon.setSortType(TableColumn.SortType.ASCENDING);
+                table.getSortOrder().add(colSeiteVon);
 
                 if (treffer.isEmpty()) {
                     lblTreffer.setText("Keine Treffer");
@@ -172,13 +291,16 @@ public class HeftEintragSucheDialog {
         btnSchliessen.setOnAction(e -> stage.close());
 
         HBox suchBox = new HBox(
-                10,
+                15,
                 lblGebiet,
                 cmbGebiet,
                 lblTitel,
                 txtTitel,
+                suchModusBox,
                 btnSuchen
         );
+
+        suchModusBox.setPadding(new Insets(0,10,0,10));
 
         VBox.setVgrow(table, Priority.ALWAYS);
 
@@ -187,8 +309,19 @@ public class HeftEintragSucheDialog {
         VBox root = new VBox(10, suchBox, table, buttonBox);
         root.setPadding(new Insets(10));
 
-        Scene scene = new Scene(root, 700, 450);
+        Scene scene = new Scene(root, 820, 450);
+        stage.setMinWidth(800);
         stage.setScene(scene);
+
+        stage.setOnShown(event -> Platform.runLater(() -> {
+            if (ownerStage != null) {
+                stage.setX(ownerStage.getX() + ownerStage.getWidth() - stage.getWidth() - 20);
+                stage.setY(ownerStage.getY() + 250);
+            }
+
+            stage.toFront();
+        }));
+
         stage.showAndWait();
     }
 }

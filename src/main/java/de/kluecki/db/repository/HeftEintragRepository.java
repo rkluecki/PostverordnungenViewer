@@ -177,13 +177,29 @@ public class HeftEintragRepository {
         List<HeftEintrag> liste = new ArrayList<>();
 
         String sql = """
-              SELECT HeftEintragID, HeftID, HeftEintragTypID, Nro, Titel, Datum,
-                     SeiteVon, SeiteBis, Sortierung, Bemerkung, IstAktiv
-              FROM dbo.HeftEintrag
-              WHERE Titel IS NOT NULL
-              AND LOWER(Titel) LIKE LOWER(?)
-              ORDER BY Titel
-              """;
+SELECT he.HeftEintragID,
+       he.HeftID,
+       he.HeftEintragTypID,
+       he.Nro,
+       he.Titel,
+       he.Datum,
+       he.SeiteVon,
+       he.SeiteBis,
+       he.Sortierung,
+       he.Bemerkung,
+       he.IstAktiv,
+       q.Jahr AS BandJahr,
+       q.Land AS GebietAnzeige,
+       h.HeftNummer
+FROM dbo.HeftEintrag he
+INNER JOIN dbo.Heft h
+    ON he.HeftID = h.HeftID
+INNER JOIN dbo.Quelle q
+    ON h.BandID = q.QuelleID
+WHERE he.Titel IS NOT NULL
+  AND LOWER(he.Titel) LIKE LOWER(?)
+ORDER BY q.Land, q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
+""";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
@@ -208,6 +224,14 @@ public class HeftEintragRepository {
                     eintrag.setBemerkung(rs.getString("Bemerkung"));
                     eintrag.setIstAktiv(rs.getBoolean("IstAktiv"));
 
+                    int bandJahr = rs.getInt("BandJahr");
+                    if (!rs.wasNull()) {
+                        eintrag.setBandJahrAnzeige(String.valueOf(bandJahr));
+                    }
+
+                    eintrag.setGebietAnzeige(rs.getString("GebietAnzeige"));
+                    eintrag.setHeftNummerAnzeige(rs.getString("HeftNummer"));
+
                     liste.add(eintrag);
                 }
             }
@@ -220,18 +244,30 @@ public class HeftEintragRepository {
         List<HeftEintrag> liste = new ArrayList<>();
 
         String sql = """
-    SELECT HeftEintragID, HeftID, HeftEintragTypID, Nro, Titel, Datum,
-           SeiteVon, SeiteBis, Sortierung, Bemerkung, IstAktiv
-    FROM dbo.HeftEintrag
-    WHERE Titel IS NOT NULL
-      AND LOWER(Titel) LIKE LOWER(?)
-      AND HeftID IN (
-          SELECT HeftID
-          FROM dbo.Heft
-          WHERE BandID = ?
-      )
-    ORDER BY Titel
-    """;
+SELECT he.HeftEintragID,
+       he.HeftID,
+       he.HeftEintragTypID,
+       he.Nro,
+       he.Titel,
+       he.Datum,
+       he.SeiteVon,
+       he.SeiteBis,
+       he.Sortierung,
+       he.Bemerkung,
+       he.IstAktiv,
+       q.Jahr AS BandJahr,
+       q.Land AS GebietAnzeige,
+       h.HeftNummer
+FROM dbo.HeftEintrag he
+INNER JOIN dbo.Heft h
+    ON he.HeftID = h.HeftID
+INNER JOIN dbo.Quelle q
+    ON h.BandID = q.QuelleID
+WHERE he.Titel IS NOT NULL
+  AND LOWER(he.Titel) LIKE LOWER(?)
+  AND q.QuelleID = ?
+ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
+""";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
@@ -257,6 +293,14 @@ public class HeftEintragRepository {
                     eintrag.setBemerkung(rs.getString("Bemerkung"));
                     eintrag.setIstAktiv(rs.getBoolean("IstAktiv"));
 
+                    int bandJahr = rs.getInt("BandJahr");
+                    if (!rs.wasNull()) {
+                        eintrag.setBandJahrAnzeige(String.valueOf(bandJahr));
+                    }
+
+                    eintrag.setGebietAnzeige(rs.getString("GebietAnzeige"));
+                    eintrag.setHeftNummerAnzeige(rs.getString("HeftNummer"));
+
                     liste.add(eintrag);
                 }
             }
@@ -281,7 +325,8 @@ public class HeftEintragRepository {
            he.Bemerkung,
            he.IstAktiv,
            q.Jahr AS BandJahr,
-           q.Land AS GebietAnzeige
+           q.Land AS GebietAnzeige,
+           h.HeftNummer        
     FROM dbo.HeftEintrag he
     INNER JOIN dbo.Heft h
         ON he.HeftID = h.HeftID
@@ -329,6 +374,8 @@ public class HeftEintragRepository {
                     }
 
                     eintrag.setGebietAnzeige(rs.getString("GebietAnzeige"));
+
+                    eintrag.setHeftNummerAnzeige(rs.getString("HeftNummer"));
 
                     liste.add(eintrag);
                 }

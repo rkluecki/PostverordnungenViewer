@@ -31,6 +31,7 @@ public class HeftEintrag {
     private boolean istAktiv;
     private String bandJahrAnzeige;
     private String gebietAnzeige;
+    private String heftNummerAnzeige;
 
     public HeftEintrag() {
     }
@@ -137,6 +138,14 @@ public class HeftEintrag {
 
     public void setGebietAnzeige(String gebietAnzeige) {
         this.gebietAnzeige = gebietAnzeige;
+    }
+
+    public String getHeftNummerAnzeige() {
+        return heftNummerAnzeige;
+    }
+
+    public void setHeftNummerAnzeige(String heftNummerAnzeige) {
+        this.heftNummerAnzeige = heftNummerAnzeige;
     }
 
     @Override
