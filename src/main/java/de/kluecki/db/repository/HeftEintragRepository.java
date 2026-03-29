@@ -264,4 +264,77 @@ public class HeftEintragRepository {
 
         return liste;
     }
+
+    public List<HeftEintrag> findByTitelContainsAndGebiet(String suchtext, String gebiet) throws SQLException {
+        List<HeftEintrag> liste = new ArrayList<>();
+
+        String sql = """
+    SELECT he.HeftEintragID,
+           he.HeftID,
+           he.HeftEintragTypID,
+           he.Nro,
+           he.Titel,
+           he.Datum,
+           he.SeiteVon,
+           he.SeiteBis,
+           he.Sortierung,
+           he.Bemerkung,
+           he.IstAktiv,
+           q.Jahr AS BandJahr,
+           q.Land AS GebietAnzeige
+    FROM dbo.HeftEintrag he
+    INNER JOIN dbo.Heft h
+        ON he.HeftID = h.HeftID
+    INNER JOIN dbo.Quelle q
+        ON h.BandID = q.QuelleID
+    WHERE he.Titel IS NOT NULL
+      AND LOWER(he.Titel) LIKE LOWER(?)
+      AND q.EbeneTyp = 'BAND'
+      AND q.Land = ?
+    ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
+    """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, "%" + suchtext + "%");
+            stmt.setString(2, gebiet);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    HeftEintrag eintrag = new HeftEintrag();
+
+                    eintrag.setHeftEintragID(rs.getInt("HeftEintragID"));
+                    eintrag.setHeftID(rs.getInt("HeftID"));
+                    eintrag.setHeftEintragTypID(rs.getInt("HeftEintragTypID"));
+                    eintrag.setNro(rs.getString("Nro"));
+                    eintrag.setTitel(rs.getString("Titel"));
+
+                    if (rs.getDate("Datum") != null) {
+                        eintrag.setDatum(rs.getDate("Datum").toLocalDate());
+                    }
+
+                    eintrag.setSeiteVon(rs.getInt("SeiteVon"));
+
+                    int seiteBis = rs.getInt("SeiteBis");
+                    if (!rs.wasNull()) {
+                        eintrag.setSeiteBis(seiteBis);
+                    }
+
+                    eintrag.setSortierung(rs.getInt("Sortierung"));
+                    eintrag.setBemerkung(rs.getString("Bemerkung"));
+                    eintrag.setIstAktiv(rs.getBoolean("IstAktiv"));
+
+                    int bandJahr = rs.getInt("BandJahr");
+                    if (!rs.wasNull()) {
+                        eintrag.setBandJahrAnzeige(String.valueOf(bandJahr));
+                    }
+
+                    eintrag.setGebietAnzeige(rs.getString("GebietAnzeige"));
+
+                    liste.add(eintrag);
+                }
+            }
+        }
+
+        return liste;
+    }
 }

@@ -29,6 +29,8 @@ public class HeftEintrag {
     private int sortierung;
     private String bemerkung;
     private boolean istAktiv;
+    private String bandJahrAnzeige;
+    private String gebietAnzeige;
 
     public HeftEintrag() {
     }
@@ -119,6 +121,22 @@ public class HeftEintrag {
 
     public void setIstAktiv(boolean istAktiv) {
         this.istAktiv = istAktiv;
+    }
+
+    public String getBandJahrAnzeige() {
+        return bandJahrAnzeige;
+    }
+
+    public void setBandJahrAnzeige(String bandJahrAnzeige) {
+        this.bandJahrAnzeige = bandJahrAnzeige;
+    }
+
+    public String getGebietAnzeige() {
+        return gebietAnzeige;
+    }
+
+    public void setGebietAnzeige(String gebietAnzeige) {
+        this.gebietAnzeige = gebietAnzeige;
     }
 
     @Override

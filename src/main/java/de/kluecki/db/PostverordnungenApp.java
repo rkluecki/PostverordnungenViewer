@@ -233,26 +233,32 @@ public class PostverordnungenApp extends Application {
 
         mnuHeftEintraegeSuchen.setOnAction(e -> {
 
-            if (aktuellesGebiet == null || aktuellesBand == null) {
-                showAlert("Hinweis", "Die Suche funktioniert derzeit nur innerhalb eines ausgewählten Band/Jahr. Bitte zuerst Gebiet und Band/Jahr auswählen.");
+            String gewaehltesGebiet = gebietListView.getSelectionModel().getSelectedItem();
+
+            if (gewaehltesGebiet == null || gewaehltesGebiet.isBlank()) {
+                showAlert("Hinweis", "Bitte zuerst ein Gebiet auswählen.");
                 return;
             }
 
-            int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+            int bandId = 0;
 
-            if (bandId <= 0) {
-                showAlert("Fehler", "BandID konnte nicht ermittelt werden.");
-                return;
+            if (aktuellesBand != null && !aktuellesBand.isBlank()) {
+                bandId = ermittleBandId(gewaehltesGebiet, aktuellesBand);
+
+                if (bandId <= 0) {
+                    showAlert("Fehler", "BandID konnte nicht ermittelt werden.");
+                    return;
+                }
             }
 
             de.kluecki.db.UI.HeftEintragSucheDialog.show(
                     bandId,
-                    aktuellesGebiet,
+                    gewaehltesGebiet,
+                    aktuellesBand,
                     loadGebiete(),
                     heftEintrag -> {
                         if (heftEintrag != null) {
-                            waehleHeftInListeAus(heftEintrag.getHeftID());
-                            waehleHeftEintragInTabelleAus(heftEintrag.getHeftEintragID());
+                            waehleKontextUndTrefferAus(heftEintrag);
                         }
                     }
             );
@@ -865,6 +871,33 @@ public class PostverordnungenApp extends Application {
                 return;
             }
         }
+    }
+
+    private void waehleKontextUndTrefferAus(HeftEintrag heftEintrag) {
+        if (heftEintrag == null) {
+            return;
+        }
+
+        String zielGebiet = heftEintrag.getGebietAnzeige();
+        String zielBand = heftEintrag.getBandJahrAnzeige();
+
+        if (zielGebiet != null && !zielGebiet.isBlank()) {
+            gebietListView.getSelectionModel().select(zielGebiet);
+            gebietListView.scrollTo(zielGebiet);
+        }
+
+        if (zielBand != null && !zielBand.isBlank()) {
+            bandListView.getSelectionModel().select(zielBand);
+            bandListView.scrollTo(zielBand);
+        }
+
+        Platform.runLater(() -> {
+            waehleHeftInListeAus(heftEintrag.getHeftID());
+
+            Platform.runLater(() ->
+                    waehleHeftEintragInTabelleAus(heftEintrag.getHeftEintragID())
+            );
+        });
     }
 
     private BorderPane createDocumentPane(HBox imageToolbar, HBox bildNavigation) {

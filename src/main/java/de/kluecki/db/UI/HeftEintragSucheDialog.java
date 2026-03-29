@@ -20,7 +20,7 @@ import java.sql.SQLException;
 
 public class HeftEintragSucheDialog {
 
-    public static void show(int bandId, String gebiet, List<String> gebiete, Consumer<HeftEintrag> onSelect) {
+    public static void show(int bandId, String gebiet, String band, List<String> gebiete, Consumer<HeftEintrag> onSelect) {
         Stage stage = new Stage();
         stage.setTitle("Suche HeftEinträge");
         stage.initModality(Modality.APPLICATION_MODAL);
@@ -34,6 +34,19 @@ public class HeftEintragSucheDialog {
         Label lblTitel = new Label("Titel enthält:");
         TextField txtTitel = new TextField();
         txtTitel.setPromptText("Suchtext eingeben");
+
+        TableColumn<HeftEintrag, String> colBand = new TableColumn<>("Band/Jahr");
+        colBand.setCellValueFactory(data -> {
+            HeftEintrag eintrag = data.getValue();
+
+            String bandAnzeige = eintrag.getBandJahrAnzeige();
+
+            if (bandAnzeige != null && !bandAnzeige.isBlank()) {
+                return new SimpleStringProperty(bandAnzeige);
+            }
+
+            return new SimpleStringProperty(band != null ? band : "");
+        });
 
         Button btnSuchen = new Button("Suchen");
         Button btnSchliessen = new Button("Schließen");
@@ -61,7 +74,7 @@ public class HeftEintragSucheDialog {
         colSeiteBis.setCellValueFactory(data ->
                 new SimpleIntegerProperty(data.getValue().getSeiteBis()));
 
-        table.getColumns().addAll(colId, colTitel, colSeiteVon, colSeiteBis);
+        table.getColumns().addAll(colId, colTitel, colBand, colSeiteVon, colSeiteBis);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         table.setRowFactory(tv -> {
@@ -121,7 +134,15 @@ public class HeftEintragSucheDialog {
 
                 table.getItems().clear();
 
-                var treffer = repo.findByTitelContainsAndBandId(suchtext, bandId);
+                String ausgewaehltesGebiet = cmbGebiet.getValue();
+
+                List<HeftEintrag> treffer;
+
+                if (bandId <= 0 || (ausgewaehltesGebiet != null && !ausgewaehltesGebiet.equals(gebiet))) {
+                    treffer = repo.findByTitelContainsAndGebiet(suchtext, ausgewaehltesGebiet);
+                } else {
+                    treffer = repo.findByTitelContainsAndBandId(suchtext, bandId);
+                }
 
                 table.getItems().addAll(treffer);
 
