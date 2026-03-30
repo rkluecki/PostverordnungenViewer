@@ -17,12 +17,16 @@ import java.util.List;
 import java.util.function.Consumer;
 import javafx.application.Platform;
 import java.sql.SQLException;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.paint.Color;
+
 
 public class HeftEintragSucheDialog {
     private static String letzterSuchtext = "";
 
     public static void show(Stage ownerStage, int bandId, String gebiet, String band, List<String> gebiete, Consumer<HeftEintrag> onSelect)  {
         Stage stage = new Stage();
+        stage.initStyle(javafx.stage.StageStyle.UTILITY);
         stage.setTitle("Suche HeftEinträge");
         stage.initModality(Modality.APPLICATION_MODAL);
 
@@ -309,7 +313,28 @@ public class HeftEintragSucheDialog {
         VBox root = new VBox(10, suchBox, table, buttonBox);
         root.setPadding(new Insets(10));
 
+        root.setStyle("""
+    -fx-background-color: #efefef;
+    -fx-border-color: #5f5f5f;
+    -fx-border-width: 2;
+""");
+
+        root.setEffect(new DropShadow(
+                18,
+                0,
+                0,
+                Color.rgb(0, 0, 0, 0.35)
+        ));
+
         Scene scene = new Scene(root, 820, 450);
+
+        scene.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ESCAPE) {
+                stage.close();
+                event.consume();
+            }
+        });
+
         stage.setMinWidth(800);
         stage.setScene(scene);
 
@@ -320,6 +345,8 @@ public class HeftEintragSucheDialog {
             }
 
             stage.toFront();
+            txtTitel.requestFocus();
+            txtTitel.positionCaret(txtTitel.getText().length());
         }));
 
         stage.showAndWait();

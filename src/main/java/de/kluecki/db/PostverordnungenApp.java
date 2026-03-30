@@ -103,6 +103,21 @@ public class PostverordnungenApp extends Application {
     private Integer markierteStartSeite = null;
     private Integer markierteEndeSeite = null;
 
+    // Drucken
+    private Button btnHeftDrucken;
+    private Button btnHeftPdf;
+
+    private Button btnHeftEintragDrucken;
+    private Button btnHeftEintragPdf;
+
+    private Button btnInhaltPrint;
+    private Button btnInhaltPdf;
+
+    private Button btnHeftAendern;
+    private Button btnHeftLoeschen;
+    private Button btnHeftEintragAendern;
+    private Button btnInhaltseinheiten;
+
     // Tabellen / Detailansichten
     // Neue Zielstruktur
     private TableView<HeftEintrag> tblHeftEintraege; // neue Zielstruktur
@@ -148,7 +163,7 @@ public class PostverordnungenApp extends Application {
         bandListView = new ListView<>();
         heftListView = new ListView<>();
 
-        HBox imageToolbar = createImageToolbar();
+        VBox imageToolbar = createImageToolbar();
         HBox bildNavigation = createImageNavigationBar();
 
         lblBandTitel = new Label("Kein Band gewählt");
@@ -194,15 +209,15 @@ public class PostverordnungenApp extends Application {
         });
 
         lstInhalteDetail.getSelectionModel().selectedItemProperty().addListener((obs, alt, neu) -> {
-            if (neu == null) {
-                return;
+            if (neu != null) {
+                int seiteVon = neu.getSeiteVon();
+
+                if (seiteVon > 0) {
+                    springeZuSeite(seiteVon);
+                }
             }
 
-            int seiteVon = neu.getSeiteVon();
-
-            if (seiteVon > 0) {
-                springeZuSeite(seiteVon);
-            }
+            updateOutputButtons();
         });
 
         currentImage = new Image(getClass().getResourceAsStream("/images/VA842_A001.gif"));
@@ -224,6 +239,7 @@ public class PostverordnungenApp extends Application {
 
         updateImageView();
         updateNavigationState();
+        updateOutputButtons();
 
         Scene scene = new Scene(root);
         stage.setMaximized(true);
@@ -283,6 +299,14 @@ public class PostverordnungenApp extends Application {
 
         Menu menuHilfe = new Menu("Hilfe");
 
+        MenuItem miKurzhilfe = new MenuItem("Kurzhilfe");
+        miKurzhilfe.setOnAction(e -> zeigeKurzhilfe());
+
+        MenuItem miUeber = new MenuItem("Über Postverordnungen");
+        miUeber.setOnAction(e -> zeigeUeberDialog());
+
+        menuHilfe.getItems().addAll(miKurzhilfe, miUeber);
+
         MenuItem miBandJahrAnlegen = new MenuItem("Band/Jahr anlegen");
         miBandJahrAnlegen.setOnAction(e -> oeffneBandJahrDialog());
 
@@ -305,13 +329,43 @@ public class PostverordnungenApp extends Application {
         menuStammdaten.getItems().add(miGebietLoeschen);
 
         menuBar.getMenus().addAll(
-                menuDatei,
-                menuBearbeiten,
-                menuAnsicht,
                 menuStammdaten,
                 menuSuche,
                 menuHilfe);
         return menuBar;
+    }
+
+    private void zeigeKurzhilfe() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Kurzhilfe");
+        alert.setHeaderText("Kurzhilfe Postverordnungen");
+        alert.setContentText(
+                "1. Gebiet auswählen\n" +
+                        "2. Band/Jahr auswählen\n" +
+                        "3. Heft auswählen\n" +
+                        "4. HeftEintrag auswählen\n" +
+                        "5. Inhalt auswählen\n\n" +
+                        "Druck und PDF sind möglich für:\n" +
+                        "- Heft\n" +
+                        "- HeftEintrag\n" +
+                        "- Inhalt\n\n" +
+                        "Seitenmarkierung wird zum Erfassen von Heft und HeftEintrag verwendet."
+        );
+        alert.showAndWait();
+    }
+
+    private void zeigeUeberDialog() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Über Postverordnungen");
+        alert.setHeaderText("Postverordnungen");
+        alert.setContentText(
+                "Anwendung zur Erfassung und Navigation historischer Postverordnungen.\n\n" +
+                        "Aktuelle Zielstruktur:\n" +
+                        "Heft -> HeftEintrag -> Inhaltseinheit\n\n" +
+                        "Stand:\n" +
+                        "Navigation, Erfassung, Druck und PDF sind für den Kernbereich funktionsfähig."
+        );
+        alert.showAndWait();
     }
 
     private void oeffneBandJahrLoeschenDialog() {
@@ -786,8 +840,9 @@ public class PostverordnungenApp extends Application {
         Label lblBetreffe = new Label("Inhalte des HeftEintrags");
         lblBetreffe.setStyle("-fx-font-weight: bold;");
 
-        Button btnInhaltseinheiten = new Button("Inhaltseinträge");
+        btnInhaltseinheiten = new Button("Inhaltseinträge");
         btnInhaltseinheiten.setMaxWidth(Double.MAX_VALUE);
+        btnInhaltseinheiten.setDisable(true);
 
         btnInhaltseinheiten.setOnAction(e -> {
             HeftEintrag heftEintrag = tblHeftEintraege.getSelectionModel().getSelectedItem();
@@ -846,6 +901,7 @@ public class PostverordnungenApp extends Application {
                 aktuellerBildIndex = eintrag.getSeiteVon() - 1;
                 ladeAktuellesBild();
                 ladeInhalteZuHeftEintrag(eintrag);
+                updateOutputButtons();
             }
         });
 
@@ -919,7 +975,7 @@ public class PostverordnungenApp extends Application {
         });
     }
 
-    private BorderPane createDocumentPane(HBox imageToolbar, HBox bildNavigation) {
+    private BorderPane createDocumentPane(VBox imageToolbar, HBox bildNavigation) {
         BorderPane documentPane = new BorderPane();
         documentPane.setStyle("""
             -fx-padding: 10;
@@ -936,7 +992,7 @@ public class PostverordnungenApp extends Application {
         return documentPane;
     }
 
-    private VBox createDocumentHeader(HBox imageToolbar) {
+    private VBox createDocumentHeader(VBox imageToolbar) {
         VBox documentHeader = new VBox(6, lblBandTitel, lblSeitenmarkierung, lblAktuellerInhalt, imageToolbar);
         documentHeader.setStyle("""
             -fx-padding: 8;
@@ -947,16 +1003,16 @@ public class PostverordnungenApp extends Application {
         return documentHeader;
     }
 
-    private HBox createImageToolbar() {
+    private VBox createImageToolbar() {
         Button btnZoomIn = new Button("+");
         Button btnZoomOut = new Button("-");
         Button btnFit = new Button("Anpassen");
         Button btnRotateLeft = new Button("⟲");
         Button btnRotateRight = new Button("⟳");
 
-        Button btnInhaltPdf = new Button("Inhalt PDF");
+        btnInhaltPdf = new Button("Inhalt PDF");
         btnInhaltPdf.setTooltip(new Tooltip("Ausgewählten Inhalt als PDF speichern"));
-        Button btnInhaltPrint = new Button("Inhalt drucken");
+        btnInhaltPrint = new Button("Inhalt drucken");
         btnInhaltPrint.setTooltip(new Tooltip("Ausgewählten Inhalt drucken"));
 
         Button btnStartSeitenmarkierung = new Button("Startseite markieren");
@@ -964,16 +1020,33 @@ public class PostverordnungenApp extends Application {
         Button btnHeftErfassen = new Button("Heft erfassen");
         btnHeftErfassen.setOnAction(e -> oeffneHeftDialog());
 
-        Button btnHeftAendern = new Button("Heft ändern");
+        btnHeftAendern = new Button("Heft ändern");
         btnHeftAendern.setOnAction(e -> heftAendern());
 
-        Button btnHeftLoeschen = new Button("Heft löschen");
+        btnHeftLoeschen = new Button("Heft löschen");
         btnHeftLoeschen.setOnAction(e -> heftLoeschen());
 
-        Button btnHeftEintragErfassen = new Button("HeftEintrag erfassen");
+        Button btnHeftEintragErfassen = new Button("Heft Eintrag erfassen");
         btnHeftEintragErfassen.setOnAction(e -> oeffneHeftEintragDialog());
-        Button btnHeftEintragAendern = new Button("HeftEintrag ändern");
+        btnHeftEintragAendern = new Button("Heft Eintrag ändern");
         btnHeftEintragAendern.setOnAction(e -> heftEintragAendern());
+
+        btnHeftDrucken = new Button("Heft drucken");
+        btnHeftDrucken.setOnAction(e -> printSelectedHeft());
+        btnHeftPdf = new Button("Heft PDF");
+        btnHeftPdf.setOnAction(e -> exportSelectedHeftToPdf());
+        btnHeftDrucken.setDisable(true);
+        btnHeftPdf.setDisable(true);
+        btnHeftAendern.setDisable(true);
+        btnHeftLoeschen.setDisable(true);
+
+        btnHeftEintragDrucken = new Button("HeftEintrag drucken");
+        btnHeftEintragDrucken.setOnAction(e -> printSelectedHeftEintrag());
+        btnHeftEintragPdf = new Button("HeftEintrag PDF");
+        btnHeftEintragPdf.setOnAction(e -> exportSelectedHeftEintragToPdf());
+        btnHeftEintragDrucken.setDisable(true);
+        btnHeftEintragPdf.setDisable(true);
+        btnHeftEintragAendern.setDisable(true);
 
         btnZoomIn.setOnAction(e -> {
             if (fitToWindow) {
@@ -1012,7 +1085,7 @@ public class PostverordnungenApp extends Application {
             if (aktuellerBildIndex < 0) return;
             markierteStartSeite = aktuellerBildIndex + 1;
             markierteEndeSeite = null;
-            updateSeitenmarkierung();;
+            updateSeitenmarkierung();
         });
 
         btnEndeSeitenmarkierung.setOnAction(e -> {
@@ -1031,54 +1104,55 @@ public class PostverordnungenApp extends Application {
                 }
             }
 
-            updateSeitenmarkierung();;
+            updateSeitenmarkierung();
         });
+
         btnInhaltPdf.setOnAction(e -> exportSelectedInhaltToPdf());
         btnInhaltPrint.setOnAction(e -> printSelectedInhalt());
 
-        HBox imageToolbar = new HBox(
+        HBox row1 = new HBox(
                 5,
-
-                // Bildsteuerung
                 btnZoomIn,
                 btnZoomOut,
                 btnFit,
                 btnRotateLeft,
                 btnRotateRight,
-
                 new Separator(),
-
-                // Seitenmarkierung
                 btnStartSeitenmarkierung,
-                btnEndeSeitenmarkierung,
+                btnEndeSeitenmarkierung
+        );
 
-                new Separator(),
-
-                // Heft
+        HBox row2 = new HBox(
+                5,
                 btnHeftErfassen,
                 btnHeftAendern,
                 btnHeftLoeschen,
-
                 new Separator(),
-
-                // Heftinhalt
                 btnHeftEintragErfassen,
                 btnHeftEintragAendern,
-
                 new Separator(),
-
-                // Ausgabe
+                btnHeftEintragDrucken,
+                btnHeftEintragPdf,
+                new Separator(),
+                btnHeftDrucken,
+                btnHeftPdf,
+                new Separator(),
                 btnInhaltPrint,
                 btnInhaltPdf
         );
 
+        row1.setPadding(new Insets(2, 0, 2, 0));
+        row2.setPadding(new Insets(2, 0, 2, 0));
+
+        VBox imageToolbar = new VBox(4, row1, row2);
+
         imageToolbar.setPadding(new Insets(5));
 
         imageToolbar.setStyle("""
-            -fx-padding: 5;
-            -fx-background-color: #f0f0f0;
-            -fx-border-color: #d0d0d0;
-        """);
+        -fx-padding: 5;
+        -fx-background-color: #f0f0f0;
+        -fx-border-color: #d0d0d0;
+    """);
 
         return imageToolbar;
     }
@@ -1348,57 +1422,62 @@ public class PostverordnungenApp extends Application {
         });
 
         heftListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
-            if (newValue == null) return;
 
-            Integer seiteVon = newValue.getSeiteVon();
+            if (newValue != null) {
+                Integer seiteVon = newValue.getSeiteVon();
 
-            if (seiteVon > 0 && seiteVon <= aktuelleBildliste.size()) {
-                aktuellerBildIndex = seiteVon - 1;
-                ladeAktuellesBild();
+                if (seiteVon > 0 && seiteVon <= aktuelleBildliste.size()) {
+                    aktuellerBildIndex = seiteVon - 1;
+                    ladeAktuellesBild();
+                }
+
+                tblHeftEintraege.getItems().clear();
+                lstInhalteDetail.getItems().clear();
+
+                try {
+                    List<HeftEintrag> liste =
+                            heftEintragRepository.findByHeft(newValue.getHeftID());
+
+                    tblHeftEintraege.getItems().setAll(liste);
+                    tblHeftEintraege.getSelectionModel().clearSelection();
+
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
 
-            tblHeftEintraege.getItems().clear();
-            lstInhalteDetail.getItems().clear();
-
-            try {
-                List<HeftEintrag> liste =
-                        heftEintragRepository.findByHeft(newValue.getHeftID());
-
-                tblHeftEintraege.getItems().setAll(liste);
-                tblHeftEintraege.getSelectionModel().clearSelection();
-
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+            updateOutputButtons();
         });
 
         tblHeftEintraege.getSelectionModel().selectedItemProperty().addListener((o, alt, neu) -> {
 
-            if (neu == null) return;
+            if (neu != null) {
+                aktuellerBildIndex = neu.getSeiteVon() - 1;
+                ladeAktuellesBild();
 
-            aktuellerBildIndex = neu.getSeiteVon() - 1;
-            ladeAktuellesBild();
+                ladeInhalteZuHeftEintrag(neu);
+            }
 
-            ladeInhalteZuHeftEintrag(neu);
+            updateOutputButtons();
 
         });
     }
 
     private void springeZuSeite(int seite) {
         if (aktuelleBildliste.isEmpty()) {
-            System.out.println("DEBUG: springeZuSeite - Keine Bilder geladen!");
+        //    System.out.println("DEBUG: springeZuSeite - Keine Bilder geladen!");
             return;
         }
 
         if (seite < 1 || seite > aktuelleBildliste.size()) {
-            System.out.println("DEBUG: springeZuSeite - Ungültige Seitenzahl: " + seite);
+        //    System.out.println("DEBUG: springeZuSeite - Ungültige Seitenzahl: " + seite);
             return;
         }
 
         aktuellerBildIndex = seite - 1;
         ladeAktuellesBild();
 
-        System.out.println("DEBUG: Bild gewechselt zu Seite " + seite);
+       // System.out.println("DEBUG: Bild gewechselt zu Seite " + seite);
     }
 
 
@@ -1468,6 +1547,35 @@ public class PostverordnungenApp extends Application {
                     "Seitenmarkierung: Seite " + markierteStartSeite + " bis " + markierteEndeSeite
             );
         }
+    }
+
+    private void updateOutputButtons() {
+
+        boolean inhaltSelected =
+                lstInhalteDetail.getSelectionModel().getSelectedItem() != null;
+
+        btnInhaltPrint.setDisable(!inhaltSelected);
+        btnInhaltPdf.setDisable(!inhaltSelected);
+
+        boolean heftEintragSelected =
+                tblHeftEintraege.getSelectionModel().getSelectedItem() != null;
+       // System.out.println("DEBUG heftEintragSelected = " + heftEintragSelected);
+
+        btnHeftEintragDrucken.setDisable(!heftEintragSelected);
+        btnHeftEintragPdf.setDisable(!heftEintragSelected);
+
+        btnHeftEintragAendern.setDisable(!heftEintragSelected);
+        btnInhaltseinheiten.setDisable(!heftEintragSelected);
+       // System.out.println("DEBUG btnHeftEintragPdf disabled = " + btnHeftEintragPdf.isDisable());
+
+        boolean heftSelected =
+                heftListView.getSelectionModel().getSelectedItem() != null;
+
+        btnHeftDrucken.setDisable(!heftSelected);
+        btnHeftPdf.setDisable(!heftSelected);
+
+        btnHeftAendern.setDisable(!heftSelected);
+        btnHeftLoeschen.setDisable(!heftSelected);
     }
 
     private void showAlert(String titel, String text) {
@@ -1674,6 +1782,96 @@ public class PostverordnungenApp extends Application {
         );
     }
 
+    private void exportSelectedHeftToPdf() {
+
+        Heft selected =
+                heftListView.getSelectionModel().getSelectedItem();
+
+        if (selected == null) {
+            showAlert("Hinweis", "Bitte zuerst ein Heft auswählen.");
+            return;
+        }
+
+        PrintPdfService service = createPrintPdfService();
+
+        service.exportRangeToPdf(
+                aktuellesGebiet,
+                aktuellesBand,
+                selected.getSeiteVon(),
+                selected.getSeiteBis(),
+                "Heft " + selected.getHeftNummer()
+        );
+
+    }
+
+    private void exportSelectedHeftEintragToPdf() {
+
+        HeftEintrag selected =
+                tblHeftEintraege.getSelectionModel().getSelectedItem();
+
+        if (selected == null) {
+            showAlert("Hinweis", "Bitte zuerst einen HeftEintrag auswählen.");
+            return;
+        }
+
+        PrintPdfService service = createPrintPdfService();
+
+        service.exportRangeToPdf(
+                aktuellesGebiet,
+                aktuellesBand,
+                selected.getSeiteVon(),
+                selected.getSeiteBis(),
+                selected.getTitel()
+        );
+
+    }
+
+    private void printSelectedHeft() {
+
+        Heft selected =
+                heftListView.getSelectionModel().getSelectedItem();
+
+        if (selected == null) {
+            showAlert("Hinweis", "Bitte zuerst ein Heft auswählen.");
+            return;
+        }
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Druckmodus wählen");
+        alert.setHeaderText("Wie soll das Heft gedruckt werden?");
+
+        ButtonType btOriginalDruck = new ButtonType("Original (Farbe)");
+        ButtonType btSparmodus = new ButtonType("Sparmodus");
+        ButtonType btAbbrechen =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        alert.getButtonTypes().setAll(
+                btOriginalDruck,
+                btSparmodus,
+                btAbbrechen
+        );
+
+        Optional<ButtonType> result = alert.showAndWait();
+
+        if (result.isEmpty() || result.get() == btAbbrechen) {
+            return;
+        }
+
+        boolean sparmodus = result.get() == btSparmodus;
+
+        PrintPdfService service = createPrintPdfService();
+
+        service.printRange(
+                aktuellesGebiet,
+                aktuellesBand,
+                selected.getSeiteVon(),
+                selected.getSeiteBis(),
+                "Heft " + selected.getHeftNummer(),
+                sparmodus
+        );
+
+    }
+
     private void printSelectedInhalt() {
 
         InhaltTabellenEintrag selected =
@@ -1703,6 +1901,51 @@ public class PostverordnungenApp extends Application {
         boolean sparmodus = result.get() == btSparmodus;
 
         PrintPdfService service = createPrintPdfService();
+        service.printRange(
+                aktuellesGebiet,
+                aktuellesBand,
+                selected.getSeiteVon(),
+                selected.getSeiteBis(),
+                selected.getTitel(),
+                sparmodus
+        );
+    }
+
+    private void printSelectedHeftEintrag() {
+
+        HeftEintrag selected =
+                tblHeftEintraege.getSelectionModel().getSelectedItem();
+
+        if (selected == null) {
+            showAlert("Hinweis", "Bitte zuerst einen HeftEintrag auswählen.");
+            return;
+        }
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Druckmodus wählen");
+        alert.setHeaderText("Wie soll der HeftEintrag gedruckt werden?");
+
+        ButtonType btOriginalDruck = new ButtonType("Original (Farbe)");
+        ButtonType btSparmodus = new ButtonType("Sparmodus");
+        ButtonType btAbbrechen =
+                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        alert.getButtonTypes().setAll(
+                btOriginalDruck,
+                btSparmodus,
+                btAbbrechen
+        );
+
+        Optional<ButtonType> result = alert.showAndWait();
+
+        if (result.isEmpty() || result.get() == btAbbrechen) {
+            return;
+        }
+
+        boolean sparmodus = result.get() == btSparmodus;
+
+        PrintPdfService service = createPrintPdfService();
+
         service.printRange(
                 aktuellesGebiet,
                 aktuellesBand,
@@ -2581,13 +2824,15 @@ public class PostverordnungenApp extends Application {
             if (newSelection != null) {
                 int seiteVon = newSelection.getSeiteVon();
 
-                System.out.println("DEBUG: HeftEintrag ausgewählt → Seite " + seiteVon
-                        + " (" + newSelection.getTitel() + ")");
+              //  System.out.println("DEBUG: HeftEintrag ausgewählt → Seite " + seiteVon
+              //          + " (" + newSelection.getTitel() + ")");
 
                 if (seiteVon > 0) {
                     springeZuSeite(seiteVon);
                 }
             }
+
+            updateOutputButtons();
         });
     }
 
