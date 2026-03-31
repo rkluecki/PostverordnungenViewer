@@ -398,8 +398,9 @@ public class InhaltseinheitenWindow {
                 int neuBis = seiteBisInt != null ? seiteBisInt : seiteVonInt;
 
                 boolean ueberschneidung =
-                        neuVon <= vorhandenBis &&
-                                neuBis >= vorhandenVon;
+                        neuVon < vorhandenBis &&
+                                neuBis > vorhandenVon;
+
 
                 if (ueberschneidung) {
 

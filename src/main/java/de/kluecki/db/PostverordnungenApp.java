@@ -31,6 +31,7 @@ package de.kluecki.db;
 import de.kluecki.db.UI.DocumentViewerWindow;
 import de.kluecki.db.UI.InhaltseinheitenWindow;
 import de.kluecki.db.model.HeftEintrag;
+import de.kluecki.db.model.HeftEintragTyp;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.HeftEintragRepository;
 import de.kluecki.db.repository.QuelleRepository;
@@ -49,8 +50,6 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.*;
 import javafx.beans.property.SimpleStringProperty;
@@ -60,6 +59,9 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.control.DatePicker;
 import de.kluecki.db.repository.InhaltseinheitRepository;
 import de.kluecki.db.config.Config;
+import java.sql.Statement;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 
 public class PostverordnungenApp extends Application {
@@ -95,6 +97,7 @@ public class PostverordnungenApp extends Application {
     private Label lblBandTitel;
     private Label lblSeitenmarkierung;
     private Label lblAktuellerInhalt;
+    private Label lblForschungsnotiz;
     private Label statusLabel;
 
     // Aktuelle fachliche Auswahl (Navigation)
@@ -131,6 +134,10 @@ public class PostverordnungenApp extends Application {
 
     // Sonstiges
     private List<String> gebieteCache = null;
+
+    private static final String BACKUP_DIR =
+            "D:\\Postgeschichte_PC\\Postverordnungen_Backup";
+
 
 
     @Override
@@ -180,6 +187,13 @@ public class PostverordnungenApp extends Application {
             -fx-padding: 4 0 4 0;
             -fx-font-style: italic;
             -fx-text-fill: #444444;
+""");
+
+        lblForschungsnotiz = new Label("");
+        lblForschungsnotiz.setStyle("""
+    -fx-padding: 4 0 4 0;
+    -fx-font-style: italic;
+    -fx-text-fill: #666666;
 """);
 
         // Tabellen
@@ -257,6 +271,13 @@ public class PostverordnungenApp extends Application {
         Menu menuStammdaten = new Menu("Stammdaten");
         Menu menuSuche = new Menu("Suche");
 
+        MenuItem miBackupErstellen = new MenuItem("Backup erstellen");
+        miBackupErstellen.setOnAction(e -> backupErstellen());
+
+        menuDatei.getItems().add(
+                miBackupErstellen
+        );
+
         MenuItem mnuHeftEintraegeSuchen = new MenuItem("HeftEinträge suchen...");
 
         mnuHeftEintraegeSuchen.setOnAction(e -> {
@@ -329,6 +350,7 @@ public class PostverordnungenApp extends Application {
         menuStammdaten.getItems().add(miGebietLoeschen);
 
         menuBar.getMenus().addAll(
+                menuDatei,
                 menuStammdaten,
                 menuSuche,
                 menuHilfe);
@@ -770,6 +792,7 @@ public class PostverordnungenApp extends Application {
         table.setFixedCellSize(45);
 
         TableColumn<HeftEintrag, String> colNro = new TableColumn<>("Nro");
+
         colNro.setCellValueFactory(cellData ->
                 new SimpleStringProperty(
                         cellData.getValue().getNro() != null
@@ -777,8 +800,66 @@ public class PostverordnungenApp extends Application {
                                 : ""
                 )
         );
+
         colNro.setPrefWidth(70);
         colNro.setSortable(false);
+
+        TableColumn<HeftEintrag, String> colTyp = new TableColumn<>("Typ");
+
+        colTyp.setCellValueFactory(cellData ->
+
+                new SimpleStringProperty(
+
+                        cellData.getValue().getTypBezeichnung() != null
+                                ? cellData.getValue().getTypBezeichnung()
+                                : ""
+
+                )
+
+        );
+
+        colTyp.setPrefWidth(110);
+        colTyp.setSortable(false);
+
+        colTyp.setCellFactory(column -> new TableCell<>(){
+
+            @Override
+            protected void updateItem(String item, boolean empty){
+
+                super.updateItem(item, empty);
+
+                if(empty || item == null){
+
+                    setText(null);
+                    setStyle("");
+
+                    return;
+                }
+
+                setText(item);
+
+                switch(item){
+
+                    case "Verordnung" ->
+                            setStyle("-fx-text-fill: #1f4e79; -fx-font-weight: bold;");
+
+                    case "Bekanntmachung" ->
+                            setStyle("-fx-text-fill: #666666;");
+
+                    case "Dienstanweisung" ->
+                            setStyle("-fx-text-fill: #7a3e00;");
+
+                    case "Tarif" ->
+                            setStyle("-fx-text-fill: #006400;");
+
+                    case "Kursänderung" ->
+                            setStyle("-fx-text-fill: #8b0000;");
+
+                    default ->
+                            setStyle("-fx-text-fill: black;");
+                }
+            }
+        });
 
         TableColumn<HeftEintrag, String> colTitel = new TableColumn<>("Titel");
         colTitel.setCellValueFactory(cellData ->
@@ -822,7 +903,28 @@ public class PostverordnungenApp extends Application {
         colSeite.setPrefWidth(80);
         colSeite.setSortable(false);
 
-        table.getColumns().addAll(colNro, colTitel, colDatum, colSeite);
+        table.getColumns().addAll(colNro, colTyp, colTitel, colDatum, colSeite);
+
+        table.setRowFactory(tv -> {
+            TableRow<HeftEintrag> row = new TableRow<>();
+
+            row.itemProperty().addListener((obs, oldItem, newItem) -> {
+                if (newItem == null) {
+                    row.setTooltip(null);
+                    return;
+                }
+
+                String notiz = newItem.getForschungsnotiz();
+
+                if (notiz != null && !notiz.isBlank()) {
+                    row.setTooltip(new Tooltip(notiz));
+                } else {
+                    row.setTooltip(null);
+                }
+            });
+
+            return row;
+        });
 
         return table;
     }
@@ -853,6 +955,8 @@ public class PostverordnungenApp extends Application {
             }
 
             InhaltseinheitenWindow.open(heftEintrag, () -> {
+                ladeInhalteZuHeftEintrag(heftEintrag);
+                updateOutputButtons();
             }, seite -> {
                 aktuellerBildIndex = seite - 1;
                 ladeAktuellesBild();
@@ -873,9 +977,9 @@ public class PostverordnungenApp extends Application {
                 btnInhaltseinheiten
         );
 
-        navigation.setPrefWidth(300);
-        navigation.setMinWidth(260);
-        navigation.setMaxWidth(360);
+        navigation.setPrefWidth(380);
+        navigation.setMinWidth(320);
+        navigation.setMaxWidth(450);
         navigation.setStyle("""
             -fx-padding: 8;
             -fx-background-color: #f4f4f4;
@@ -993,7 +1097,14 @@ public class PostverordnungenApp extends Application {
     }
 
     private VBox createDocumentHeader(VBox imageToolbar) {
-        VBox documentHeader = new VBox(6, lblBandTitel, lblSeitenmarkierung, lblAktuellerInhalt, imageToolbar);
+        VBox documentHeader = new VBox(
+                6,
+                lblBandTitel,
+                lblSeitenmarkierung,
+                lblAktuellerInhalt,
+                lblForschungsnotiz,
+                imageToolbar
+        );
         documentHeader.setStyle("""
             -fx-padding: 8;
             -fx-background-color: #f8f8f8;
@@ -1433,6 +1544,7 @@ public class PostverordnungenApp extends Application {
 
                 tblHeftEintraege.getItems().clear();
                 lstInhalteDetail.getItems().clear();
+                lblForschungsnotiz.setText("");
 
                 try {
                     List<HeftEintrag> liste =
@@ -1456,6 +1568,19 @@ public class PostverordnungenApp extends Application {
                 ladeAktuellesBild();
 
                 ladeInhalteZuHeftEintrag(neu);
+
+                if (neu.getForschungsnotiz() != null && !neu.getForschungsnotiz().isBlank()) {
+                    lblForschungsnotiz.setText("Notiz: " + neu.getForschungsnotiz());
+                } else {
+                    lblForschungsnotiz.setText("");
+                }
+
+                lblAktuellerInhalt.setText("HeftEintrag: " + neu.getTitel());
+
+            } else {
+                lblForschungsnotiz.setText("");
+                lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+                lstInhalteDetail.getItems().clear();
             }
 
             updateOutputButtons();
@@ -1480,6 +1605,29 @@ public class PostverordnungenApp extends Application {
        // System.out.println("DEBUG: Bild gewechselt zu Seite " + seite);
     }
 
+    private void waehleHeftEintragFuerSeite(int seite) {
+
+        for (HeftEintrag eintrag : tblHeftEintraege.getItems()) {
+
+            if (seite >= eintrag.getSeiteVon() &&
+                    seite <= eintrag.getSeiteBis()) {
+
+                if (tblHeftEintraege.getSelectionModel().getSelectedItem() != eintrag) {
+
+                    tblHeftEintraege.getSelectionModel().select(eintrag);
+                    tblHeftEintraege.scrollTo(eintrag);
+
+                }
+
+                return;
+            }
+        }
+
+        tblHeftEintraege.getSelectionModel().clearSelection();
+        lstInhalteDetail.getItems().clear();
+        lblForschungsnotiz.setText("");
+        lblAktuellerInhalt.setText("Kein HeftEintrag auf dieser Seite");
+    }
 
     private int ermittleBandId(String gebiet, String band) {
         System.out.println("ermittleBandId -> Gebiet: [" + gebiet + "], Band: [" + band + "]");
@@ -1586,6 +1734,54 @@ public class PostverordnungenApp extends Application {
         alert.showAndWait();
     }
 
+    private void backupErstellen() {
+
+        try {
+
+            Connection conn = DatabaseConnection.getConnection();
+
+            String zeitstempel =
+                    LocalDateTime.now().format(
+                            DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
+                    );
+
+            File backupDir = new File(BACKUP_DIR);
+
+            if(!backupDir.exists()){
+                showAlert("Backup Fehler",
+                        "Backup Ordner existiert nicht:\n" + BACKUP_DIR);
+                return;
+            }
+
+            String backupPfad =
+                    BACKUP_DIR +
+                            "\\QuellenDB_" +
+                            zeitstempel +
+                            ".bak";
+
+            String sql =
+                    "BACKUP DATABASE QuellenDB TO DISK = '" +
+                            backupPfad +
+                            "' WITH INIT";
+
+            Statement stmt = conn.createStatement();
+            stmt.execute(sql);
+
+            showAlert(
+                    "Backup erfolgreich",
+                    "Datenbank wurde gesichert:\n" + backupPfad
+            );
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+
+            showAlert(
+                    "Backup Fehler",
+                    "Backup konnte nicht erstellt werden:\n" + ex.getMessage()
+            );
+        }
+    }
+
     private void zeigeVorherigesBild() {
         zeigeSeitenstandLabel();
 
@@ -1623,6 +1819,8 @@ public class PostverordnungenApp extends Application {
         updateImageView();
         updateNavigationState();
         updateInhaltAnzeige(aktuellerBildIndex + 1);
+
+        //waehleHeftEintragFuerSeite(aktuellerBildIndex + 1);
     }
 
     private void updateNavigationState() {
@@ -1987,8 +2185,33 @@ public class PostverordnungenApp extends Application {
 
     private void updateInhaltAnzeige(int aktuelleSeite) {
 
-            lblAktuellerInhalt.setText("Inhalt über HeftEintrag auswählen");
+        HeftEintrag eintrag =
+                tblHeftEintraege.getSelectionModel().getSelectedItem();
 
+        if (eintrag != null) {
+
+            String seiten;
+
+            if (eintrag.getSeiteVon() == eintrag.getSeiteBis()) {
+                seiten = "S. " + eintrag.getSeiteVon();
+            } else {
+                seiten = "S. " + eintrag.getSeiteVon() + "-" + eintrag.getSeiteBis();
+            }
+
+            String typText =
+                    eintrag.getTypBezeichnung() != null
+                            ? eintrag.getTypBezeichnung()
+                            : "Eintrag";
+
+            lblAktuellerInhalt.setText(
+                    typText + ": " + eintrag.getTitel() + " (" + seiten + ")"
+            );
+
+        } else {
+
+            lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+
+        }
     }
 
     private void updateStatusLabel(int anzahlQuellen) {
@@ -2051,6 +2274,17 @@ public class PostverordnungenApp extends Application {
         TextField txtNro = new TextField();
         TextField txtTitel = new TextField();
 
+        ComboBox<HeftEintragTyp> cmbTyp = new ComboBox<>();
+
+        List<HeftEintragTyp> typen =
+                heftEintragRepository.findAllTypen();
+
+        cmbTyp.getItems().addAll(typen);
+
+        if(!typen.isEmpty()){
+            cmbTyp.getSelectionModel().selectFirst();
+        }
+
         DatePicker dpDatum = new DatePicker();
 
         TextField txtSeiteVon = new TextField(String.valueOf(markierteStartSeite));
@@ -2059,20 +2293,31 @@ public class PostverordnungenApp extends Application {
         TextField txtSeiteBis = new TextField(String.valueOf(markierteEndeSeite));
         txtSeiteBis.setEditable(false);
 
+        TextArea txtForschungsnotiz = new TextArea();
+        txtForschungsnotiz.setPrefRowCount(4);
+        txtForschungsnotiz.setWrapText(true);
+
         grid.add(new Label("Nro:"), 0, 0);
         grid.add(txtNro, 1, 0);
 
         grid.add(new Label("Titel:"), 0, 1);
         grid.add(txtTitel, 1, 1);
 
-        grid.add(new Label("Datum:"), 0, 2);
-        grid.add(dpDatum, 1, 2);
+        grid.add(new Label("Typ:"), 0, 2);
+        grid.add(cmbTyp, 1, 2);
 
-        grid.add(new Label("Seite von:"), 0, 3);
-        grid.add(txtSeiteVon, 1, 3);
+        grid.add(new Label("Datum:"), 0, 3);
+        grid.add(dpDatum, 1, 3);
 
-        grid.add(new Label("Seite bis:"), 0, 4);
-        grid.add(txtSeiteBis, 1, 4);
+        grid.add(new Label("Seite von:"), 0, 4);
+        grid.add(txtSeiteVon, 1, 4);
+
+        grid.add(new Label("Seite bis:"), 0, 5);
+        grid.add(txtSeiteBis, 1, 5);
+
+        grid.add(new Label("Forschungsnotiz:"), 0, 6);
+        grid.add(txtForschungsnotiz, 1, 6);
+        txtForschungsnotiz.setPrefHeight(100);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -2085,6 +2330,11 @@ public class PostverordnungenApp extends Application {
         String nro = txtNro.getText() != null ? txtNro.getText().trim() : "";
         String titel = txtTitel.getText() != null ? txtTitel.getText().trim() : "";
 
+        String forschungsnotiz =
+                txtForschungsnotiz.getText() != null
+                        ? txtForschungsnotiz.getText().trim()
+                        : "";
+
         if (titel.isEmpty()) {
             showAlert("Hinweis", "Bitte einen Titel eingeben.");
             return;
@@ -2095,12 +2345,20 @@ public class PostverordnungenApp extends Application {
 
             // Diese Setter bitte ggf. an deine echte HeftEintrag-Klasse anpassen
             eintrag.setHeftID(aktuellesHeft.getHeftID());
-            eintrag.setHeftEintragTypID(1);
+
+            HeftEintragTyp typ = cmbTyp.getValue();
+
+            int typID = typ != null
+                    ? typ.getHeftEintragTypID()
+                    : 1;
+
+            eintrag.setHeftEintragTypID(typID);
             eintrag.setNro(nro);
             eintrag.setTitel(titel);
             eintrag.setDatum(dpDatum.getValue());
             eintrag.setSeiteVon(markierteStartSeite);
             eintrag.setSeiteBis(markierteEndeSeite);
+            eintrag.setForschungsnotiz(forschungsnotiz);
 
             // Diesen Methoden-Namen bitte ggf. an dein Repository anpassen
             heftEintragRepository.insert(eintrag);
@@ -2149,6 +2407,23 @@ public class PostverordnungenApp extends Application {
         TextField txtNro = new TextField(eintrag.getNro());
         TextField txtTitel = new TextField(eintrag.getTitel());
 
+        ComboBox<HeftEintragTyp> cmbTyp = new ComboBox<>();
+
+        List<HeftEintragTyp> typen =
+                heftEintragRepository.findAllTypen();
+
+        cmbTyp.getItems().addAll(typen);
+
+        for(HeftEintragTyp typ : typen){
+
+            if(typ.getHeftEintragTypID()
+                    == eintrag.getHeftEintragTypID()){
+
+                cmbTyp.getSelectionModel().select(typ);
+                break;
+            }
+        }
+
         DatePicker dpDatum =
                 new DatePicker(eintrag.getDatum());
 
@@ -2161,20 +2436,35 @@ public class PostverordnungenApp extends Application {
         txtSeiteVon.setEditable(false);
         txtSeiteBis.setEditable(false);
 
+        TextArea txtForschungsnotiz = new TextArea();
+        txtForschungsnotiz.setPrefRowCount(4);
+        txtForschungsnotiz.setWrapText(true);
+        txtForschungsnotiz.setPrefHeight(100);
+
+        if (eintrag.getForschungsnotiz() != null) {
+            txtForschungsnotiz.setText(eintrag.getForschungsnotiz());
+        }
+
         grid.add(new Label("Nro:"),0,0);
         grid.add(txtNro,1,0);
 
         grid.add(new Label("Titel:"),0,1);
         grid.add(txtTitel,1,1);
 
+        grid.add(new Label("Typ:"),0,2);
+        grid.add(cmbTyp,1,2);
+
         grid.add(new Label("Datum:"),0,2);
-        grid.add(dpDatum,1,2);
+        grid.add(dpDatum,1,3);
 
         grid.add(new Label("Seite von:"),0,3);
-        grid.add(txtSeiteVon,1,3);
+        grid.add(txtSeiteVon,1,4);
 
         grid.add(new Label("Seite bis:"),0,4);
-        grid.add(txtSeiteBis,1,4);
+        grid.add(txtSeiteBis,1,5);
+
+        grid.add(new Label("Forschungsnotiz:"), 0, 5);
+        grid.add(txtForschungsnotiz, 1, 6);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -2192,9 +2482,17 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
+        HeftEintragTyp typ = cmbTyp.getValue();
+
+        int typID = typ != null
+                ? typ.getHeftEintragTypID()
+                : 1;
+
         eintrag.setNro(nro);
         eintrag.setTitel(titel);
         eintrag.setDatum(dpDatum.getValue());
+        eintrag.setForschungsnotiz(txtForschungsnotiz.getText());
+        eintrag.setHeftEintragTypID(typID);
 
         updateHeftEintrag(eintrag);
 
@@ -2637,6 +2935,13 @@ public class PostverordnungenApp extends Application {
 
     private int getAktiverBereichVon() {
 
+        InhaltTabellenEintrag inhalt =
+                lstInhalteDetail.getSelectionModel().getSelectedItem();
+
+        if (inhalt != null && inhalt.getSeiteVon() > 0) {
+            return inhalt.getSeiteVon();
+        }
+
         HeftEintrag eintrag = tblHeftEintraege.getSelectionModel().getSelectedItem();
 
         if (eintrag != null) {
@@ -2654,6 +2959,13 @@ public class PostverordnungenApp extends Application {
 
     private int getAktiverBereichBis() {
 
+        InhaltTabellenEintrag inhalt =
+                lstInhalteDetail.getSelectionModel().getSelectedItem();
+
+        if (inhalt != null && inhalt.getSeiteBis() > 0) {
+            return inhalt.getSeiteBis();
+        }
+
         HeftEintrag eintrag = tblHeftEintraege.getSelectionModel().getSelectedItem();
 
         if (eintrag != null && eintrag.getSeiteBis() > 0) {
@@ -2667,6 +2979,7 @@ public class PostverordnungenApp extends Application {
         }
 
         return aktuelleBildliste.size();
+
     }
 
     private boolean hatUeberschneidungMitVorhandenemHeft(int bandId, int seiteVon, int seiteBis, Integer aktuelleHeftId) {

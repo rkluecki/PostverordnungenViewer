@@ -25,7 +25,7 @@ public class HeftRepository {
                SeiteVon, SeiteBis, Ort, Bemerkung, Sortierung, IstAktiv
         FROM dbo.Heft
         WHERE BandID = ?
-        ORDER BY Sortierung, HeftNummer
+        ORDER BY Sortierung
         """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {

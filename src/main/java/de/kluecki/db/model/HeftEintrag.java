@@ -32,6 +32,8 @@ public class HeftEintrag {
     private String bandJahrAnzeige;
     private String gebietAnzeige;
     private String heftNummerAnzeige;
+    private String forschungsnotiz;
+
 
     public HeftEintrag() {
     }
@@ -146,6 +148,24 @@ public class HeftEintrag {
 
     public void setHeftNummerAnzeige(String heftNummerAnzeige) {
         this.heftNummerAnzeige = heftNummerAnzeige;
+    }
+
+    public String getForschungsnotiz() {
+        return forschungsnotiz;
+    }
+
+    public void setForschungsnotiz(String forschungsnotiz) {
+        this.forschungsnotiz = forschungsnotiz;
+    }
+
+    private String typBezeichnung;
+
+    public String getTypBezeichnung() {
+        return typBezeichnung;
+    }
+
+    public void setTypBezeichnung(String typBezeichnung) {
+        this.typBezeichnung = typBezeichnung;
     }
 
     @Override

@@ -18,6 +18,7 @@ import de.kluecki.db.model.HeftEintrag;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import de.kluecki.db.model.HeftEintragTyp;
 
 public class HeftEintragRepository {
 
@@ -31,11 +32,26 @@ public class HeftEintragRepository {
 
         List<HeftEintrag> liste = new ArrayList<>();
 
-        String sql =
-                "SELECT * " +
-                        "FROM HeftEintrag " +
-                        "WHERE HeftID = ? " +
-                        "ORDER BY SeiteVon";
+        String sql = """
+    SELECT he.HeftEintragID,
+           he.HeftID,
+           he.HeftEintragTypID,
+           het.Bezeichnung AS TypBezeichnung,
+           he.Nro,
+           he.Titel,
+           he.Datum,
+           he.SeiteVon,
+           he.SeiteBis,
+           he.Sortierung,
+           he.Bemerkung,
+           he.Forschungsnotiz,
+           he.IstAktiv
+    FROM dbo.HeftEintrag he
+    LEFT JOIN dbo.HeftEintragTyp het
+           ON he.HeftEintragTypID = het.HeftEintragTypID
+    WHERE he.HeftID = ?
+    ORDER BY he.SeiteVon
+    """;
 
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
 
@@ -50,6 +66,7 @@ public class HeftEintragRepository {
                 he.setHeftEintragID(rs.getInt("HeftEintragID"));
                 he.setHeftID(rs.getInt("HeftID"));
                 he.setHeftEintragTypID(rs.getInt("HeftEintragTypID"));
+                he.setTypBezeichnung(rs.getString("TypBezeichnung"));
 
                 he.setNro(rs.getString("Nro"));
                 he.setTitel(rs.getString("Titel"));
@@ -72,6 +89,8 @@ public class HeftEintragRepository {
 
                 he.setBemerkung(rs.getString("Bemerkung"));
 
+                he.setForschungsnotiz(rs.getString("Forschungsnotiz"));
+
                 he.setIstAktiv(rs.getBoolean("IstAktiv"));
 
                 liste.add(he);
@@ -87,10 +106,10 @@ public class HeftEintragRepository {
     public void insert(HeftEintrag eintrag) throws Exception {
 
         String sql = """
-    INSERT INTO HeftEintrag
-    (HeftID, HeftEintragTypID, Nro, Titel, Datum, SeiteVon, SeiteBis)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """;
+INSERT INTO HeftEintrag
+(HeftID, HeftEintragTypID, Nro, Titel, Datum, SeiteVon, SeiteBis, Forschungsnotiz)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+""";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, eintrag.getHeftID());
@@ -106,6 +125,7 @@ public class HeftEintragRepository {
 
             stmt.setInt(6, eintrag.getSeiteVon());
             stmt.setInt(7, eintrag.getSeiteBis());
+            stmt.setString(8, eintrag.getForschungsnotiz());
 
             stmt.executeUpdate();
         }
@@ -114,16 +134,17 @@ public class HeftEintragRepository {
     public void update(HeftEintrag eintrag) {
 
         String sql = """
-        UPDATE dbo.HeftEintrag
-        SET HeftID = ?,
-            HeftEintragTypID = ?,
-            Nro = ?,
-            Titel = ?,
-            Datum = ?,
-            SeiteVon = ?,
-            SeiteBis = ?
-        WHERE HeftEintragID = ?
-        """;
+    UPDATE dbo.HeftEintrag
+    SET HeftID = ?,
+        HeftEintragTypID = ?,
+        Nro = ?,
+        Titel = ?,
+        Datum = ?,
+        SeiteVon = ?,
+        SeiteBis = ?,
+        Forschungsnotiz = ?
+    WHERE HeftEintragID = ?
+    """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 
@@ -141,8 +162,9 @@ public class HeftEintragRepository {
 
             stmt.setInt(6, eintrag.getSeiteVon());
             stmt.setInt(7, eintrag.getSeiteBis());
+            stmt.setString(8, eintrag.getForschungsnotiz());
 
-            stmt.setInt(8, eintrag.getHeftEintragID());
+            stmt.setInt(9, eintrag.getHeftEintragID());
 
             stmt.executeUpdate();
 
@@ -187,6 +209,7 @@ SELECT he.HeftEintragID,
        he.SeiteBis,
        he.Sortierung,
        he.Bemerkung,
+       he.Forschungsnotiz,
        he.IstAktiv,
        q.Jahr AS BandJahr,
        q.Land AS GebietAnzeige,
@@ -380,6 +403,43 @@ ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
                     liste.add(eintrag);
                 }
             }
+        }
+
+        return liste;
+    }
+
+    public List<HeftEintragTyp> findAllTypen(){
+
+        List<HeftEintragTyp> liste = new ArrayList<>();
+
+        String sql = """
+        SELECT HeftEintragTypID,
+               Bezeichnung
+        FROM HeftEintragTyp
+        WHERE IstAktiv = 1
+        ORDER BY Sortierung
+    """;
+
+        try(PreparedStatement stmt = connection.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery()){
+
+            while(rs.next()){
+
+                HeftEintragTyp typ = new HeftEintragTyp();
+
+                typ.setHeftEintragTypID(
+                        rs.getInt("HeftEintragTypID")
+                );
+
+                typ.setBezeichnung(
+                        rs.getString("Bezeichnung")
+                );
+
+                liste.add(typ);
+            }
+
+        }catch(SQLException ex){
+            ex.printStackTrace();
         }
 
         return liste;
