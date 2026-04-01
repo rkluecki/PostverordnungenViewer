@@ -37,6 +37,7 @@ import de.kluecki.db.repository.HeftEintragRepository;
 import de.kluecki.db.repository.QuelleRepository;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -134,6 +135,8 @@ public class PostverordnungenApp extends Application {
 
     // Sonstiges
     private List<String> gebieteCache = null;
+    private List<HeftEintrag> aktuelleHeftEintragListe = new ArrayList<>();
+    private ComboBox<String> cmbTypFilter;
 
     private static final String BACKUP_DIR =
             "D:\\Postgeschichte_PC\\Postverordnungen_Backup";
@@ -939,6 +942,16 @@ public class PostverordnungenApp extends Application {
         Label lblHeftEintraege = new Label("HeftEinträge");
         lblHeftEintraege.setStyle("-fx-font-weight: bold;");
 
+        cmbTypFilter = new ComboBox<>();
+
+        cmbTypFilter.getItems().add("Alle");
+
+        for(HeftEintragTyp typ : heftEintragRepository.findAllTypen()){
+            cmbTypFilter.getItems().add(typ.getBezeichnung());
+        }
+
+        cmbTypFilter.getSelectionModel().selectFirst();
+
         Label lblBetreffe = new Label("Inhalte des HeftEintrags");
         lblBetreffe.setStyle("-fx-font-weight: bold;");
 
@@ -962,7 +975,6 @@ public class PostverordnungenApp extends Application {
                 ladeAktuellesBild();
             });
         });
-
         VBox navigation = new VBox(8,
                 lblGebiete,
                 gebietListView,
@@ -971,6 +983,7 @@ public class PostverordnungenApp extends Application {
                 lblHefte,
                 heftListView,
                 lblHeftEintraege,
+                cmbTypFilter,
                 tblHeftEintraege,
                 lblBetreffe,
                 lstInhalteDetail,
@@ -1007,6 +1020,28 @@ public class PostverordnungenApp extends Application {
                 ladeInhalteZuHeftEintrag(eintrag);
                 updateOutputButtons();
             }
+        });
+
+        cmbTypFilter.setOnAction(e -> {
+
+            String filter = cmbTypFilter.getValue();
+
+            List<HeftEintrag> aktuelleListe =
+                    new ArrayList<>(aktuelleHeftEintragListe);
+
+            if (filter == null || filter.equals("Alle")) {
+                tblHeftEintraege.getItems().setAll(aktuelleHeftEintragListe);
+                return;
+            }
+
+            List<HeftEintrag> gefiltert =
+                    aktuelleListe.stream()
+                            .filter(h -> filter.equals(h.getTypBezeichnung()))
+                            .toList();
+
+            tblHeftEintraege.setItems(
+                    FXCollections.observableArrayList(gefiltert)
+            );
         });
 
         return navigation;
@@ -1550,8 +1585,12 @@ public class PostverordnungenApp extends Application {
                     List<HeftEintrag> liste =
                             heftEintragRepository.findByHeft(newValue.getHeftID());
 
-                    tblHeftEintraege.getItems().setAll(liste);
+                    aktuelleHeftEintragListe.clear();
+                    aktuelleHeftEintragListe.addAll(liste);
+
+                    tblHeftEintraege.getItems().setAll(aktuelleHeftEintragListe);
                     tblHeftEintraege.getSelectionModel().clearSelection();
+                    cmbTypFilter.getSelectionModel().selectFirst();
 
                 } catch (Exception ex) {
                     ex.printStackTrace();
@@ -2454,16 +2493,16 @@ public class PostverordnungenApp extends Application {
         grid.add(new Label("Typ:"),0,2);
         grid.add(cmbTyp,1,2);
 
-        grid.add(new Label("Datum:"),0,2);
+        grid.add(new Label("Datum:"),0,3);
         grid.add(dpDatum,1,3);
 
-        grid.add(new Label("Seite von:"),0,3);
+        grid.add(new Label("Seite von:"),0,4);
         grid.add(txtSeiteVon,1,4);
 
-        grid.add(new Label("Seite bis:"),0,4);
+        grid.add(new Label("Seite bis:"),0,5);
         grid.add(txtSeiteBis,1,5);
 
-        grid.add(new Label("Forschungsnotiz:"), 0, 5);
+        grid.add(new Label("Forschungsnotiz:"), 0, 6);
         grid.add(txtForschungsnotiz, 1, 6);
 
         dialog.getDialogPane().setContent(grid);

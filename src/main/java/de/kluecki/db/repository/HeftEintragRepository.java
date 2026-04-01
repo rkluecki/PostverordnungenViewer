@@ -50,7 +50,8 @@ public class HeftEintragRepository {
     LEFT JOIN dbo.HeftEintragTyp het
            ON he.HeftEintragTypID = het.HeftEintragTypID
     WHERE he.HeftID = ?
-    ORDER BY he.SeiteVon
+    ORDER BY het.Sortierung,
+             he.SeiteVon
     """;
 
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
