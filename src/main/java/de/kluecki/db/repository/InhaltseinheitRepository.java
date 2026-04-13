@@ -2,6 +2,7 @@ package de.kluecki.db.repository;
 
 import de.kluecki.db.DatabaseConnection;
 import de.kluecki.db.InhaltTabellenEintrag;
+import de.kluecki.db.model.Inhaltstyp;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -81,6 +82,7 @@ public class InhaltseinheitRepository {
                   ie.Ueberschrift,
                   ie.SeiteVon,
                   ie.SeiteBis,
+                  ie.InhaltstypID,
                   it.Bezeichnung AS Typ,
                   ie.Bemerkung,
                   qBand.Region AS Gebiet,
@@ -115,16 +117,19 @@ public class InhaltseinheitRepository {
                     seite = seiteVon + "-" + seiteBis;
                 }
 
+                int inhaltstypId = rs.getInt("InhaltstypID");
                 String typ = rs.getString("Typ");
                 String beschreibung = rs.getString("Bemerkung");
                 String gebiet = rs.getString("Gebiet");
                 String bandJahr = String.valueOf(rs.getInt("BandJahr"));
 
+                Inhaltstyp typObj = new Inhaltstyp(inhaltstypId, typ);
+
                 liste.add(new InhaltTabellenEintrag(
                         nr,
                         titel,
                         seite,
-                        typ,
+                        typObj,
                         beschreibung,
                         gebiet,
                         bandJahr,

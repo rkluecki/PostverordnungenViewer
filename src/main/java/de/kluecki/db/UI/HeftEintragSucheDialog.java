@@ -41,7 +41,7 @@ public class HeftEintragSucheDialog {
         cmbGebiet.getItems().addAll(gebiete);
         cmbGebiet.setValue(gebiet);
 
-        Label lblTitel = new Label("Titel enthält:");
+        Label lblTitel = new Label("Titel oder Nro:");
         TextField txtTitel = new TextField();
         HBox.setHgrow(txtTitel, Priority.ALWAYS);
         txtTitel.setMinWidth(150);
@@ -132,6 +132,14 @@ public class HeftEintragSucheDialog {
         colId.setCellValueFactory(data ->
                 new SimpleIntegerProperty(data.getValue().getHeftEintragID()));
 
+        TableColumn<HeftEintrag, String> colNro = new TableColumn<>("Nro");
+        colNro.setCellValueFactory(cellData ->
+                new SimpleStringProperty(
+                        cellData.getValue().getNro() != null ?
+                                cellData.getValue().getNro() : ""
+                ));
+        colNro.setPrefWidth(90);
+
         TableColumn<HeftEintrag, String> colTitel = new TableColumn<>("Titel");
         colTitel.setCellValueFactory(data ->
                 new SimpleStringProperty(
@@ -146,7 +154,10 @@ public class HeftEintragSucheDialog {
         colSeiteBis.setCellValueFactory(data ->
                 new SimpleIntegerProperty(data.getValue().getSeiteBis()));
 
-        table.getColumns().addAll(colId, colTitel, colGebiet, colBand, colHeft, colSeiteVon, colSeiteBis);
+        table.getColumns().addAll(
+                colId, colNro, colTitel, colGebiet, colBand, colHeft, colSeiteVon, colSeiteBis
+        );
+
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         table.setRowFactory(tv -> {

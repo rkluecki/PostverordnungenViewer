@@ -1,11 +1,13 @@
 package de.kluecki.db;
 
+import de.kluecki.db.model.Inhaltstyp;
+
 public class InhaltTabellenEintrag {
 
     private String nr;
     private String titel;
     private String seite;
-    private String typ;
+    private Inhaltstyp typ;
     private String beschreibung;
 
     private String gebiet;
@@ -17,14 +19,14 @@ public class InhaltTabellenEintrag {
         this.nr = nr;
         this.titel = titel;
         this.seite = seite;
-        this.typ = "";
+        this.typ = null;
         this.beschreibung = "";
     }
 
     public InhaltTabellenEintrag(String nr,
                                  String titel,
                                  String seite,
-                                 String typ,
+                                 Inhaltstyp typ,
                                  String beschreibung) {
 
         this.nr = nr;
@@ -37,7 +39,7 @@ public class InhaltTabellenEintrag {
     public InhaltTabellenEintrag(String nr,
                                  String titel,
                                  String seite,
-                                 String typ,
+                                 Inhaltstyp typ,
                                  String beschreibung,
                                  String gebiet,
                                  String bandJahr,
@@ -79,11 +81,11 @@ public class InhaltTabellenEintrag {
         this.seite = seite;
     }
 
-    public String getTyp() {
+    public Inhaltstyp getTyp() {
         return typ;
     }
 
-    public void setTyp(String typ) {
+    public void setTyp(Inhaltstyp typ) {
         this.typ = typ;
     }
 

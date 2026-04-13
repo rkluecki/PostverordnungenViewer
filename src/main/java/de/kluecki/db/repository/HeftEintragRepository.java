@@ -220,13 +220,28 @@ INNER JOIN dbo.Heft h
     ON he.HeftID = h.HeftID
 INNER JOIN dbo.Quelle q
     ON h.BandID = q.QuelleID
-WHERE he.Titel IS NOT NULL
-  AND LOWER(he.Titel) LIKE LOWER(?)
-ORDER BY q.Land, q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
+WHERE (
+    LOWER(he.Titel) LIKE LOWER(?)
+    OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
+)
+ORDER BY
+CASE
+WHEN LOWER(ISNULL(he.Nro,'')) = LOWER(?) THEN 0
+WHEN LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?) THEN 1
+ELSE 2
+END,
+   q.Land,
+   q.Jahr,
+   h.Sortierung,
+   he.Sortierung,
+   he.SeiteVon
 """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
+            stmt.setString(2, "%" + suchtext + "%");
+            stmt.setString(3, suchtext);
+            stmt.setString(4, "%" + suchtext + "%");
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -287,15 +302,18 @@ INNER JOIN dbo.Heft h
     ON he.HeftID = h.HeftID
 INNER JOIN dbo.Quelle q
     ON h.BandID = q.QuelleID
-WHERE he.Titel IS NOT NULL
-  AND LOWER(he.Titel) LIKE LOWER(?)
-  AND q.QuelleID = ?
+WHERE (
+    LOWER(he.Titel) LIKE LOWER(?)
+    OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
+)
+    AND q.QuelleID = ?
 ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
 """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
-            stmt.setInt(2, bandId);
+            stmt.setString(2, "%" + suchtext + "%");
+            stmt.setInt(3, bandId);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -356,16 +374,19 @@ ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
         ON he.HeftID = h.HeftID
     INNER JOIN dbo.Quelle q
         ON h.BandID = q.QuelleID
-    WHERE he.Titel IS NOT NULL
-      AND LOWER(he.Titel) LIKE LOWER(?)
-      AND q.EbeneTyp = 'BAND'
-      AND q.Land = ?
+    WHERE (
+        LOWER(he.Titel) LIKE LOWER(?)
+        OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
+    )
+    AND q.EbeneTyp = 'BAND'
+    AND q.Land = ?
     ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
     """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
-            stmt.setString(2, gebiet);
+            stmt.setString(2, "%" + suchtext + "%");
+            stmt.setString(3, gebiet);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {

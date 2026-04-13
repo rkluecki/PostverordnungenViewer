@@ -52,10 +52,21 @@ public class QuelleRepository {
 
     public int findBandId(String gebiet, String band) {
 
-        System.out.println("findBandId Gebiet: [" + gebiet + "]");
-        System.out.println("findBandId Band: [" + band + "]");
+        String sql;
+        boolean istZeitraum = band != null && band.matches("\\d{4}-\\d{4}");
 
-        String sql = """
+        if (istZeitraum) {
+            sql = """
+        SELECT TOP 1 QuelleID
+        FROM Quelle
+        WHERE EbeneTyp = 'BAND'
+          AND Land = ?
+          AND JahrVon = ?
+          AND JahrBis = ?
+        ORDER BY QuelleID
+        """;
+        } else {
+            sql = """
         SELECT TOP 1 QuelleID
         FROM Quelle
         WHERE EbeneTyp = 'BAND'
@@ -63,12 +74,20 @@ public class QuelleRepository {
           AND Jahr = ?
         ORDER BY QuelleID
         """;
+        }
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, gebiet);
-            ps.setInt(2, Integer.parseInt(band));
+
+            if (istZeitraum) {
+                String[] teile = band.split("-");
+                ps.setInt(2, Integer.parseInt(teile[0]));
+                ps.setInt(3, Integer.parseInt(teile[1]));
+            } else {
+                ps.setInt(2, Integer.parseInt(band));
+            }
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -76,10 +95,6 @@ public class QuelleRepository {
                 }
             }
 
-            System.out.println("findBandId -> kein Treffer");
-
-        } catch (NumberFormatException ex) {
-            System.out.println("Band/Jahr ist keine Zahl: " + band);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -91,13 +106,13 @@ public class QuelleRepository {
         List<String> liste = new ArrayList<>();
 
         String sql = """
-        SELECT Jahr
-        FROM Quelle
-        WHERE EbeneTyp = 'BAND'
-          AND Land = ?
-          AND Jahr IS NOT NULL
-        ORDER BY Jahr
-        """;
+    SELECT Jahr, JahrVon, JahrBis
+    FROM Quelle
+    WHERE EbeneTyp = 'BAND'
+      AND Land = ?
+      AND Jahr IS NOT NULL
+    ORDER BY Jahr
+    """;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -106,7 +121,20 @@ public class QuelleRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    liste.add(String.valueOf(rs.getInt("Jahr")));
+                    int jahr = rs.getInt("Jahr");
+
+                    Integer jahrVon = (Integer) rs.getObject("JahrVon");
+                    Integer jahrBis = (Integer) rs.getObject("JahrBis");
+
+                    String anzeige;
+
+                    if (jahrVon != null && jahrBis != null && !jahrVon.equals(jahrBis)) {
+                        anzeige = jahrVon + "-" + jahrBis;
+                    } else {
+                        anzeige = String.valueOf(jahr);
+                    }
+
+                    liste.add(anzeige);
                 }
             }
 

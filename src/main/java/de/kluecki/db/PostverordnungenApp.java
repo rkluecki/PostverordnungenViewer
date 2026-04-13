@@ -1956,28 +1956,77 @@ public class PostverordnungenApp extends Application {
     }
 
     private List<File> loadBilder(String gebiet, String band) {
-        File bandDir = new File(new File(Config.getImageRootPath(), gebiet), band);
+        File gebietDir = new File(Config.getImageRootPath(), gebiet);
 
-        if (!bandDir.exists() || !bandDir.isDirectory()) {
+        if (!gebietDir.exists() || !gebietDir.isDirectory()) {
             return List.of();
         }
 
-        File[] files = bandDir.listFiles(file ->
-                file.isFile() && (
-                        file.getName().toLowerCase().endsWith(".jpg") ||
-                                file.getName().toLowerCase().endsWith(".jpeg") ||
-                                file.getName().toLowerCase().endsWith(".png") ||
-                                file.getName().toLowerCase().endsWith(".gif")
-                )
-        );
+        File bandDir = new File(gebietDir, band);
 
-        if (files == null) {
-            return List.of();
+        File[] files = null;
+
+        if (bandDir.exists() && bandDir.isDirectory()) {
+
+            files = bandDir.listFiles(file ->
+                    file.isFile() && (
+                            file.getName().toLowerCase().endsWith(".jpg") ||
+                                    file.getName().toLowerCase().endsWith(".jpeg") ||
+                                    file.getName().toLowerCase().endsWith(".png") ||
+                                    file.getName().toLowerCase().endsWith(".gif")
+                    )
+            );
+
+            if (files != null && files.length > 0) {
+                return Arrays.stream(files)
+                        .sorted(Comparator.comparing(File::getName))
+                        .toList();
+            }
         }
 
-        return Arrays.stream(files)
-                .sorted(Comparator.comparing(File::getName))
-                .toList();
+        try {
+            int jahr = Integer.parseInt(band);
+
+            File[] unterordner = gebietDir.listFiles(File::isDirectory);
+
+            if (unterordner != null) {
+                for (File ordner : unterordner) {
+
+                    String name = ordner.getName().trim();
+
+                    if (name.matches("\\d{4}-\\d{4}")) {
+
+                        String[] teile = name.split("-");
+
+                        int jahrVon = Integer.parseInt(teile[0]);
+                        int jahrBis = Integer.parseInt(teile[1]);
+
+                        if (jahr >= jahrVon && jahr <= jahrBis) {
+
+                            File[] zeitraumFiles = ordner.listFiles(file ->
+                                    file.isFile() && (
+                                            file.getName().toLowerCase().endsWith(".jpg") ||
+                                                    file.getName().toLowerCase().endsWith(".jpeg") ||
+                                                    file.getName().toLowerCase().endsWith(".png") ||
+                                                    file.getName().toLowerCase().endsWith(".gif")
+                                    )
+                            );
+
+                            if (zeitraumFiles != null && zeitraumFiles.length > 0) {
+                                return Arrays.stream(zeitraumFiles)
+                                        .sorted(Comparator.comparing(File::getName))
+                                        .toList();
+                            }
+                        }
+                    }
+                }
+            }
+
+        } catch (NumberFormatException ex) {
+            // Band ist kein Jahr → nichts tun
+        }
+
+        return List.of();
     }
 
     private Image loadImageForPage(String gebiet, String bandJahr, int seite) {
@@ -2472,8 +2521,8 @@ public class PostverordnungenApp extends Application {
         TextField txtSeiteBis =
                 new TextField(String.valueOf(eintrag.getSeiteBis()));
 
-        txtSeiteVon.setEditable(false);
-        txtSeiteBis.setEditable(false);
+        txtSeiteVon.setEditable(true);
+        txtSeiteBis.setEditable(true);
 
         TextArea txtForschungsnotiz = new TextArea();
         txtForschungsnotiz.setPrefRowCount(4);
@@ -2516,8 +2565,37 @@ public class PostverordnungenApp extends Application {
         String nro = txtNro.getText().trim();
         String titel = txtTitel.getText().trim();
 
+        String seiteVonText = txtSeiteVon.getText().trim();
+        String seiteBisText = txtSeiteBis.getText().trim();
+
         if (titel.isEmpty()) {
             showAlert("Hinweis","Titel darf nicht leer sein.");
+            return;
+        }
+
+        if (seiteVonText.isEmpty() || seiteBisText.isEmpty()) {
+            showAlert("Hinweis", "Seite von und Seite bis dürfen nicht leer sein.");
+            return;
+        }
+
+        int seiteVonNeu;
+        int seiteBisNeu;
+
+        try {
+            seiteVonNeu = Integer.parseInt(seiteVonText);
+            seiteBisNeu = Integer.parseInt(seiteBisText);
+        } catch (NumberFormatException ex) {
+            showAlert("Hinweis", "Seite von und Seite bis müssen Zahlen sein.");
+            return;
+        }
+
+        if(seiteBisNeu < seiteVonNeu){
+
+            showAlert(
+                    "Hinweis",
+                    "Seite bis darf nicht kleiner als Seite von sein."
+            );
+
             return;
         }
 
@@ -2532,6 +2610,9 @@ public class PostverordnungenApp extends Application {
         eintrag.setDatum(dpDatum.getValue());
         eintrag.setForschungsnotiz(txtForschungsnotiz.getText());
         eintrag.setHeftEintragTypID(typID);
+
+        eintrag.setSeiteVon(seiteVonNeu);
+        eintrag.setSeiteBis(seiteBisNeu);
 
         updateHeftEintrag(eintrag);
 

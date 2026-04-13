@@ -1,9 +1,9 @@
 package de.kluecki.db.UI;
 
 import de.kluecki.db.InhaltTabellenEintrag;
-import de.kluecki.db.InhaltTypen;
 import de.kluecki.db.model.HeftEintrag;
 import de.kluecki.db.repository.InhaltseinheitRepository;
+import de.kluecki.db.repository.InhaltstypRepository;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -19,6 +19,8 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import java.util.function.IntConsumer;
+import de.kluecki.db.model.Inhaltstyp;
+
 
 public class InhaltseinheitenWindow {
 
@@ -26,8 +28,8 @@ public class InhaltseinheitenWindow {
     private static TextField txtTitel;
     private static TextField txtSeiteVon;
     private static TextField txtSeiteBis;
-    private static ComboBox<String> cmbTyp;
     private static TextArea txtBeschreibung;
+    private static ComboBox<Inhaltstyp> cmbTyp;
 
     public static void open(HeftEintrag heftEintrag, Runnable onChanged, IntConsumer onSeiteAuswaehlen) {
 
@@ -39,7 +41,10 @@ public class InhaltseinheitenWindow {
         txtSeiteBis = new TextField();
 
         cmbTyp = new ComboBox<>();
-        cmbTyp.getItems().addAll(InhaltTypen.getStandardTypen());
+
+        InhaltstypRepository inhaltstypRepository = new InhaltstypRepository();
+        cmbTyp.getItems().addAll(inhaltstypRepository.findAllInhaltstypen());
+
         cmbTyp.setEditable(false);
 
         txtSeiteVon.textProperty().addListener((obs, oldVal, newVal) -> {
@@ -158,12 +163,11 @@ public class InhaltseinheitenWindow {
                     txtNr.setText(eintrag.getNr());
                     txtTitel.setText(eintrag.getTitel());
 
-                    if (eintrag.getSeite().contains("-")) {
-                        String[] teile = eintrag.getSeite().split("-");
-                        txtSeiteVon.setText(teile[0].trim());
-                        txtSeiteBis.setText(teile[1].trim());
+                    txtSeiteVon.setText(String.valueOf(eintrag.getSeiteVon()));
+
+                    if (eintrag.getSeiteBis() != null) {
+                        txtSeiteBis.setText(String.valueOf(eintrag.getSeiteBis()));
                     } else {
-                        txtSeiteVon.setText(eintrag.getSeite());
                         txtSeiteBis.clear();
                     }
 
@@ -188,15 +192,15 @@ public class InhaltseinheitenWindow {
 
             txtNr.setText(neu.getNr());
             txtTitel.setText(neu.getTitel());
+            System.out.println("DB Typ: [" + neu.getTyp() + "]");
             cmbTyp.setValue(neu.getTyp());
             txtBeschreibung.setText(neu.getBeschreibung());
 
-            if (neu.getSeite().contains("-")) {
-                String[] teile = neu.getSeite().split("-");
-                txtSeiteVon.setText(teile[0].trim());
-                txtSeiteBis.setText(teile[1].trim());
+            txtSeiteVon.setText(String.valueOf(neu.getSeiteVon()));
+
+            if (neu.getSeiteBis() != null) {
+                txtSeiteBis.setText(String.valueOf(neu.getSeiteBis()));
             } else {
-                txtSeiteVon.setText(neu.getSeite());
                 txtSeiteBis.clear();
             }
 
@@ -287,7 +291,7 @@ public class InhaltseinheitenWindow {
                 }
             }
 
-            String typ = cmbTyp.getValue() == null ? "" : cmbTyp.getValue().trim();
+            Inhaltstyp typ = cmbTyp.getValue();
             String beschreibung = txtBeschreibung.getText().trim();
 
             if (titel.isEmpty()) {
@@ -299,7 +303,7 @@ public class InhaltseinheitenWindow {
                 return;
             }
 
-            if (typ.isEmpty()) {
+            if (typ == null) {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.setTitle("Hinweis");
                 alert.setHeaderText(null);
@@ -319,7 +323,7 @@ public class InhaltseinheitenWindow {
             }
 
             int lfdNr = Integer.parseInt(nr);
-            int inhaltstypId = InhaltTypen.getTypId(typ);
+            int inhaltstypId = typ.getInhaltstypID();
             int seiteVonInt = Integer.parseInt(seiteVon);
 
             Integer seiteBisInt = null;
@@ -453,6 +457,9 @@ public class InhaltseinheitenWindow {
             if (aktuellBearbeitet == null) {
                 InhaltTabellenEintrag neuerEintrag =
                         new InhaltTabellenEintrag(nr, titel, seite, typ, beschreibung);
+
+                neuerEintrag.setSeiteVon(seiteVonInt);
+                neuerEintrag.setSeiteBis(seiteBisInt);
                 daten.add(neuerEintrag);
 
                 table.getSelectionModel().clearSelection();
