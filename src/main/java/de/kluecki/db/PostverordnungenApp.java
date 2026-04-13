@@ -804,6 +804,21 @@ public class PostverordnungenApp extends Application {
                 )
         );
 
+        colNro.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setText(null);
+                    setTooltip(null);
+                } else {
+                    setText(item);
+                    setTooltip(new Tooltip(item));
+                }
+            }
+        });
+
         colNro.setPrefWidth(70);
         colNro.setSortable(false);
 
