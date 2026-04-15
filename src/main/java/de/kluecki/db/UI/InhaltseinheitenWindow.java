@@ -117,6 +117,7 @@ public class InhaltseinheitenWindow {
         lblListe.setStyle("-fx-font-weight: bold;");
 
         TableView<InhaltTabellenEintrag> table = new TableView<>();
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         ObservableList<InhaltTabellenEintrag> daten = FXCollections.observableArrayList();
         InhaltseinheitRepository repository = new InhaltseinheitRepository();
 
@@ -126,10 +127,12 @@ public class InhaltseinheitenWindow {
         TableColumn<InhaltTabellenEintrag, String> colNr = new TableColumn<>("Nr.");
         TableColumn<InhaltTabellenEintrag, String> colTitel = new TableColumn<>("Titel");
         TableColumn<InhaltTabellenEintrag, String> colSeiten = new TableColumn<>("Seite");
+        TableColumn<InhaltTabellenEintrag, String> colTyp = new TableColumn<>("Typ");
 
         colNr.setPrefWidth(45);
+        colSeiten.setPrefWidth(110);
+        colTyp.setPrefWidth(120);
         colTitel.setPrefWidth(220);
-        colSeiten.setPrefWidth(80);
 
         colTitel.setMinWidth(200);
         colTitel.setMaxWidth(Double.MAX_VALUE);
@@ -139,7 +142,8 @@ public class InhaltseinheitenWindow {
                 table.widthProperty()
                         .subtract(colNr.widthProperty())
                         .subtract(colSeiten.widthProperty())
-                        .subtract(20)
+                        .subtract(colTyp.widthProperty())
+                        .subtract(10)
         );
 
         colNr.setCellValueFactory(data ->
@@ -151,7 +155,15 @@ public class InhaltseinheitenWindow {
         colSeiten.setCellValueFactory(data ->
                 new SimpleStringProperty(data.getValue().getSeite()));
 
-        table.getColumns().addAll(colNr, colTitel, colSeiten);
+        colTyp.setCellValueFactory(data ->
+                        new SimpleStringProperty(
+                                data.getValue().getTyp() != null
+                                        ? data.getValue().getTyp().getBezeichnung()
+                                        : ""
+                        )
+        );
+
+        table.getColumns().addAll(colNr, colTitel, colSeiten, colTyp);
 
         table.setRowFactory(tv -> {
             TableRow<InhaltTabellenEintrag> row = new TableRow<>();
@@ -491,6 +503,8 @@ public class InhaltseinheitenWindow {
                 aktuellBearbeitet.setNr(nr);
                 aktuellBearbeitet.setTitel(titel);
                 aktuellBearbeitet.setSeite(seite);
+                aktuellBearbeitet.setSeiteVon(seiteVonInt);
+                aktuellBearbeitet.setSeiteBis(seiteBisInt);
                 aktuellBearbeitet.setTyp(typ);
                 aktuellBearbeitet.setBeschreibung(beschreibung);
 
@@ -566,7 +580,7 @@ public class InhaltseinheitenWindow {
         root.setTop(topBox);
         root.setCenter(splitPane);
 
-        Scene scene = new Scene(root, 900, 650);
+        Scene scene = new Scene(root, 1100, 700);
 
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ESCAPE) {

@@ -138,8 +138,17 @@ public class PostverordnungenApp extends Application {
     private List<HeftEintrag> aktuelleHeftEintragListe = new ArrayList<>();
     private ComboBox<String> cmbTypFilter;
 
+    private enum NavigationLevel {
+        HEFT,
+        HEFTEINTRAG,
+        INHALT
+    }
+
+    private NavigationLevel aktuellesLevel = NavigationLevel.HEFT;
+
     private static final String BACKUP_DIR =
             "D:\\Postgeschichte_PC\\Postverordnungen_Backup";
+
 
 
 
@@ -226,6 +235,9 @@ public class PostverordnungenApp extends Application {
         });
 
         lstInhalteDetail.getSelectionModel().selectedItemProperty().addListener((obs, alt, neu) -> {
+
+            aktuellesLevel = NavigationLevel.INHALT;
+
             if (neu != null) {
                 int seiteVon = neu.getSeiteVon();
 
@@ -251,7 +263,6 @@ public class PostverordnungenApp extends Application {
         root.setCenter(mainPane);
 
         configureSelectionListeners();
-        configureHeftEintragListener();
         configureKeyboardNavigation(root);
 
         updateImageView();
@@ -1019,23 +1030,27 @@ public class PostverordnungenApp extends Application {
         bandListView.setPrefHeight(250);
         heftListView.setPrefHeight(120);
 
-        VBox.setVgrow(lstInhalteDetail, Priority.NEVER);
+        heftListView.setOnMouseClicked(e -> {
 
-        tblHeftEintraege.setOnMouseClicked(e -> {
+            aktuellesLevel = NavigationLevel.HEFT;
 
-            HeftEintrag eintrag =
-                    tblHeftEintraege.getSelectionModel().getSelectedItem();
+            Heft heft = heftListView.getSelectionModel().getSelectedItem();
 
-            if (eintrag == null) return;
-
-            if (e.getClickCount() == 1) {
-
-                aktuellerBildIndex = eintrag.getSeiteVon() - 1;
-                ladeAktuellesBild();
-                ladeInhalteZuHeftEintrag(eintrag);
-                updateOutputButtons();
+            if (heft == null) {
+                return;
             }
+
+            tblHeftEintraege.getSelectionModel().clearSelection();
+            lstInhalteDetail.getSelectionModel().clearSelection();
+            lstInhalteDetail.getItems().clear();
+            lblForschungsnotiz.setText("");
+            lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+
+            updateNavigationState();
+            updateOutputButtons();
         });
+
+        VBox.setVgrow(lstInhalteDetail, Priority.NEVER);
 
         cmbTypFilter.setOnAction(e -> {
 
@@ -1584,6 +1599,8 @@ public class PostverordnungenApp extends Application {
 
         heftListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
 
+            aktuellesLevel = NavigationLevel.HEFT;
+
             if (newValue != null) {
                 Integer seiteVon = newValue.getSeiteVon();
 
@@ -1616,6 +1633,8 @@ public class PostverordnungenApp extends Application {
         });
 
         tblHeftEintraege.getSelectionModel().selectedItemProperty().addListener((o, alt, neu) -> {
+
+            aktuellesLevel = NavigationLevel.HEFTEINTRAG;
 
             if (neu != null) {
                 aktuellerBildIndex = neu.getSeiteVon() - 1;
@@ -2463,19 +2482,29 @@ public class PostverordnungenApp extends Application {
             eintrag.setSeiteBis(markierteEndeSeite);
             eintrag.setForschungsnotiz(forschungsnotiz);
 
-            // Diesen Methoden-Namen bitte ggf. an dein Repository anpassen
             heftEintragRepository.insert(eintrag);
 
-            tblHeftEintraege.getItems().setAll(
-                    heftEintragRepository.findByHeft(aktuellesHeft.getHeftID())
-            );
+            List<HeftEintrag> liste =
+                    heftEintragRepository.findByHeft(aktuellesHeft.getHeftID());
 
-            tblHeftEintraege.getSelectionModel().select(eintrag);
-            lstInhalteDetail.getItems().clear();
+            aktuelleHeftEintragListe.clear();
+            aktuelleHeftEintragListe.addAll(liste);
+
+            tblHeftEintraege.getItems().setAll(liste);
+
+            for (HeftEintrag h : liste) {
+                if (h.getHeftEintragID() == eintrag.getHeftEintragID()) {
+                    tblHeftEintraege.getSelectionModel().select(h);
+                    tblHeftEintraege.scrollTo(h);
+                    break;
+                }
+            }
 
             markierteStartSeite = null;
             markierteEndeSeite = null;
-            updateSeitenmarkierung();;
+            updateSeitenmarkierung();
+
+            updateOutputButtons();
 
             showAlert("Erfolg", "HeftEintrag wurde angelegt.");
 
@@ -3266,22 +3295,4 @@ public class PostverordnungenApp extends Application {
             showAlert("Fehler", "Band/Jahr konnte nicht angelegt werden.");
         }
     }
-
-    private void configureHeftEintragListener() {
-        tblHeftEintraege.getSelectionModel().selectedItemProperty().addListener((obs, oldSelection, newSelection) -> {
-            if (newSelection != null) {
-                int seiteVon = newSelection.getSeiteVon();
-
-              //  System.out.println("DEBUG: HeftEintrag ausgewählt → Seite " + seiteVon
-              //          + " (" + newSelection.getTitel() + ")");
-
-                if (seiteVon > 0) {
-                    springeZuSeite(seiteVon);
-                }
-            }
-
-            updateOutputButtons();
-        });
-    }
-
 }
