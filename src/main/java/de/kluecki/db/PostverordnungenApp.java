@@ -33,11 +33,11 @@ import de.kluecki.db.UI.InhaltseinheitenWindow;
 import de.kluecki.db.model.HeftEintrag;
 import de.kluecki.db.model.HeftEintragTyp;
 import de.kluecki.db.print.PrintPdfService;
-import de.kluecki.db.repository.HeftEintragRepository;
-import de.kluecki.db.repository.QuelleRepository;
+import de.kluecki.db.repository.*;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -51,14 +51,14 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.*;
 import javafx.beans.property.SimpleStringProperty;
 import de.kluecki.db.model.Heft;
-import de.kluecki.db.repository.HeftRepository;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.DatePicker;
-import de.kluecki.db.repository.InhaltseinheitRepository;
 import de.kluecki.db.config.Config;
 import java.sql.Statement;
 import java.time.LocalDateTime;
@@ -132,6 +132,7 @@ public class PostverordnungenApp extends Application {
     private HeftEintragRepository heftEintragRepository; // neue Struktur
     private HeftRepository heftRepository;
     private QuelleRepository quelleRepository;  // Basisstruktur
+    private final SeitenMappingRepository seitenMappingRepository = new SeitenMappingRepository();
 
     // Sonstiges
     private List<String> gebieteCache = null;
@@ -142,6 +143,12 @@ public class PostverordnungenApp extends Application {
         HEFT,
         HEFTEINTRAG,
         INHALT
+    }
+
+    private enum MappingStatus {
+        NICHT_VORHANDEN,
+        VOLLSTAENDIG,
+        UNVOLLSTAENDIG
     }
 
     private NavigationLevel aktuellesLevel = NavigationLevel.HEFT;
@@ -357,11 +364,16 @@ public class PostverordnungenApp extends Application {
         MenuItem miGebietLoeschen = new MenuItem("Gebiet löschen");
         miGebietLoeschen.setOnAction(e -> oeffneGebietLoeschenDialog());
 
+        MenuItem miSeitenmappingBearbeiten = new MenuItem("Seitenmapping bearbeiten");
+        miSeitenmappingBearbeiten.setOnAction(e -> oeffneSeitenmappingDialog());
+
         menuStammdaten.getItems().add(miBandJahrAnlegen);
         menuStammdaten.getItems().add(miBandJahrLoeschen);
         menuStammdaten.getItems().add(mnuGebiet);
         menuStammdaten.getItems().add(miGebietUmbenennen);
         menuStammdaten.getItems().add(miGebietLoeschen);
+        menuStammdaten.getItems().add(new SeparatorMenuItem());
+        menuStammdaten.getItems().add(miSeitenmappingBearbeiten);
 
         menuBar.getMenus().addAll(
                 menuDatei,
@@ -1405,14 +1417,34 @@ public class PostverordnungenApp extends Application {
         });
 
         txtSeiteDirekt.setOnAction(e -> {
-            try {
-                int seite = Integer.parseInt(txtSeiteDirekt.getText().trim());
-                if (seite >= 1 && seite <= aktuelleBildliste.size()) {
-                    aktuellerBildIndex = seite - 1;
-                    ladeAktuellesBild();
+            String eingabe = txtSeiteDirekt.getText() != null
+                    ? txtSeiteDirekt.getText().trim()
+                    : "";
+
+            boolean gesprungen = false;
+
+            String dateiname = findeDateinameZuLogischerSeite(eingabe);
+
+            if (dateiname != null && !dateiname.isBlank()) {
+                Path bildPfad = findeBildPfadInAktuellerListe(dateiname);
+
+                if (bildPfad != null) {
+                    int index = aktuelleBildliste.indexOf(bildPfad);
+
+                    if (index >= 0) {
+                        wechsleAufBandEbeneFuerFreieNavigation();
+                        aktuellerBildIndex = index;
+                        ladeAktuellesBild();
+                        gesprungen = true;
+                    }
                 }
-            } catch (NumberFormatException ex) {
-                // ungültige Eingabe ignorieren
+            }
+
+            // Zahlen-Fallback vorerst deaktiviert,
+            // damit nur echte logische Seiten verwendet werden.
+
+            if (!gesprungen && !eingabe.isBlank()) {
+                showAlert("Hinweis", "Seite '" + eingabe + "' wurde nicht gefunden.");
             }
 
             txtSeiteDirekt.setVisible(false);
@@ -1541,6 +1573,7 @@ public class PostverordnungenApp extends Application {
             lstInhalteDetail.getItems().clear();
 
             int bandId = ermittleBandId(gebiet, band);
+
             if (bandId > 0) {
                 List<Heft> hefte = heftRepository.findByBand(bandId);
 
@@ -1585,11 +1618,32 @@ public class PostverordnungenApp extends Application {
             if (!bilder.isEmpty()) {
                 for (File bild : bilder) {
                     aktuelleBildliste.add(bild.toPath());
+                }
 
+                MappingStatus status = pruefeMappingStatusFuerAktuellesBand();
+
+                if (status == MappingStatus.UNVOLLSTAENDIG) {
+                    showAlert("Fehler",
+                            "Das Seitenmapping ist unvollständig.\n" +
+                                    "Bitte prüfen oder neu aufbauen.");
+
+                    currentImage = null;
+                    imageView.setImage(null);
+                    updateNavigationState();
+                    return;
+                }
+
+                if (status == MappingStatus.NICHT_VORHANDEN) {
+                    starteInitialMappingImHintergrund(bandId, () -> {
+                        aktuellerBildIndex = 0;
+                        ladeAktuellesBild();
+                    });
+                    return;
                 }
 
                 aktuellerBildIndex = 0;
                 ladeAktuellesBild();
+
             } else {
                 currentImage = null;
                 imageView.setImage(null);
@@ -1661,21 +1715,31 @@ public class PostverordnungenApp extends Application {
         });
     }
 
-    private void springeZuSeite(int seite) {
+      private void springeZuSeite(int seite) {
         if (aktuelleBildliste.isEmpty()) {
         //    System.out.println("DEBUG: springeZuSeite - Keine Bilder geladen!");
             return;
         }
 
         if (seite < 1 || seite > aktuelleBildliste.size()) {
-        //    System.out.println("DEBUG: springeZuSeite - Ungültige Seitenzahl: " + seite);
             return;
         }
 
         aktuellerBildIndex = seite - 1;
         ladeAktuellesBild();
+    }
 
-       // System.out.println("DEBUG: Bild gewechselt zu Seite " + seite);
+    private void wechsleAufBandEbeneFuerFreieNavigation() {
+        lstInhalteDetail.getSelectionModel().clearSelection();
+        tblHeftEintraege.getSelectionModel().clearSelection();
+        heftListView.getSelectionModel().clearSelection();
+
+        lstInhalteDetail.getItems().clear();
+        lblForschungsnotiz.setText("");
+        lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+
+        aktuellesLevel = NavigationLevel.HEFT;
+        updateOutputButtons();
     }
 
     private void waehleHeftEintragFuerSeite(int seite) {
@@ -1703,10 +1767,7 @@ public class PostverordnungenApp extends Application {
     }
 
     private int ermittleBandId(String gebiet, String band) {
-        System.out.println("ermittleBandId -> Gebiet: [" + gebiet + "], Band: [" + band + "]");
-        int bandId = quelleRepository.findBandId(gebiet, band);
-        System.out.println("ermittleBandId -> Ergebnis BandID: " + bandId);
-        return bandId;
+        return quelleRepository.findBandId(gebiet, band);
     }
 
     private void configureKeyboardNavigation(BorderPane root) {
@@ -1780,14 +1841,12 @@ public class PostverordnungenApp extends Application {
 
         boolean heftEintragSelected =
                 tblHeftEintraege.getSelectionModel().getSelectedItem() != null;
-       // System.out.println("DEBUG heftEintragSelected = " + heftEintragSelected);
 
         btnHeftEintragDrucken.setDisable(!heftEintragSelected);
         btnHeftEintragPdf.setDisable(!heftEintragSelected);
 
         btnHeftEintragAendern.setDisable(!heftEintragSelected);
         btnInhaltseinheiten.setDisable(!heftEintragSelected);
-       // System.out.println("DEBUG btnHeftEintragPdf disabled = " + btnHeftEintragPdf.isDisable());
 
         boolean heftSelected =
                 heftListView.getSelectionModel().getSelectedItem() != null;
@@ -1807,7 +1866,7 @@ public class PostverordnungenApp extends Application {
         alert.showAndWait();
     }
 
-    private void backupErstellen() {
+       private void backupErstellen() {
 
         try {
 
@@ -1882,18 +1941,64 @@ public class PostverordnungenApp extends Application {
     }
 
     private void ladeAktuellesBild() {
-        if (aktuelleBildliste.isEmpty()) return;
-        if (aktuellerBildIndex < 0 || aktuellerBildIndex >= aktuelleBildliste.size()) return;
+        Path bildPfad = getAktuellerBildPfadAusListe();
 
-        Path bildPfad = aktuelleBildliste.get(aktuellerBildIndex);
+        if (bildPfad == null) {
+            return;
+        }
+
         currentImage = new Image(bildPfad.toUri().toString());
         imageView.setImage(currentImage);
 
         updateImageView();
         updateNavigationState();
-        updateInhaltAnzeige(aktuellerBildIndex + 1);
 
-        //waehleHeftEintragFuerSeite(aktuellerBildIndex + 1);
+        updateInhaltAnzeige(aktuellerBildIndex + 1);
+    }
+
+    private Path getAktuellerBildPfadAusListe() {
+        if (aktuelleBildliste.isEmpty()) {
+            return null;
+        }
+
+        if (aktuellerBildIndex < 0 || aktuellerBildIndex >= aktuelleBildliste.size()) {
+            return null;
+        }
+
+        return aktuelleBildliste.get(aktuellerBildIndex);
+    }
+
+    private String ermittleLogischeSeiteZumAktuellenDateinamen() {
+
+        String dateiname = getAktuellerDateinameAusListe();
+
+        if (dateiname == null || dateiname.isBlank()) {
+            return null;
+        }
+
+        return findeLogischeSeiteZuDateiname(dateiname);
+    }
+
+    private String findeDateinameZuLogischerSeite(String logischeSeite) {
+
+        if (logischeSeite == null || logischeSeite.isBlank()) {
+            return null;
+        }
+
+        if (aktuellesGebiet == null || aktuellesBand == null) {
+            return null;
+        }
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            return null;
+        }
+
+        return seitenMappingRepository.findDateinameByBandIdAndLogischeSeite(
+                bandId,
+                logischeSeite
+        );
     }
 
     private void updateNavigationState() {
@@ -1912,11 +2017,49 @@ public class PostverordnungenApp extends Application {
 
         if (lblSeitenstand != null) {
             if (hatBilder && aktuellerBildIndex >= 0) {
-                lblSeitenstand.setText((aktuellerBildIndex + 1) + " / " + aktuelleBildliste.size());
+                String text = (aktuellerBildIndex + 1) + " / " + aktuelleBildliste.size();
+
+                String logischeSeite = ermittleLogischeSeiteZumAktuellenDateinamen();
+
+                if (logischeSeite != null && !logischeSeite.isBlank()) {
+                    text += " | logisch: " + logischeSeite;
+                }
+
+                String dateiname = getAktuellerDateinameAusListe();
+                if (dateiname != null && !dateiname.isBlank()) {
+                    text += " | " + dateiname;
+                }
+
+                lblSeitenstand.setText(text);
             } else {
                 lblSeitenstand.setText("0 / 0");
             }
         }
+    }
+
+    private String getAktuellerDateinameAusListe() {
+        Path bildPfad = getAktuellerBildPfadAusListe();
+
+        if (bildPfad == null) {
+            return null;
+        }
+
+        return bildPfad.getFileName().toString();
+    }
+
+    private Path findeBildPfadInAktuellerListe(String dateiname) {
+
+        if (dateiname == null || dateiname.isBlank()) {
+            return null;
+        }
+
+        for (Path path : aktuelleBildliste) {
+            if (path != null && path.getFileName().toString().equalsIgnoreCase(dateiname)) {
+                return path;
+            }
+        }
+
+        return null;
     }
 
     private void updateImageView() {
@@ -1975,10 +2118,6 @@ public class PostverordnungenApp extends Application {
                 .map(File::getName)
                 .sorted()
                 .toList();
-    }
-
-    private List<String> loadGebieteFromDatabase() {
-        return List.of();
     }
 
     private void invalidateGebieteCache() {
@@ -2295,6 +2434,155 @@ public class PostverordnungenApp extends Application {
         double scaleY = viewportHeight / imageHeight;
 
         return Math.min(scaleX, scaleY);
+    }
+
+    //  ********************************************************************************************
+    //                             Hier sind alle Methoden für das Mapping
+    //  ********************************************************************************************
+
+    private MappingStatus pruefeMappingStatusFuerAktuellesBand() {
+
+        if (aktuellesGebiet == null || aktuellesBand == null) {
+            return MappingStatus.NICHT_VORHANDEN;
+        }
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            return MappingStatus.NICHT_VORHANDEN;
+        }
+
+        int anzahlBilder = aktuelleBildliste.size();
+        int anzahlMapping = seitenMappingRepository.countByBandId(bandId);
+
+        if (anzahlMapping == 0) {
+            return MappingStatus.NICHT_VORHANDEN;
+        }
+
+        if (anzahlMapping == anzahlBilder) {
+            return MappingStatus.VOLLSTAENDIG;
+        }
+
+        return MappingStatus.UNVOLLSTAENDIG;
+    }
+
+    private void starteInitialMappingImHintergrund(int bandId, Runnable onSuccess) {
+
+        if (statusLabel != null) {
+            statusLabel.setText("Seitenmapping wird erstellt ...");
+        }
+
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() {
+                List<String> dateinamen = aktuelleBildliste.stream()
+                        .map(path -> path.getFileName().toString())
+                        .toList();
+
+                seitenMappingRepository.initialisiereGrundmappingFuerBand(
+                        bandId,
+                        dateinamen
+                );
+                return null;
+            }
+        };
+
+        task.setOnSucceeded(event -> {
+            if (statusLabel != null) {
+                statusLabel.setText("Seitenmapping wurde erstellt.");
+            }
+
+            if (onSuccess != null) {
+                onSuccess.run();
+            }
+
+            showAlert("Hinweis", "Grundmapping wurde automatisch erstellt.");
+
+            updateStatusLabel(bandListView.getItems().size());
+        });
+
+        task.setOnFailed(event -> {
+            Throwable ex = task.getException();
+            if (ex != null) {
+                ex.printStackTrace();
+            }
+
+            if (statusLabel != null) {
+                statusLabel.setText("Fehler beim Erstellen des Seitenmappings.");
+            }
+
+            showAlert("Fehler", "Grundmapping konnte nicht erstellt werden.");
+        });
+
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private String ermittleLogischeSeiteZumAktuellenBild() {
+
+        if (aktuellesGebiet == null || aktuellesBand == null) {
+            return null;
+        }
+
+        if (aktuellerBildIndex < 0) {
+            return null;
+        }
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            return null;
+        }
+
+        return seitenMappingRepository.findLogischeSeiteByBandIdAndBildIndex(
+                bandId,
+                aktuellerBildIndex + 1
+        );
+    }
+
+    private String findeLogischeSeiteZuDateiname(String dateiname) {
+
+        if (dateiname == null || dateiname.isBlank()) {
+            return null;
+        }
+
+        if (aktuellesGebiet == null || aktuellesBand == null) {
+            return null;
+        }
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            return null;
+        }
+
+        return seitenMappingRepository.findLogischeSeiteByBandIdAndDateiname(
+                bandId,
+                dateiname
+        );
+    }
+
+    //  ****************************************************************************************
+
+    private void oeffneSeitenmappingDialog() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Seitenmapping bearbeiten");
+        dialog.setHeaderText("Seitenmapping für das aktuell gewählte Band");
+
+        ButtonType schliessenButtonType =
+                new ButtonType("Schließen", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        dialog.getDialogPane().getButtonTypes().add(schliessenButtonType);
+
+        Label lblInfo = new Label("Platzhalterdialog – Tabelle folgt im nächsten Schritt.");
+        lblInfo.setWrapText(true);
+
+        VBox content = new VBox(10, lblInfo);
+        content.setPadding(new Insets(20));
+
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
     }
 
     public static void main(String[] args) {
@@ -2706,7 +2994,7 @@ public class PostverordnungenApp extends Application {
         oeffneHeftDialog(null);
     }
 
-    private void oeffneHeftDialog(HeftEingabe eingabe) {
+       private void oeffneHeftDialog(HeftEingabe eingabe) {
 
         boolean istAendern = eingabe != null;
 
@@ -2968,11 +3256,6 @@ public class PostverordnungenApp extends Application {
         heft.setIstAktiv(true);
         heft.setSortierung(0);
 
-        System.out.println("Heft erzeugt:");
-        System.out.println("BandID: " + heft.getBandID());
-        System.out.println("Nummer: " + heft.getHeftNummer());
-        System.out.println("Seiten: " + heft.getSeiteVon() + " - " + heft.getSeiteBis());
-
         try {
             if (hatUeberschneidungMitVorhandenemHeft(
                     heft.getBandID(),
@@ -2991,8 +3274,6 @@ public class PostverordnungenApp extends Application {
             heftListView.getItems().setAll(
                     heftRepository.findByBand(bandIdReload)
             );
-
-            System.out.println("Heft gespeichert");
         } catch (Exception e) {
             e.printStackTrace();
         }
