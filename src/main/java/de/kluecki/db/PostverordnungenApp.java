@@ -32,6 +32,7 @@ import de.kluecki.db.UI.DocumentViewerWindow;
 import de.kluecki.db.UI.InhaltseinheitenWindow;
 import de.kluecki.db.model.HeftEintrag;
 import de.kluecki.db.model.HeftEintragTyp;
+import de.kluecki.db.model.SeitenMapping;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.*;
 import javafx.application.Application;
@@ -51,8 +52,6 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.*;
 import javafx.beans.property.SimpleStringProperty;
@@ -63,6 +62,7 @@ import de.kluecki.db.config.Config;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import javafx.scene.control.cell.TextFieldTableCell;
 
 
 public class PostverordnungenApp extends Application {
@@ -165,13 +165,6 @@ public class PostverordnungenApp extends Application {
         try {
             heftEintragRepository = new HeftEintragRepository(DatabaseConnection.getConnection());
             heftRepository = new HeftRepository(DatabaseConnection.getConnection());
-
-            //var liste = heftEintragRepository.findByHeft(1);
-            //System.out.println("HeftEinträge: " + liste.size());
-            //for (HeftEintrag he : liste) {
-            //    System.out.println(he.getHeftEintragID() + " | " + he.getTitel() + " | " + he.getNro());
-            //}
-
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -2566,6 +2559,14 @@ public class PostverordnungenApp extends Application {
     //  ****************************************************************************************
 
     private void oeffneSeitenmappingDialog() {
+
+        if (aktuellesGebiet == null || aktuellesGebiet.isBlank()
+                || aktuellesBand == null || aktuellesBand.isBlank()) {
+
+            showAlert("Hinweis", "Bitte zuerst ein Gebiet und ein Band auswählen.");
+            return;
+        }
+
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Seitenmapping bearbeiten");
         dialog.setHeaderText("Seitenmapping für das aktuell gewählte Band");
@@ -2575,18 +2576,199 @@ public class PostverordnungenApp extends Application {
 
         dialog.getDialogPane().getButtonTypes().add(schliessenButtonType);
 
-        Label lblInfo = new Label("Platzhalterdialog – Tabelle folgt im nächsten Schritt.");
-        lblInfo.setWrapText(true);
+        TableView<SeitenMapping> table = new TableView<>();
 
-        VBox content = new VBox(10, lblInfo);
+        table.setRowFactory(tv -> new TableRow<>() {
+            @Override
+            protected void updateItem(SeitenMapping item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setStyle("");
+                    return;
+                }
+
+                int aktuellerBildIndex1basiert = aktuellerBildIndex + 1;
+
+                if (item.getBildIndex() == aktuellerBildIndex1basiert) {
+                    setStyle("-fx-background-color: #fff3b0;");
+                } else {
+                    setStyle("");
+                }
+            }
+        });
+
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        table.setEditable(true);
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            showAlert("Fehler", "BandID konnte nicht ermittelt werden.");
+            return;
+        }
+
+        TableColumn<SeitenMapping, String> colIndex = new TableColumn<>("BildIndex");
+
+        colIndex.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        data.getValue().getBildIndex() + ""
+                )
+        );
+
+        TableColumn<SeitenMapping, String> colDateiname = new TableColumn<>("Dateiname");
+
+        colDateiname.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        data.getValue().getDateiname()
+                )
+        );
+
+        TableColumn<SeitenMapping, String> colLogisch = new TableColumn<>("Logische Seite");
+
+        Label lblIndexHeader = new Label("BildIndex");
+        lblIndexHeader.setMaxWidth(Double.MAX_VALUE);
+        lblIndexHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        Label lblDateinameHeader = new Label("Dateiname");
+        lblDateinameHeader.setMaxWidth(Double.MAX_VALUE);
+        lblDateinameHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        Label lblLogischHeader = new Label("Logische Seite");
+        lblLogischHeader.setMaxWidth(Double.MAX_VALUE);
+        lblLogischHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        colIndex.setText(null);
+        colIndex.setGraphic(lblIndexHeader);
+
+        colDateiname.setText(null);
+        colDateiname.setGraphic(lblDateinameHeader);
+
+        colLogisch.setText(null);
+        colLogisch.setGraphic(lblLogischHeader);
+
+        colLogisch.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        data.getValue().getLogischeSeite()
+                )
+        );
+
+        colLogisch.setCellFactory(TextFieldTableCell.forTableColumn());
+
+        colLogisch.setOnEditCommit(event -> {
+            SeitenMapping eintrag = event.getRowValue();
+            String neuerWert = event.getNewValue() != null
+                    ? event.getNewValue().trim()
+                    : "";
+
+            if (neuerWert.isBlank()) {
+                showAlert("Hinweis", "Die logische Seite darf nicht leer sein.");
+                table.refresh();
+                return;
+            }
+
+            if (hatDoppelteLogischeSeite(table, eintrag, neuerWert)) {
+                showAlert("Hinweis", "Diese logische Seite ist bereits vorhanden.");
+                table.refresh();
+                return;
+            }
+
+            eintrag.setLogischeSeite(neuerWert);
+
+            seitenMappingRepository.updateLogischeSeite(
+                    bandId,
+                    eintrag.getBildIndex(),
+                    neuerWert
+            );
+
+            table.refresh();
+        });
+
+        table.getColumns().addAll(colIndex, colDateiname, colLogisch);
+
+        colIndex.setPrefWidth(110);
+        colDateiname.setPrefWidth(320);
+        colLogisch.setPrefWidth(140);
+
+        table.setPlaceholder(new Label("Noch keine Daten geladen"));
+
+        table.setPrefHeight(400);
+
+        List<SeitenMapping> mappingListe =
+                seitenMappingRepository.findByBandId(bandId);
+
+        table.getItems().addAll(mappingListe);
+        table.setPlaceholder(new Label("Keine Mapping-Daten vorhanden"));
+
+        if (aktuellerBildIndex >= 0) {
+            int aktuellerBildIndex1basiert = aktuellerBildIndex + 1;
+
+            for (SeitenMapping eintrag : table.getItems()) {
+                if (eintrag.getBildIndex() == aktuellerBildIndex1basiert) {
+                    table.getSelectionModel().select(eintrag);
+                    table.scrollTo(eintrag);
+                    break;
+                }
+            }
+        }
+
+        table.getSelectionModel().selectedItemProperty().addListener((obs, alt, neu) -> {
+
+            if (neu == null) {
+                return;
+            }
+
+            int zielSeite = neu.getBildIndex();
+
+            if (zielSeite > 0 && zielSeite <= aktuelleBildliste.size()) {
+                aktuellerBildIndex = zielSeite - 1;
+                ladeAktuellesBild();
+                table.refresh();
+
+                Platform.runLater(() -> table.getSelectionModel().clearSelection());
+            }
+        });
+
+        VBox content = new VBox(10, table);
         content.setPadding(new Insets(20));
 
         dialog.getDialogPane().setContent(content);
+
+        dialog.getDialogPane().setPrefSize(600, 500);
+
         dialog.showAndWait();
     }
 
     public static void main(String[] args) {
         launch(args);
+    }
+
+    private boolean hatDoppelteLogischeSeite(TableView<SeitenMapping> table,
+                                             SeitenMapping aktuellerEintrag,
+                                             String logischeSeite) {
+
+        if (logischeSeite == null || logischeSeite.isBlank()) {
+            return false;
+        }
+
+        for (SeitenMapping eintrag : table.getItems()) {
+            if (eintrag == null) {
+                continue;
+            }
+
+            if (eintrag == aktuellerEintrag) {
+                continue;
+            }
+
+            String vorhanden = eintrag.getLogischeSeite();
+
+            if (vorhanden != null && vorhanden.trim().equalsIgnoreCase(logischeSeite.trim())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void updateInhaltAnzeige(String text) {
