@@ -35,12 +35,16 @@ import de.kluecki.db.model.HeftEintragTyp;
 import de.kluecki.db.model.SeitenMapping;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.*;
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
+import javafx.stage.Modality;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
@@ -62,7 +66,11 @@ import de.kluecki.db.config.Config;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.function.Consumer;
+
 import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.util.Duration;
+import javafx.util.converter.DefaultStringConverter;
 
 
 public class PostverordnungenApp extends Application {
@@ -138,6 +146,9 @@ public class PostverordnungenApp extends Application {
     private List<String> gebieteCache = null;
     private List<HeftEintrag> aktuelleHeftEintragListe = new ArrayList<>();
     private ComboBox<String> cmbTypFilter;
+    private boolean mappingEnterGedrueckt = false;
+    private int mappingZielZeile = -1;
+    private boolean mappingAutoWeiter = false;
 
     private enum NavigationLevel {
         HEFT,
@@ -167,6 +178,11 @@ public class PostverordnungenApp extends Application {
             heftRepository = new HeftRepository(DatabaseConnection.getConnection());
         } catch (Exception e) {
             e.printStackTrace();
+            showAlert("Datenbankfehler",
+                    "Die Datenbankverbindung konnte nicht aufgebaut werden.\n\n" +
+                            "Bitte SQL-Server-Zugang prüfen.\n\n" +
+                            "Technischer Hinweis:\n" + e.getMessage());
+            return;
         }
 
         quelleRepository = new QuelleRepository();
@@ -359,6 +375,10 @@ public class PostverordnungenApp extends Application {
 
         MenuItem miSeitenmappingBearbeiten = new MenuItem("Seitenmapping bearbeiten");
         miSeitenmappingBearbeiten.setOnAction(e -> oeffneSeitenmappingDialog());
+
+        miSeitenmappingBearbeiten.setAccelerator(
+                new KeyCodeCombination(KeyCode.M, KeyCombination.CONTROL_DOWN)
+        );
 
         menuStammdaten.getItems().add(miBandJahrAnlegen);
         menuStammdaten.getItems().add(miBandJahrLoeschen);
@@ -2567,14 +2587,63 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Seitenmapping bearbeiten");
-        dialog.setHeaderText("Seitenmapping für das aktuell gewählte Band");
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
 
-        ButtonType schliessenButtonType =
-                new ButtonType("Schließen", ButtonBar.ButtonData.CANCEL_CLOSE);
+        if (bandId <= 0) {
+            showAlert("Fehler", "BandID konnte nicht ermittelt werden.");
+            return;
+        }
 
-        dialog.getDialogPane().getButtonTypes().add(schliessenButtonType);
+        Stage ownerStage = null;
+
+        if (gebietListView != null && gebietListView.getScene() != null) {
+            ownerStage = (Stage) gebietListView.getScene().getWindow();
+        }
+
+        Stage stage = new Stage();
+        stage.setTitle("Seitenmapping bearbeiten");
+        stage.initModality(Modality.WINDOW_MODAL);
+
+        if (ownerStage != null) {
+            stage.initOwner(ownerStage);
+        }
+
+        Label lblTitel = new Label("Seitenmapping für das aktuell gewählte Band");
+        lblTitel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        Label lblHinweis = new Label("Bereit");
+        lblHinweis.setStyle("-fx-text-fill: #444444;");
+
+        ImageView previewImageView = new ImageView();
+        previewImageView.setPreserveRatio(true);
+        previewImageView.setFitWidth(480);
+        previewImageView.setFitHeight(620);
+        previewImageView.setSmooth(true);
+
+        ScrollPane previewScrollPane = new ScrollPane(previewImageView);
+        previewScrollPane.setFitToWidth(true);
+        previewScrollPane.setFitToHeight(true);
+        previewScrollPane.setPrefWidth(500);
+        previewScrollPane.setPrefHeight(600);
+
+        Label lblVorschau = new Label("Vorschau");
+        lblVorschau.setStyle("-fx-font-weight: bold;");
+
+        Consumer<String> zeigeInfo = text -> {
+            lblHinweis.setText(text);
+            lblHinweis.setStyle("-fx-text-fill: #444444;");
+        };
+
+        Consumer<String> zeigeFehler = text -> {
+            lblHinweis.setText(text);
+            lblHinweis.setStyle("-fx-text-fill: #b00020; -fx-font-weight: bold;");
+        };
+
+        Runnable setzeHinweisZurueck = () -> {
+            PauseTransition pause = new PauseTransition(Duration.seconds(3));
+            pause.setOnFinished(e -> zeigeInfo.accept("Bereit"));
+            pause.play();
+        };
 
         TableView<SeitenMapping> table = new TableView<>();
 
@@ -2591,23 +2660,15 @@ public class PostverordnungenApp extends Application {
                 int aktuellerBildIndex1basiert = aktuellerBildIndex + 1;
 
                 if (item.getBildIndex() == aktuellerBildIndex1basiert) {
-                    setStyle("-fx-background-color: #fff3b0;");
+                    setStyle("-fx-background-color: #fff3b0; -fx-text-fill: black;");
                 } else {
-                    setStyle("");
+                    setStyle("-fx-text-fill: black;");
                 }
             }
         });
 
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-
         table.setEditable(true);
-
-        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
-
-        if (bandId <= 0) {
-            showAlert("Fehler", "BandID konnte nicht ermittelt werden.");
-            return;
-        }
 
         TableColumn<SeitenMapping, String> colIndex = new TableColumn<>("BildIndex");
 
@@ -2624,6 +2685,9 @@ public class PostverordnungenApp extends Application {
                         data.getValue().getDateiname()
                 )
         );
+
+        setzeSchwarzeTabellenZellen(colIndex);
+        setzeSchwarzeTabellenZellen(colDateiname);
 
         TableColumn<SeitenMapping, String> colLogisch = new TableColumn<>("Logische Seite");
 
@@ -2654,22 +2718,75 @@ public class PostverordnungenApp extends Application {
                 )
         );
 
-        colLogisch.setCellFactory(TextFieldTableCell.forTableColumn());
+        colLogisch.setCellFactory(tc -> {
+            TextFieldTableCell<SeitenMapping, String> cell =
+                    new TextFieldTableCell<>(new DefaultStringConverter()) {
+
+                        @Override
+                        public void updateItem(String item, boolean empty) {
+                            super.updateItem(item, empty);
+
+                            setTextFill(javafx.scene.paint.Color.BLACK);
+
+                            if (empty) {
+                                setText(null);
+                                setGraphic(null);
+                                return;
+                            }
+
+                            if (isEditing()) {
+                                if (getGraphic() instanceof TextField textField) {
+                                    textField.setStyle("-fx-text-fill: black;");
+                                }
+                            } else {
+                                setStyle("-fx-text-fill: black;");
+                            }
+                        }
+
+                        @Override
+                        public void startEdit() {
+                            super.startEdit();
+
+                            if (getGraphic() instanceof TextField textField) {
+                                textField.setStyle("-fx-text-fill: black;");
+                            }
+                        }
+                    };
+
+            cell.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+                if (event.getCode() == KeyCode.ENTER) {
+                    mappingEnterGedrueckt = true;
+                    mappingZielZeile = cell.getIndex() + 1;
+
+                    System.out.println("ENTER gedrückt in Zeile: " + cell.getIndex());
+                }
+            });
+
+            return cell;
+        });
 
         colLogisch.setOnEditCommit(event -> {
+
+            System.out.println("EDIT COMMIT: Zeile "
+                    + event.getTablePosition().getRow()
+                    + " | alt=" + event.getOldValue()
+                    + " | neu=" + event.getNewValue());
+
             SeitenMapping eintrag = event.getRowValue();
             String neuerWert = event.getNewValue() != null
                     ? event.getNewValue().trim()
                     : "";
 
             if (neuerWert.isBlank()) {
-                showAlert("Hinweis", "Die logische Seite darf nicht leer sein.");
+                zeigeFehler.accept("Logische Seite darf nicht leer sein");
+                setzeHinweisZurueck.run();
                 table.refresh();
                 return;
             }
 
             if (hatDoppelteLogischeSeite(table, eintrag, neuerWert)) {
-                showAlert("Hinweis", "Diese logische Seite ist bereits vorhanden.");
+                zeigeFehler.accept("Diese logische Seite existiert bereits");
+                setzeHinweisZurueck.run();
                 table.refresh();
                 return;
             }
@@ -2682,7 +2799,34 @@ public class PostverordnungenApp extends Application {
                     neuerWert
             );
 
+            zeigeInfo.accept("Seite gespeichert: " + neuerWert);
+            setzeHinweisZurueck.run();
+
             table.refresh();
+
+            System.out.println("EDIT COMMIT: Zeile "
+                    + event.getTablePosition().getRow()
+                    + " | alt=" + event.getOldValue()
+                    + " | neu=" + event.getNewValue());
+
+            System.out.println("AUSGEWAEHLTE ZEILE: " + table.getSelectionModel().getSelectedIndex());
+
+            if (mappingEnterGedrueckt) {
+                int zielZeile = mappingZielZeile;
+
+                mappingEnterGedrueckt = false;
+                mappingZielZeile = -1;
+
+                Platform.runLater(() -> {
+                    if (zielZeile >= 0 && zielZeile < table.getItems().size()) {
+                        mappingAutoWeiter = true;
+
+                        table.getSelectionModel().clearSelection();
+                        table.getFocusModel().focus(zielZeile, colLogisch);
+                        table.edit(zielZeile, colLogisch);
+                    }
+                });
+            }
         });
 
         table.getColumns().addAll(colIndex, colDateiname, colLogisch);
@@ -2692,8 +2836,9 @@ public class PostverordnungenApp extends Application {
         colLogisch.setPrefWidth(140);
 
         table.setPlaceholder(new Label("Noch keine Daten geladen"));
-
         table.setPrefHeight(400);
+        table.setPrefWidth(500);
+        table.setMaxWidth(500);
 
         List<SeitenMapping> mappingListe =
                 seitenMappingRepository.findByBandId(bandId);
@@ -2706,8 +2851,29 @@ public class PostverordnungenApp extends Application {
 
             for (SeitenMapping eintrag : table.getItems()) {
                 if (eintrag.getBildIndex() == aktuellerBildIndex1basiert) {
-                    table.getSelectionModel().select(eintrag);
+
+                    String dateiname = eintrag.getDateiname();
+
+                    if (dateiname != null && !dateiname.isBlank()) {
+                        Path bildPfad = findeBildPfadInAktuellerListe(dateiname);
+
+                        if (bildPfad != null) {
+                            Image previewImage = new Image(bildPfad.toUri().toString());
+                            previewImageView.setImage(previewImage);
+                        } else {
+                            previewImageView.setImage(null);
+                        }
+                    } else {
+                        previewImageView.setImage(null);
+                    }
+
                     table.scrollTo(eintrag);
+
+                    Platform.runLater(() -> {
+                        table.getSelectionModel().clearSelection();
+                        table.refresh();
+                    });
+
                     break;
                 }
             }
@@ -2719,6 +2885,23 @@ public class PostverordnungenApp extends Application {
                 return;
             }
 
+            String dateiname = neu.getDateiname();
+
+            if (dateiname != null && !dateiname.isBlank()) {
+
+                Path bildPfad = findeBildPfadInAktuellerListe(dateiname);
+
+                if (bildPfad != null) {
+                    Image previewImage = new Image(bildPfad.toUri().toString());
+                    previewImageView.setImage(previewImage);
+                } else {
+                    previewImageView.setImage(null);
+                }
+
+            } else {
+                previewImageView.setImage(null);
+            }
+
             int zielSeite = neu.getBildIndex();
 
             if (zielSeite > 0 && zielSeite <= aktuelleBildliste.size()) {
@@ -2726,18 +2909,42 @@ public class PostverordnungenApp extends Application {
                 ladeAktuellesBild();
                 table.refresh();
 
-                Platform.runLater(() -> table.getSelectionModel().clearSelection());
+                if (mappingAutoWeiter) {
+                    mappingAutoWeiter = false;
+                } else {
+                    Platform.runLater(() -> table.getSelectionModel().clearSelection());
+                }
             }
         });
 
-        VBox content = new VBox(10, table);
-        content.setPadding(new Insets(20));
+        Button btnSchliessen = new Button("Schließen");
+        btnSchliessen.setOnAction(e -> stage.close());
 
-        dialog.getDialogPane().setContent(content);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        dialog.getDialogPane().setPrefSize(600, 500);
+        HBox buttonBar = new HBox(10, spacer, btnSchliessen);
+        buttonBar.setPadding(new Insets(0, 20, 20, 20));
 
-        dialog.showAndWait();
+        VBox leftContent = new VBox(10, lblTitel, table, lblHinweis);
+        leftContent.setPadding(new Insets(20));
+
+        VBox rightContent = new VBox(10, lblVorschau, previewScrollPane);
+        rightContent.setPadding(new Insets(20, 20, 20, 0));
+
+        BorderPane root = new BorderPane();
+        HBox centerBox = new HBox(10, leftContent, rightContent);
+        HBox.setHgrow(leftContent, Priority.ALWAYS);
+        HBox.setHgrow(rightContent, Priority.NEVER);
+        root.setCenter(centerBox);
+        root.setBottom(buttonBar);
+
+        Scene scene = new Scene(root, 1100, 720);
+        stage.setScene(scene);
+
+        zeigeInfo.accept("Bereit");
+
+        stage.showAndWait();
     }
 
     public static void main(String[] args) {
@@ -2769,6 +2976,24 @@ public class PostverordnungenApp extends Application {
         }
 
         return false;
+    }
+
+    private <T> void setzeSchwarzeTabellenZellen(TableColumn<SeitenMapping, T> column) {
+        column.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(T item, boolean empty) {
+                super.updateItem(item, empty);
+
+                setTextFill(javafx.scene.paint.Color.BLACK);
+
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(String.valueOf(item));
+                }
+            }
+        });
     }
 
     private void updateInhaltAnzeige(String text) {

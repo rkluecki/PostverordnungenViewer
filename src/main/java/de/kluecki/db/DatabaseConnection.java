@@ -21,7 +21,7 @@ public class DatabaseConnection {
                     "encrypt=true;" +
                     "trustServerCertificate=true;" +
                     "user=java_test;" +
-                    "password=JavaTest123!";
+                    "password=08-Leo*-12";
 
     public static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(URL);
