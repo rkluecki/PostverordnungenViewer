@@ -1,5 +1,6 @@
 package de.kluecki.db.UI;
 
+import de.kluecki.db.model.HilfeHinweis;
 import de.kluecki.db.model.HilfeSchritt;
 import de.kluecki.db.model.HilfeThema;
 import de.kluecki.db.repository.HilfeRepository;
@@ -25,6 +26,56 @@ public class HilfeEditorDialog {
 
         ListView<HilfeThema> lstThemen = new ListView<>();
         ListView<HilfeSchritt> lstSchritte = new ListView<>();
+        ListView<HilfeHinweis> lstHinweise = new ListView<>();
+
+        lstHinweise.setOnMouseClicked(e -> {
+
+            if (e.getClickCount() == 2) {
+
+                HilfeHinweis hinweis =
+                        lstHinweise.getSelectionModel().getSelectedItem();
+
+                if (hinweis == null) return;
+
+                TextInputDialog dialog = new TextInputDialog(hinweis.getText());
+                dialog.setTitle("Hinweis bearbeiten");
+                dialog.setHeaderText("Hinweis ändern");
+                dialog.setContentText("Text:");
+
+                dialog.showAndWait().ifPresent(neuText -> {
+
+                    String clean = neuText.trim();
+                    if (clean.isEmpty()) return;
+
+                    hinweis.setText(clean);
+
+                    repo.updateHinweis(hinweis);
+
+                    HilfeSchritt schritt =
+                            lstSchritte.getSelectionModel().getSelectedItem();
+
+                    if (schritt != null) {
+                        List<HilfeHinweis> neu =
+                                repo.findHinweiseBySchrittId(schritt.getHilfeSchrittID());
+
+                        lstHinweise.getItems().setAll(neu);
+                    }
+                });
+            }
+        });
+
+        lstHinweise.setCellFactory(param -> new ListCell<>() {
+            @Override
+            protected void updateItem(HilfeHinweis item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(item.getTyp() + ": " + item.getText());
+                }
+            }
+        });
 
         lstSchritte.setCellFactory(param -> new ListCell<>() {
             @Override
@@ -61,12 +112,16 @@ public class HilfeEditorDialog {
         Button btnThemaLoeschen = new Button("Thema löschen");
         Button btnSchrittHoch = new Button("↑");
         Button btnSchrittRunter = new Button("↓");
+        Button btnHinweisNeu = new Button("Hinweis neu");
+        Button btnHinweisLoeschen = new Button("Hinweis löschen");
 
+        btnHinweisLoeschen.setDisable(true);
         btnSchrittHoch.setDisable(true);
         btnSchrittRunter.setDisable(true);
         btnThemaLoeschen.setDisable(true);
         btnSchrittNeu.setDisable(true);
         btnSchrittLoeschen.setDisable(true);
+        btnHinweisNeu.setDisable(true);
 
         lstThemen.setCellFactory(param -> new ListCell<>() {
             @Override
@@ -106,6 +161,20 @@ public class HilfeEditorDialog {
 
             btnSchrittHoch.setDisable(!aktiv);
             btnSchrittRunter.setDisable(!aktiv);
+            btnHinweisNeu.setDisable(neu == null);
+
+            lstHinweise.getItems().clear();
+
+            if (neu != null) {
+                List<HilfeHinweis> hinweise =
+                        repo.findHinweiseBySchrittId(neu.getHilfeSchrittID());
+
+                lstHinweise.getItems().setAll(hinweise);
+            }
+        });
+
+        lstHinweise.getSelectionModel().selectedItemProperty().addListener((obs, alt, neu) -> {
+            btnHinweisLoeschen.setDisable(neu == null);
         });
 
         BorderPane links = new BorderPane();
@@ -113,10 +182,17 @@ public class HilfeEditorDialog {
         links.setCenter(lstThemen);
         BorderPane.setMargin(lstThemen, new Insets(5, 0, 0, 0));
 
+        Label lblRechts = new Label("Schritte / Hinweise");
+
+        SplitPane rechtsSplit = new SplitPane();
+        rechtsSplit.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        rechtsSplit.getItems().addAll(lstSchritte, lstHinweise);
+        rechtsSplit.setDividerPositions(0.6);
+
         BorderPane rechts = new BorderPane();
-        rechts.setTop(new Label("Schritte"));
-        rechts.setCenter(lstSchritte);
-        BorderPane.setMargin(lstSchritte, new Insets(5, 0, 0, 0));
+        rechts.setTop(lblRechts);
+        rechts.setCenter(rechtsSplit);
+        BorderPane.setMargin(rechtsSplit, new Insets(5, 0, 0, 0));
 
         SplitPane splitPane = new SplitPane(links, rechts);
         splitPane.setDividerPositions(0.35);
@@ -276,6 +352,74 @@ public class HilfeEditorDialog {
 
         btnSchliessen.setOnAction(e -> stage.close());
 
+        btnHinweisNeu.setOnAction(e -> {
+
+            HilfeSchritt schritt =
+                    lstSchritte.getSelectionModel().getSelectedItem();
+
+            if (schritt == null) {
+                return;
+            }
+
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Neuer Hinweis");
+            dialog.setHeaderText("Hinweis erfassen");
+            dialog.setContentText("Text:");
+
+            dialog.showAndWait().ifPresent(text -> {
+
+                String clean = text.trim();
+
+                if (clean.isEmpty()) {
+                    return;
+                }
+
+                HilfeHinweis hinweis = new HilfeHinweis();
+                hinweis.setHilfeSchrittID(schritt.getHilfeSchrittID());
+                hinweis.setTyp("INFO");
+                hinweis.setText(clean);
+                hinweis.setIstAktiv(true);
+
+                repo.insertHinweis(hinweis);
+
+                List<HilfeHinweis> neu =
+                        repo.findHinweiseBySchrittId(schritt.getHilfeSchrittID());
+
+                lstHinweise.getItems().setAll(neu);
+            });
+        });
+
+        btnHinweisLoeschen.setOnAction(e -> {
+
+            HilfeHinweis hinweis =
+                    lstHinweise.getSelectionModel().getSelectedItem();
+
+            if (hinweis == null) return;
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Hinweis löschen");
+            confirm.setHeaderText(null);
+            confirm.setContentText("Diesen Hinweis wirklich löschen?");
+
+            confirm.showAndWait().ifPresent(result -> {
+
+                if (result == ButtonType.OK) {
+
+                    repo.deleteHinweisById(hinweis.getHilfeHinweisID());
+
+                    HilfeSchritt schritt =
+                            lstSchritte.getSelectionModel().getSelectedItem();
+
+                    if (schritt != null) {
+                        List<HilfeHinweis> neu =
+                                repo.findHinweiseBySchrittId(schritt.getHilfeSchrittID());
+
+                        lstHinweise.getItems().setAll(neu);
+                    }
+                }
+            });
+        });
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -287,6 +431,8 @@ public class HilfeEditorDialog {
                 btnSchrittLoeschen,
                 btnSchrittHoch,
                 btnSchrittRunter,
+                btnHinweisNeu,
+                btnHinweisLoeschen,
                 spacer,
                 btnSchliessen
         );

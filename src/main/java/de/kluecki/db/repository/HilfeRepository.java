@@ -274,4 +274,61 @@ public class HilfeRepository {
         }
     }
 
+    public void insertHinweis(HilfeHinweis hinweis) {
+
+        String sql = """
+        INSERT INTO HilfeHinweis (HilfeSchrittID, Typ, Text, IstAktiv)
+        VALUES (?, ?, ?, ?)
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, hinweis.getHilfeSchrittID());
+            stmt.setString(2, hinweis.getTyp());
+            stmt.setString(3, hinweis.getText());
+            stmt.setBoolean(4, hinweis.isIstAktiv());
+
+            stmt.executeUpdate();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void updateHinweis(HilfeHinweis hinweis) {
+
+        String sql = """
+        UPDATE HilfeHinweis
+        SET Text = ?
+        WHERE HilfeHinweisID = ?
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, hinweis.getText());
+            stmt.setInt(2, hinweis.getHilfeHinweisID());
+
+            stmt.executeUpdate();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void deleteHinweisById(int hinweisId) {
+
+        String sql = "DELETE FROM HilfeHinweis WHERE HilfeHinweisID = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, hinweisId);
+            stmt.executeUpdate();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
