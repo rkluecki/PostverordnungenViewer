@@ -29,10 +29,10 @@
 package de.kluecki.db;
 
 import de.kluecki.db.UI.DocumentViewerWindow;
+import de.kluecki.db.UI.HilfeDialog;
+import de.kluecki.db.UI.HilfeEditorDialog;
 import de.kluecki.db.UI.InhaltseinheitenWindow;
-import de.kluecki.db.model.HeftEintrag;
-import de.kluecki.db.model.HeftEintragTyp;
-import de.kluecki.db.model.SeitenMapping;
+import de.kluecki.db.model.*;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.*;
 import javafx.animation.PauseTransition;
@@ -59,7 +59,6 @@ import java.sql.Connection;
 import java.time.LocalDate;
 import java.util.*;
 import javafx.beans.property.SimpleStringProperty;
-import de.kluecki.db.model.Heft;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.DatePicker;
 import de.kluecki.db.config.Config;
@@ -351,12 +350,26 @@ public class PostverordnungenApp extends Application {
         Menu menuHilfe = new Menu("Hilfe");
 
         MenuItem miKurzhilfe = new MenuItem("Kurzhilfe");
-        miKurzhilfe.setOnAction(e -> zeigeKurzhilfe());
+        miKurzhilfe.setOnAction(e -> {
+            Stage stage = (Stage) menuBar.getScene().getWindow();
+            HilfeDialog.show(stage);
+        });
+
+        MenuItem miHilfeBearbeiten = new MenuItem("Hilfe bearbeiten");
+        miHilfeBearbeiten.setOnAction(e -> {
+            Stage stage = (Stage) menuBar.getScene().getWindow();
+            HilfeEditorDialog.show(stage);
+        });
 
         MenuItem miUeber = new MenuItem("Über Postverordnungen");
         miUeber.setOnAction(e -> zeigeUeberDialog());
 
-        menuHilfe.getItems().addAll(miKurzhilfe, miUeber);
+        menuHilfe.getItems().addAll(
+                miKurzhilfe,
+                miHilfeBearbeiten,
+                new SeparatorMenuItem(),
+                miUeber
+        );
 
         MenuItem miBandJahrAnlegen = new MenuItem("Band/Jahr anlegen");
         miBandJahrAnlegen.setOnAction(e -> oeffneBandJahrDialog());
@@ -396,36 +409,38 @@ public class PostverordnungenApp extends Application {
         return menuBar;
     }
 
-    private void zeigeKurzhilfe() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Kurzhilfe");
-        alert.setHeaderText("Kurzhilfe Postverordnungen");
-        alert.setContentText(
-                "1. Gebiet auswählen\n" +
-                        "2. Band/Jahr auswählen\n" +
-                        "3. Heft auswählen\n" +
-                        "4. HeftEintrag auswählen\n" +
-                        "5. Inhalt auswählen\n\n" +
-                        "Druck und PDF sind möglich für:\n" +
-                        "- Heft\n" +
-                        "- HeftEintrag\n" +
-                        "- Inhalt\n\n" +
-                        "Seitenmarkierung wird zum Erfassen von Heft und HeftEintrag verwendet."
-        );
-        alert.showAndWait();
-    }
-
     private void zeigeUeberDialog() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Über Postverordnungen");
         alert.setHeaderText("Postverordnungen");
         alert.setContentText(
-                "Anwendung zur Erfassung und Navigation historischer Postverordnungen.\n\n" +
-                        "Aktuelle Zielstruktur:\n" +
-                        "Heft -> HeftEintrag -> Inhaltseinheit\n\n" +
-                        "Stand:\n" +
-                        "Navigation, Erfassung, Druck und PDF sind für den Kernbereich funktionsfähig."
+                "So arbeiten Sie mit dem Programm:\n\n" +
+
+                        "1. Links ein Gebiet auswählen\n" +
+                        "2. Jahr (Band) auswählen\n" +
+                        "3. Heft auswählen\n" +
+                        "4. HeftEintrag auswählen\n\n" +
+
+                        "→ Jetzt sehen Sie die richtige Seite im Bild\n\n" +
+
+                        "Seiten wechseln:\n" +
+                        "- Mit den Pfeilen oder Buttons\n" +
+                        "- Oder direkt eine Seitenzahl eingeben\n\n" +
+
+                        "Neue Daten erfassen:\n" +
+                        "- Startseite markieren\n" +
+                        "- Endseite markieren\n" +
+                        "- Danach 'Heft' oder 'HeftEintrag erfassen'\n\n" +
+
+                        "Wichtig (Seitenmapping):\n" +
+                        "Stammdaten → Seitenmapping bearbeiten\n\n" +
+
+                        "Dort immer benutzen:\n" +
+                        "→ 'Mapping bereinigen (empfohlen)'\n\n" +
+
+                        "Das behebt die meisten Probleme automatisch."
         );
+
         alert.showAndWait();
     }
 
@@ -1636,14 +1651,28 @@ public class PostverordnungenApp extends Application {
                 MappingStatus status = pruefeMappingStatusFuerAktuellesBand();
 
                 if (status == MappingStatus.UNVOLLSTAENDIG) {
-                    showAlert("Fehler",
-                            "Das Seitenmapping ist unvollständig.\n" +
-                                    "Bitte prüfen oder neu aufbauen.");
 
-                    currentImage = null;
-                    imageView.setImage(null);
-                    updateNavigationState();
-                    return;
+                    List<String> dateinamen = aktuelleBildliste.stream()
+                            .map(path -> path.getFileName().toString())
+                            .toList();
+
+                    int anzahlNeu = seitenMappingRepository.erweitereMappingFuerBandFallsNoetig(
+                            bandId,
+                            dateinamen
+                    );
+
+                    if (anzahlNeu > 0) {
+                        if (statusLabel != null) {
+                            if (anzahlNeu == 1) {
+                                zeigeStatusKurz("1 neue Seite automatisch ergänzt");
+                            } else {
+                                zeigeStatusKurz(anzahlNeu + " neue Seiten automatisch ergänzt");
+                            }
+                        }
+                    }
+
+                    // danach Status neu prüfen
+                    status = pruefeMappingStatusFuerAktuellesBand();
                 }
 
                 if (status == MappingStatus.NICHT_VORHANDEN) {
@@ -2594,6 +2623,24 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
+        List<File> bilderNeuGeladen = loadBilder(aktuellesGebiet, aktuellesBand);
+
+        List<String> dateinamen = bilderNeuGeladen.stream()
+                .map(File::getName)
+                .toList();
+
+        seitenMappingRepository.erweitereMappingFuerBandFallsNoetig(
+                bandId,
+                dateinamen
+        );
+
+        final List<String> verwaisteDateinamen = new ArrayList<>(
+                seitenMappingRepository.findeVerwaisteDateinamenZuBand(
+                        bandId,
+                        dateinamen
+                )
+        );
+
         Stage ownerStage = null;
 
         if (gebietListView != null && gebietListView.getScene() != null) {
@@ -2659,9 +2706,26 @@ public class PostverordnungenApp extends Application {
 
                 int aktuellerBildIndex1basiert = aktuellerBildIndex + 1;
 
-                if (item.getBildIndex() == aktuellerBildIndex1basiert) {
+                String dateiname = item.getDateiname();
+
+                boolean istVerwaist = false;
+
+                if (dateiname != null) {
+                    for (String v : verwaisteDateinamen) {
+                        if (dateiname.equalsIgnoreCase(v)) {
+                            istVerwaist = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (istVerwaist) {
+                    setStyle("-fx-background-color: #ffd6d6; -fx-text-fill: black;");
+                }
+                else if (item.getBildIndex() == aktuellerBildIndex1basiert) {
                     setStyle("-fx-background-color: #fff3b0; -fx-text-fill: black;");
-                } else {
+                }
+                else {
                     setStyle("-fx-text-fill: black;");
                 }
             }
@@ -2917,13 +2981,182 @@ public class PostverordnungenApp extends Application {
             }
         });
 
+        Button btnBereinigen = new Button("Verwaiste löschen");
+
+        btnBereinigen.setOnAction(e -> {
+
+            if (verwaisteDateinamen.isEmpty()) {
+                zeigeInfo.accept("Keine verwaisten Einträge vorhanden");
+                return;
+            }
+
+            for (String dateiname : verwaisteDateinamen) {
+                seitenMappingRepository.deleteByBandIdAndDateiname(bandId, dateiname);
+            }
+
+            zeigeInfo.accept(verwaisteDateinamen.size() + " Einträge gelöscht");
+
+            // Tabelle neu laden
+            List<File> bilderAktuell = loadBilder(aktuellesGebiet, aktuellesBand);
+
+            List<String> dateinamenAktuell = bilderAktuell.stream()
+                    .map(File::getName)
+                    .toList();
+
+            verwaisteDateinamen.clear();
+            verwaisteDateinamen.addAll(
+                    seitenMappingRepository.findeVerwaisteDateinamenZuBand(
+                            bandId,
+                            dateinamenAktuell
+                    )
+            );
+
+            List<SeitenMapping> neueListe =
+                    seitenMappingRepository.findByBandId(bandId);
+
+            table.getItems().setAll(neueListe);
+            table.refresh();
+
+        });
+
+        Button btnBildIndexNeuAufbauen = new Button("BildIndex neu aufbauen");
+
+        btnBildIndexNeuAufbauen.setOnAction(e -> {
+
+            List<File> bilderAktuell = loadBilder(aktuellesGebiet, aktuellesBand);
+
+            List<String> dateinamenAktuell = bilderAktuell.stream()
+                    .map(File::getName)
+                    .toList();
+
+            int anzahl = seitenMappingRepository.synchronisiereBildIndexNachDateinamen(
+                    bandId,
+                    dateinamenAktuell
+            );
+
+            verwaisteDateinamen.clear();
+            verwaisteDateinamen.addAll(
+                    seitenMappingRepository.findeVerwaisteDateinamenZuBand(
+                            bandId,
+                            dateinamenAktuell
+                    )
+            );
+
+            List<SeitenMapping> neueListe =
+                    seitenMappingRepository.findByBandId(bandId);
+
+            table.getItems().setAll(neueListe);
+            table.refresh();
+
+            if (anzahl == 1) {
+                zeigeInfo.accept("1 BildIndex wurde neu aufgebaut");
+            } else {
+                zeigeInfo.accept(anzahl + " BildIndex-Werte wurden neu aufgebaut");
+            }
+        });
+
+        Button btnMappingBereinigen = new Button("Mapping bereinigen (empfohlen)");
+
+        btnMappingBereinigen.setDefaultButton(true);
+        btnMappingBereinigen.setStyle("""
+              -fx-font-weight: bold;
+              -fx-background-color: #dbeafe;
+              -fx-border-color: #5b9bd5;
+              -fx-border-width: 1.5;
+        """);
+
+        btnMappingBereinigen.setTooltip(
+                new Tooltip("Empfohlene Standardaktion: verwaiste Einträge löschen und BildIndex neu aufbauen")
+        );
+
+        btnMappingBereinigen.setOnAction(e -> {
+
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Mapping bereinigen");
+            confirm.setHeaderText("Mapping wirklich bereinigen?");
+            confirm.setContentText(
+                    "Dabei werden:\n" +
+                            "- verwaiste Einträge gelöscht\n" +
+                            "- BildIndex neu aufgebaut\n\n" +
+                            "Möchten Sie fortfahren?"
+            );
+
+            Optional<ButtonType> result = confirm.showAndWait();
+
+            if (result.isEmpty() || result.get() != ButtonType.OK) {
+                return;
+            }
+
+            zeigeInfo.accept("Bereinigung läuft ...");
+            table.refresh();
+
+            int geloescht = 0;
+
+            if (!verwaisteDateinamen.isEmpty()) {
+                for (String dateiname : verwaisteDateinamen) {
+                    seitenMappingRepository.deleteByBandIdAndDateiname(bandId, dateiname);
+                    geloescht++;
+                }
+            }
+
+            List<File> bilderAktuell = loadBilder(aktuellesGebiet, aktuellesBand);
+
+            List<String> dateinamenAktuell = bilderAktuell.stream()
+                    .map(File::getName)
+                    .toList();
+
+            int neuIndex = seitenMappingRepository.synchronisiereBildIndexNachDateinamen(
+                    bandId,
+                    dateinamenAktuell
+            );
+
+            verwaisteDateinamen.clear();
+            verwaisteDateinamen.addAll(
+                    seitenMappingRepository.findeVerwaisteDateinamenZuBand(
+                            bandId,
+                            dateinamenAktuell
+                    )
+            );
+
+            List<SeitenMapping> neueListe =
+                    seitenMappingRepository.findByBandId(bandId);
+
+            table.getItems().setAll(neueListe);
+            table.refresh();
+
+            lblHinweis.setText(
+                    "Bereinigt: " + geloescht +
+                            " gelöscht, " + neuIndex + " neu indexiert"
+            );
+            lblHinweis.setStyle("""
+                -fx-text-fill: #0f5132;
+                -fx-font-weight: bold;
+                -fx-background-color: #d1e7dd;
+                -fx-padding: 6 8 6 8;
+                -fx-background-radius: 4;
+            """);
+
+            PauseTransition pause = new PauseTransition(Duration.seconds(4));
+            pause.setOnFinished(ev -> {
+                lblHinweis.setText("Bereit");
+                lblHinweis.setStyle("-fx-text-fill: #444444;");
+            });
+            pause.play();
+        });
+
         Button btnSchliessen = new Button("Schließen");
         btnSchliessen.setOnAction(e -> stage.close());
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox buttonBar = new HBox(10, spacer, btnSchliessen);
+        HBox buttonBar = new HBox(10,
+                btnBereinigen,
+                btnBildIndexNeuAufbauen,
+                btnMappingBereinigen,
+                spacer,
+                btnSchliessen
+        );
         buttonBar.setPadding(new Insets(0, 20, 20, 20));
 
         VBox leftContent = new VBox(10, lblTitel, table, lblHinweis);
@@ -2942,7 +3175,13 @@ public class PostverordnungenApp extends Application {
         Scene scene = new Scene(root, 1100, 720);
         stage.setScene(scene);
 
-        zeigeInfo.accept("Bereit");
+        if (verwaisteDateinamen.isEmpty()) {
+            zeigeInfo.accept("Bereit");
+        } else if (verwaisteDateinamen.size() == 1) {
+            zeigeFehler.accept("1 verwaister Mapping-Eintrag erkannt");
+        } else {
+            zeigeFehler.accept(verwaisteDateinamen.size() + " verwaiste Mapping-Einträge erkannt");
+        }
 
         stage.showAndWait();
     }
@@ -3039,6 +3278,17 @@ public class PostverordnungenApp extends Application {
                 statusLabel.setText(anzahlQuellen + " Quellen geladen");
             }
         }
+    }
+
+    private void zeigeStatusKurz(String text) {
+
+        if (statusLabel == null) return;
+
+        statusLabel.setText(text);
+
+        PauseTransition pause = new PauseTransition(Duration.seconds(3));
+        pause.setOnFinished(e -> updateStatusLabel(bandListView.getItems().size()));
+        pause.play();
     }
 
     private void updateInhaltListe() {

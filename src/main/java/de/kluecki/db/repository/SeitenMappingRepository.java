@@ -2,13 +2,14 @@ package de.kluecki.db.repository;
 
 import de.kluecki.db.DatabaseConnection;
 import de.kluecki.db.model.SeitenMapping;
-import de.kluecki.db.model.SeitenMappingEintrag;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class SeitenMappingRepository {
 
@@ -228,4 +229,198 @@ public class SeitenMappingRepository {
 
         return null;
     }
+
+    public int erweitereMappingFuerBandFallsNoetig(int bandId, List<String> dateinamen) {
+
+        if (dateinamen == null || dateinamen.isEmpty()) {
+            return 0;
+        }
+
+        String sqlVorhanden = """
+            SELECT Dateiname
+            FROM dbo.SeitenMapping
+            WHERE BandID = ?
+            """;
+
+        String sqlInsert = """
+            INSERT INTO dbo.SeitenMapping (BandID, BildIndex, Dateiname, LogischeSeite)
+            VALUES (?, ?, ?, ?)
+            """;
+
+        Set<String> vorhandeneDateinamen = new HashSet<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement psVorhanden = conn.prepareStatement(sqlVorhanden)) {
+
+            psVorhanden.setInt(1, bandId);
+
+            try (ResultSet rs = psVorhanden.executeQuery()) {
+                while (rs.next()) {
+                    String dateiname = rs.getString("Dateiname");
+
+                    if (dateiname != null && !dateiname.isBlank()) {
+                        vorhandeneDateinamen.add(dateiname.trim().toLowerCase());
+                    }
+                }
+            }
+
+            try (PreparedStatement psInsert = conn.prepareStatement(sqlInsert)) {
+
+                int anzahlErgaenzt = 0;
+                int bildIndex = 1;
+
+                for (String dateiname : dateinamen) {
+
+                    if (dateiname == null || dateiname.isBlank()) {
+                        bildIndex++;
+                        continue;
+                    }
+
+                    String key = dateiname.trim().toLowerCase();
+
+                    if (!vorhandeneDateinamen.contains(key)) {
+                        psInsert.setInt(1, bandId);
+                        psInsert.setInt(2, bildIndex);
+                        psInsert.setString(3, dateiname);
+                        psInsert.setString(4, String.valueOf(bildIndex));
+                        psInsert.addBatch();
+                        anzahlErgaenzt++;
+                    }
+
+                    bildIndex++;
+                }
+
+                psInsert.executeBatch();
+                return anzahlErgaenzt;
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Mapping konnte nicht erweitert werden.", e);
+        }
+    }
+
+    public List<String> findeVerwaisteDateinamenZuBand(int bandId, List<String> dateinamenImOrdner) {
+
+        List<String> verwaisteDateinamen = new ArrayList<>();
+
+        if (dateinamenImOrdner == null) {
+            return verwaisteDateinamen;
+        }
+
+        Set<String> dateinamenImOrdnerSet = new HashSet<>();
+
+        for (String dateiname : dateinamenImOrdner) {
+            if (dateiname != null && !dateiname.isBlank()) {
+                dateinamenImOrdnerSet.add(dateiname.trim().toLowerCase());
+            }
+        }
+
+        String sql = """
+            SELECT Dateiname
+            FROM dbo.SeitenMapping
+            WHERE BandID = ?
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, bandId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String dateinameDb = rs.getString("Dateiname");
+
+                    if (dateinameDb == null || dateinameDb.isBlank()) {
+                        continue;
+                    }
+
+                    String key = dateinameDb.trim().toLowerCase();
+
+                    if (!dateinamenImOrdnerSet.contains(key)) {
+                        verwaisteDateinamen.add(dateinameDb);
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Verwaiste Mapping-Dateinamen konnten nicht ermittelt werden.", e);
+        }
+
+        return verwaisteDateinamen;
+    }
+
+    public void deleteByBandIdAndDateiname(int bandId, String dateiname) {
+
+        if (bandId <= 0) {
+            return;
+        }
+
+        if (dateiname == null || dateiname.isBlank()) {
+            return;
+        }
+
+        String sql = """
+        DELETE FROM dbo.SeitenMapping
+        WHERE BandID = ?
+          AND Dateiname = ?
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, bandId);
+            ps.setString(2, dateiname);
+
+            ps.executeUpdate();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Mapping-Eintrag konnte nicht gelöscht werden.", e);
+        }
+    }
+
+    public int synchronisiereBildIndexNachDateinamen(int bandId, List<String> dateinamen) {
+
+        if (bandId <= 0 || dateinamen == null || dateinamen.isEmpty()) {
+            return 0;
+        }
+
+        String sqlUpdate = """
+        UPDATE dbo.SeitenMapping
+        SET BildIndex = ?
+        WHERE BandID = ?
+          AND Dateiname = ?
+        """;
+
+        int anzahlUpdates = 0;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement psUpdate = conn.prepareStatement(sqlUpdate)) {
+
+            int neuerIndex = 1;
+
+            for (String dateiname : dateinamen) {
+
+                if (dateiname == null || dateiname.isBlank()) {
+                    neuerIndex++;
+                    continue;
+                }
+
+                psUpdate.setInt(1, neuerIndex);
+                psUpdate.setInt(2, bandId);
+                psUpdate.setString(3, dateiname);
+                psUpdate.addBatch();
+
+                anzahlUpdates++;
+                neuerIndex++;
+            }
+
+            psUpdate.executeBatch();
+
+        } catch (Exception e) {
+            throw new RuntimeException("BildIndex konnte nicht synchronisiert werden.", e);
+        }
+
+        return anzahlUpdates;
+    }
+
 }
