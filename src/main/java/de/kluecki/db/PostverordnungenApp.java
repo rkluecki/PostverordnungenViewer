@@ -1584,6 +1584,30 @@ public class PostverordnungenApp extends Application {
             }
         });
 
+        bandListView.setOnMouseClicked(e -> {
+
+            String band = bandListView.getSelectionModel().getSelectedItem();
+
+            if (band == null) {
+                return;
+            }
+
+            // Wenn ein Band angeklickt wird, soll wieder freie Bandnavigation gelten.
+            heftListView.getSelectionModel().clearSelection();
+            tblHeftEintraege.getSelectionModel().clearSelection();
+            lstInhalteDetail.getSelectionModel().clearSelection();
+
+            tblHeftEintraege.getItems().clear();
+            lstInhalteDetail.getItems().clear();
+
+            lblForschungsnotiz.setText("");
+            lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+
+            aktuellesLevel = NavigationLevel.HEFT;
+            updateOutputButtons();
+            updateNavigationState();
+        });
+
         bandListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
             if (newValue == null) return;
 
@@ -1592,6 +1616,21 @@ public class PostverordnungenApp extends Application {
 
             aktuellesGebiet = gebiet;
             aktuellesBand = band;
+
+            // Beim Wechsel/Anklicken eines Bandes wieder freie Bandnavigation aktivieren
+            heftListView.getSelectionModel().clearSelection();
+            tblHeftEintraege.getSelectionModel().clearSelection();
+            lstInhalteDetail.getSelectionModel().clearSelection();
+
+            tblHeftEintraege.getItems().clear();
+            lstInhalteDetail.getItems().clear();
+
+            lblForschungsnotiz.setText("");
+            lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+
+            aktuellesLevel = NavigationLevel.HEFT;
+            updateOutputButtons();
+
             lblBandTitel.setText(gebiet + " – " + band);
             resetSeitenmarkierung();
             updateInhaltListe();
@@ -3927,11 +3966,42 @@ public class PostverordnungenApp extends Application {
 
             heftRepository.insert(heft);
 
+            int naechsteSeite = heft.getSeiteBis() + 1;
+
             int bandIdReload = ermittleBandId(aktuellesGebiet, aktuellesBand);
 
             heftListView.getItems().setAll(
                     heftRepository.findByBand(bandIdReload)
             );
+
+// Nach dem Anlegen nicht im neuen Heft "hängen bleiben"
+            heftListView.getSelectionModel().clearSelection();
+            tblHeftEintraege.getItems().clear();
+            tblHeftEintraege.getSelectionModel().clearSelection();
+            lstInhalteDetail.getItems().clear();
+            lstInhalteDetail.getSelectionModel().clearSelection();
+
+            lblForschungsnotiz.setText("");
+            lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+
+            markierteStartSeite = null;
+            markierteEndeSeite = null;
+            updateSeitenmarkierung();
+
+            aktuellesLevel = NavigationLevel.HEFT;
+            updateOutputButtons();
+
+// Direkt auf die nächste Seite springen,
+// damit das nächste Heft sofort markiert werden kann.
+            if (naechsteSeite >= 1 && naechsteSeite <= aktuelleBildliste.size()) {
+                aktuellerBildIndex = naechsteSeite - 1;
+                ladeAktuellesBild();
+            } else {
+                updateNavigationState();
+            }
+
+            showAlert("Erfolg", "Heft wurde angelegt. Weiter auf Seite " + naechsteSeite + ".");
+
         } catch (Exception e) {
             e.printStackTrace();
         }
