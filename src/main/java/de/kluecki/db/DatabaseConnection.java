@@ -16,7 +16,7 @@ import java.sql.SQLException;
 public class DatabaseConnection {
 
     private static final String URL =
-            "jdbc:sqlserver://localhost\\RONALD;" +
+            "jdbc:sqlserver://localhost\\SQL2025;" +
                     "databaseName=QuellenDB;" +
                     "encrypt=true;" +
                     "trustServerCertificate=true;" +

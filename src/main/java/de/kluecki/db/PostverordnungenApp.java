@@ -1614,7 +1614,8 @@ public class PostverordnungenApp extends Application {
                             setText(null);
                         } else {
 
-                            String text = "Heft " + heft.getHeftNummer();
+                            int nummer = getIndex() + 1;
+                            String text = nummer + ". Heft " + heft.getHeftNummer();
 
                             if (heft.getSeiteVon() > 0) {
 
