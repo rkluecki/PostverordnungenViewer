@@ -66,6 +66,7 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
+import javafx.geometry.Pos;
 
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.util.Duration;
@@ -107,6 +108,7 @@ public class PostverordnungenApp extends Application {
     private Label lblAktuellerInhalt;
     private Label lblForschungsnotiz;
     private Label statusLabel;
+    private Label lblOrdinataJahr;
 
     // Aktuelle fachliche Auswahl (Navigation)
     private String aktuellesGebiet;
@@ -167,10 +169,45 @@ public class PostverordnungenApp extends Application {
             "D:\\Postgeschichte_PC\\Postverordnungen_Backup";
 
 
-
-
     @Override
     public void start(Stage stage) {
+        zeigeSplashUndStarteDanach(stage);
+    }
+
+    private void zeigeSplashUndStarteDanach(Stage hauptStage) {
+
+        Stage splashStage = new Stage();
+
+        Image splashImage = new Image(
+                getClass().getResourceAsStream("/images/Ordinata_splash.png")
+        );
+
+        ImageView splashView = new ImageView(splashImage);
+        splashView.setPreserveRatio(true);
+        splashView.setFitWidth(700);
+
+        StackPane splashRoot = new StackPane(splashView);
+        splashRoot.setAlignment(javafx.geometry.Pos.CENTER);
+        splashRoot.setStyle("""
+        -fx-background-color: #f8f5ef;
+    """);
+
+        Scene splashScene = new Scene(splashRoot, 700, 700);
+
+        splashStage.setScene(splashScene);
+        splashStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+        splashStage.centerOnScreen();
+        splashStage.show();
+
+        PauseTransition pause = new PauseTransition(Duration.seconds(3));
+        pause.setOnFinished(e -> {
+            splashStage.close();
+            starteHauptfenster(hauptStage);
+        });
+        pause.play();
+    }
+
+    private void starteHauptfenster(Stage stage) {
 
         try {
             heftEintragRepository = new HeftEintragRepository(DatabaseConnection.getConnection());
@@ -264,7 +301,7 @@ public class PostverordnungenApp extends Application {
             updateOutputButtons();
         });
 
-        currentImage = new Image(getClass().getResourceAsStream("/images/VA842_A001.gif"));
+        currentImage = new Image(getClass().getResourceAsStream("/images/Ordinata_splash.png"));
         imageScrollPane = createImageViewer();
 
         BorderPane documentPane = createDocumentPane(imageToolbar, bildNavigation);
@@ -286,7 +323,7 @@ public class PostverordnungenApp extends Application {
 
         Scene scene = new Scene(root);
         stage.setMaximized(true);
-        stage.setTitle("Postverordnungen");
+        stage.setTitle("Ordinata – Historische Postverordnungen");
         stage.setScene(scene);
         stage.show();
     }
@@ -1202,20 +1239,53 @@ public class PostverordnungenApp extends Application {
     }
 
     private VBox createDocumentHeader(VBox imageToolbar) {
-        VBox documentHeader = new VBox(
+
+        VBox statusInfoBox = new VBox(
                 6,
                 lblBandTitel,
                 lblSeitenmarkierung,
                 lblAktuellerInhalt,
-                lblForschungsnotiz,
+                lblForschungsnotiz
+        );
+
+        statusInfoBox.setMaxWidth(Double.MAX_VALUE);
+
+        ImageView logoView = new ImageView(
+                new Image(getClass().getResourceAsStream("/images/Ordinata_logo.png"))
+        );
+
+        logoView.setPreserveRatio(true);
+        logoView.setFitWidth(100);
+
+        lblOrdinataJahr = new Label("© " + java.time.Year.now());
+        lblOrdinataJahr.setStyle("""
+    -fx-font-size: 11px;
+    -fx-text-fill: #6b5a3a;
+""");
+
+        VBox logoBox = new VBox(2, logoView, lblOrdinataJahr);
+        logoBox.setAlignment(javafx.geometry.Pos.CENTER);
+        logoBox.setStyle("""
+        -fx-padding: 0 10 0 20;
+    """);
+        logoBox.setAlignment(javafx.geometry.Pos.TOP_RIGHT);
+
+        HBox topRow = new HBox(statusInfoBox, logoBox);
+        HBox.setHgrow(statusInfoBox, Priority.ALWAYS);
+
+        VBox documentHeader = new VBox(
+                8,
+                topRow,
                 imageToolbar
         );
+
         documentHeader.setStyle("""
-            -fx-padding: 8;
-            -fx-background-color: #f8f8f8;
-            -fx-border-color: #d0d0d0;
-            -fx-border-width: 0 0 1 0;
-        """);
+        -fx-padding: 8;
+        -fx-background-color: #f8f8f8;
+        -fx-border-color: #d0d0d0;
+        -fx-border-width: 0 0 1 0;
+    """);
+
         return documentHeader;
     }
 
