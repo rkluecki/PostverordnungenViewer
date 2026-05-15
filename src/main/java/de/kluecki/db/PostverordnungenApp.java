@@ -66,7 +66,8 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
-import javafx.geometry.Pos;
+import de.kluecki.ocr.OcrDownloadDialog;
+
 
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.util.Duration;
@@ -341,6 +342,7 @@ public class PostverordnungenApp extends Application {
         Menu menuAnsicht = new Menu("Ansicht");
         Menu menuStammdaten = new Menu("Stammdaten");
         Menu menuSuche = new Menu("Suche");
+        Menu menuOcr = new Menu("OCR");
 
         MenuItem miBackupErstellen = new MenuItem("Backup erstellen");
         miBackupErstellen.setOnAction(e -> backupErstellen());
@@ -388,6 +390,11 @@ public class PostverordnungenApp extends Application {
         });
 
         menuSuche.getItems().add(mnuHeftEintraegeSuchen);
+
+        MenuItem miBsbOcrImport = new MenuItem("BSB-OCR herunterladen/importieren...");
+        miBsbOcrImport.setOnAction(e -> oeffneOcrDownloadDialog());
+
+        menuOcr.getItems().add(miBsbOcrImport);
 
         Menu menuHilfe = new Menu("Hilfe");
 
@@ -447,8 +454,40 @@ public class PostverordnungenApp extends Application {
                 menuDatei,
                 menuStammdaten,
                 menuSuche,
+                menuOcr,
                 menuHilfe);
         return menuBar;
+    }
+
+    private void oeffneOcrDownloadDialog() {
+
+        if (aktuellesGebiet == null || aktuellesGebiet.isBlank()
+                || aktuellesBand == null || aktuellesBand.isBlank()) {
+
+            showAlert("OCR-Import", "Bitte zuerst ein Gebiet und ein Band auswählen.");
+            return;
+        }
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            showAlert("OCR-Import", "BandID konnte nicht ermittelt werden.");
+            return;
+        }
+
+        Stage ownerStage = null;
+
+        if (gebietListView != null && gebietListView.getScene() != null) {
+            ownerStage = (Stage) gebietListView.getScene().getWindow();
+        }
+
+        String bandAnzeige = aktuellesGebiet + " – " + aktuellesBand;
+
+        OcrDownloadDialog.show(
+                ownerStage,
+                bandId,
+                bandAnzeige
+        );
     }
 
     private void zeigeUeberDialog() {
