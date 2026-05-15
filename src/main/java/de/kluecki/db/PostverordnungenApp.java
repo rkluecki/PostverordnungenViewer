@@ -85,6 +85,10 @@ public class PostverordnungenApp extends Application {
     private ScrollPane imageScrollPane;
     private Image currentImage;
 
+    // OCR-Anzeige zur aktuellen Seite
+    private TextArea txtOcrText;
+    private Label lblOcrInfo;
+
     // Bildnavigation
     private final List<Path> aktuelleBildliste = new ArrayList<>();
     private int aktuellerBildIndex = -1;
@@ -142,6 +146,7 @@ public class PostverordnungenApp extends Application {
     private HeftRepository heftRepository;
     private QuelleRepository quelleRepository;  // Basisstruktur
     private final SeitenMappingRepository seitenMappingRepository = new SeitenMappingRepository();
+    private final SeitenOCRRepository seitenOCRRepository = new SeitenOCRRepository();
 
     // Sonstiges
     private List<String> gebieteCache = null;
@@ -1224,15 +1229,22 @@ public class PostverordnungenApp extends Application {
     private BorderPane createDocumentPane(VBox imageToolbar, HBox bildNavigation) {
         BorderPane documentPane = new BorderPane();
         documentPane.setStyle("""
-            -fx-padding: 10;
-            -fx-background-color: white;
-            -fx-border-color: #d0d0d0;
-            -fx-border-width: 1;
-        """);
+        -fx-padding: 10;
+        -fx-background-color: white;
+        -fx-border-color: #d0d0d0;
+        -fx-border-width: 1;
+    """);
 
         VBox documentHeader = createDocumentHeader(imageToolbar);
+
+        VBox ocrPane = createOcrPane();
+
+        SplitPane bildUndOcrPane = new SplitPane();
+        bildUndOcrPane.getItems().addAll(imageScrollPane, ocrPane);
+        bildUndOcrPane.setDividerPositions(0.60);
+
         documentPane.setTop(documentHeader);
-        documentPane.setCenter(imageScrollPane);
+        documentPane.setCenter(bildUndOcrPane);
         documentPane.setBottom(bildNavigation);
 
         return documentPane;
@@ -1616,6 +1628,49 @@ public class PostverordnungenApp extends Application {
         scrollPane.viewportBoundsProperty().addListener((obs, oldBounds, newBounds) -> updateImageView());
 
         return scrollPane;
+    }
+
+    private VBox createOcrPane() {
+
+        Label lblOcrTitel = new Label("OCR-Text zur Seite");
+        lblOcrTitel.setStyle("""
+        -fx-font-weight: bold;
+        -fx-font-size: 13px;
+        """);
+
+        lblOcrInfo = new Label("Keine OCR-Daten geladen");
+        lblOcrInfo.setStyle("""
+        -fx-font-size: 11px;
+        -fx-text-fill: #666666;
+        -fx-font-style: italic;
+        """);
+
+        txtOcrText = new TextArea();
+
+        txtOcrText = new TextArea();
+        txtOcrText.setEditable(false);
+        txtOcrText.setWrapText(true);
+        txtOcrText.setPromptText("Für diese Seite ist noch kein OCR-Text vorhanden.");
+
+        txtOcrText.setStyle("""
+            -fx-font-family: 'Consolas';
+            -fx-font-size: 13px;
+            """);
+
+        VBox ocrPane = new VBox(6, lblOcrTitel, lblOcrInfo, txtOcrText);
+        ocrPane.setPadding(new Insets(8));
+        ocrPane.setPrefWidth(420);
+        ocrPane.setMinWidth(300);
+
+        VBox.setVgrow(txtOcrText, Priority.ALWAYS);
+
+        ocrPane.setStyle("""
+            -fx-background-color: #fafafa;
+            -fx-border-color: #d0d0d0;
+            -fx-border-width: 0 0 0 1;
+            """);
+
+        return ocrPane;
     }
 
     private void configureSelectionListeners() {
@@ -2106,6 +2161,90 @@ public class PostverordnungenApp extends Application {
         updateNavigationState();
 
         updateInhaltAnzeige(aktuellerBildIndex + 1);
+        aktualisiereOcrAnzeige();
+    }
+
+    private void aktualisiereOcrAnzeige() {
+
+        if (txtOcrText == null) {
+            return;
+        }
+
+        txtOcrText.clear();
+
+        if (lblOcrInfo != null) {
+            lblOcrInfo.setText("Keine OCR-Daten geladen");
+        }
+
+        if (aktuellesGebiet == null || aktuellesBand == null) {
+            txtOcrText.setPromptText("Kein Gebiet oder Band ausgewählt.");
+
+            if (lblOcrInfo != null) {
+                lblOcrInfo.setText("Kein Gebiet oder Band ausgewählt");
+            }
+
+            return;
+        }
+
+        String dateiname = getAktuellerDateinameAusListe();
+
+        if (dateiname == null || dateiname.isBlank()) {
+            txtOcrText.setPromptText("Keine Bilddatei ausgewählt.");
+
+            if (lblOcrInfo != null) {
+                lblOcrInfo.setText("Keine Bilddatei ausgewählt");
+            }
+
+            return;
+        }
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            txtOcrText.setPromptText("BandID konnte nicht ermittelt werden.");
+
+            if (lblOcrInfo != null) {
+                lblOcrInfo.setText("BandID konnte nicht ermittelt werden");
+            }
+
+            return;
+        }
+
+        SeitenOCR ocr = seitenOCRRepository.findByBandIdAndDateiname(
+                bandId,
+                dateiname
+        );
+
+        if (ocr == null || ocr.getOcrText() == null || ocr.getOcrText().isBlank()) {
+            txtOcrText.setPromptText("Für diese Seite ist noch kein OCR-Text vorhanden.");
+
+            if (lblOcrInfo != null) {
+                lblOcrInfo.setText("Keine OCR-Daten für " + dateiname);
+            }
+
+            return;
+        }
+
+        String text = ocr.getOcrText();
+
+        txtOcrText.setText(text);
+
+        if (lblOcrInfo != null) {
+
+            String quelle = ocr.getOcrQuelle() != null && !ocr.getOcrQuelle().isBlank()
+                    ? ocr.getOcrQuelle()
+                    : "Quelle unbekannt";
+
+            String format = ocr.getOcrFormat() != null && !ocr.getOcrFormat().isBlank()
+                    ? ocr.getOcrFormat()
+                    : "Format unbekannt";
+
+            lblOcrInfo.setText(
+                    "OCR: " + quelle +
+                            " | " + format +
+                            " | Zeichen: " + text.length()
+            );
+        }
     }
 
     private Path getAktuellerBildPfadAusListe() {

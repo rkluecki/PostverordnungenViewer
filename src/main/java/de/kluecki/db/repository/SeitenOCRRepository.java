@@ -1,0 +1,149 @@
+package de.kluecki.db.repository;
+
+import de.kluecki.db.DatabaseConnection;
+import de.kluecki.db.model.SeitenOCR;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+
+public class SeitenOCRRepository {
+
+    public SeitenOCR findByBandIdAndDateiname(int bandId, String dateiname) {
+
+        String sql = """
+                SELECT
+                    SeitenOCRID,
+                    BandID,
+                    BildIndex,
+                    Dateiname,
+                    LogischeSeite,
+                    OCRText,
+                    OCRQuelle,
+                    OCRFormat,
+                    ErstelltAm,
+                    GeaendertAm
+                FROM dbo.SeitenOCR
+                WHERE BandID = ?
+                  AND Dateiname = ?
+                """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, bandId);
+            stmt.setString(2, dateiname);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+
+                if (rs.next()) {
+                    SeitenOCR ocr = new SeitenOCR();
+
+                    ocr.setSeitenOCRID(rs.getInt("SeitenOCRID"));
+                    ocr.setBandID(rs.getInt("BandID"));
+                    ocr.setBildIndex(rs.getInt("BildIndex"));
+                    ocr.setDateiname(rs.getString("Dateiname"));
+                    ocr.setLogischeSeite(rs.getString("LogischeSeite"));
+                    ocr.setOcrText(rs.getString("OCRText"));
+                    ocr.setOcrQuelle(rs.getString("OCRQuelle"));
+                    ocr.setOcrFormat(rs.getString("OCRFormat"));
+
+                    if (rs.getTimestamp("ErstelltAm") != null) {
+                        ocr.setErstelltAm(rs.getTimestamp("ErstelltAm").toLocalDateTime());
+                    }
+
+                    if (rs.getTimestamp("GeaendertAm") != null) {
+                        ocr.setGeaendertAm(rs.getTimestamp("GeaendertAm").toLocalDateTime());
+                    }
+
+                    return ocr;
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public void insertOrUpdate(SeitenOCR ocr) {
+
+        String sql = """
+                IF EXISTS (
+                    SELECT 1
+                    FROM dbo.SeitenOCR
+                    WHERE BandID = ?
+                      AND Dateiname = ?
+                )
+                BEGIN
+                    UPDATE dbo.SeitenOCR
+                    SET
+                        BildIndex = ?,
+                        LogischeSeite = ?,
+                        OCRText = ?,
+                        OCRQuelle = ?,
+                        OCRFormat = ?,
+                        GeaendertAm = SYSUTCDATETIME()
+                    WHERE BandID = ?
+                      AND Dateiname = ?
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO dbo.SeitenOCR
+                    (
+                        BandID,
+                        BildIndex,
+                        Dateiname,
+                        LogischeSeite,
+                        OCRText,
+                        OCRQuelle,
+                        OCRFormat
+                    )
+                    VALUES
+                    (
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?
+                    )
+                END
+                """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            int i = 1;
+
+            // EXISTS-Prüfung
+            stmt.setInt(i++, ocr.getBandID());
+            stmt.setString(i++, ocr.getDateiname());
+
+            // UPDATE-Werte
+            stmt.setInt(i++, ocr.getBildIndex());
+            stmt.setString(i++, ocr.getLogischeSeite());
+            stmt.setString(i++, ocr.getOcrText());
+            stmt.setString(i++, ocr.getOcrQuelle());
+            stmt.setString(i++, ocr.getOcrFormat());
+            stmt.setInt(i++, ocr.getBandID());
+            stmt.setString(i++, ocr.getDateiname());
+
+            // INSERT-Werte
+            stmt.setInt(i++, ocr.getBandID());
+            stmt.setInt(i++, ocr.getBildIndex());
+            stmt.setString(i++, ocr.getDateiname());
+            stmt.setString(i++, ocr.getLogischeSeite());
+            stmt.setString(i++, ocr.getOcrText());
+            stmt.setString(i++, ocr.getOcrQuelle());
+            stmt.setString(i++, ocr.getOcrFormat());
+
+            stmt.executeUpdate();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
