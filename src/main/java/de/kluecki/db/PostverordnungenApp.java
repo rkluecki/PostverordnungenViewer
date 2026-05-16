@@ -1743,7 +1743,6 @@ public class PostverordnungenApp extends Application {
             updateStatusLabel(baende.size());
 
             if (!baende.isEmpty()) {
-                bandListView.getSelectionModel().selectFirst();
                 bandListView.scrollTo(0);
             }
         });
@@ -1775,11 +1774,23 @@ public class PostverordnungenApp extends Application {
         bandListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
             if (newValue == null) return;
 
+            if (Objects.equals(oldValue, newValue)) {
+                return;
+            }
+
             String gebiet = gebietListView.getSelectionModel().getSelectedItem();
             String band = newValue;
 
             aktuellesGebiet = gebiet;
             aktuellesBand = band;
+
+            System.out.println("========== BANDWECHSEL ==========");
+            System.out.println("Gebiet: " + gebiet);
+            System.out.println("Band: " + band);
+            System.out.println("Alt: " + oldValue);
+            System.out.println("Neu: " + newValue);
+
+            zeigeStatusKurz("Band/Jahr wird geladen: " + gebiet + " – " + band);
 
             // Beim Wechsel/Anklicken eines Bandes wieder freie Bandnavigation aktivieren
             heftListView.getSelectionModel().clearSelection();
@@ -1803,10 +1814,14 @@ public class PostverordnungenApp extends Application {
             tblHeftEintraege.getItems().clear();
             lstInhalteDetail.getItems().clear();
 
+            long tBandId = logZeitStart("BandID ermitteln");
             int bandId = ermittleBandId(gebiet, band);
+            logZeitEnde("BandID ermitteln", tBandId);
 
             if (bandId > 0) {
+                long tHefte = logZeitStart("Hefte laden");
                 List<Heft> hefte = heftRepository.findByBand(bandId);
+                logZeitEnde("Hefte laden", tHefte);
 
                 heftListView.setCellFactory(param -> new ListCell<>() {
                     @Override
@@ -1842,7 +1857,9 @@ public class PostverordnungenApp extends Application {
                 heftListView.getItems().setAll(hefte);
             }
 
+            long tBilder = logZeitStart("Bilder laden");
             List<File> bilder = loadBilder(gebiet, band);
+            logZeitEnde("Bilder laden", tBilder);
 
             aktuelleBildliste.clear();
             aktuellerBildIndex = -1;
@@ -1852,7 +1869,9 @@ public class PostverordnungenApp extends Application {
                     aktuelleBildliste.add(bild.toPath());
                 }
 
+                long tMappingStatus = logZeitStart("Mappingstatus prüfen");
                 MappingStatus status = pruefeMappingStatusFuerAktuellesBand();
+                logZeitEnde("Mappingstatus prüfen", tMappingStatus);
 
                 if (status == MappingStatus.UNVOLLSTAENDIG) {
 
@@ -1860,10 +1879,14 @@ public class PostverordnungenApp extends Application {
                             .map(path -> path.getFileName().toString())
                             .toList();
 
+                    long tMappingErweitern = logZeitStart("Mapping erweitern");
+
                     int anzahlNeu = seitenMappingRepository.erweitereMappingFuerBandFallsNoetig(
                             bandId,
                             dateinamen
                     );
+
+                    logZeitEnde("Mapping erweitern", tMappingErweitern);
 
                     if (anzahlNeu > 0) {
                         if (statusLabel != null) {
@@ -1876,7 +1899,9 @@ public class PostverordnungenApp extends Application {
                     }
 
                     // danach Status neu prüfen
+                    long tMappingStatusNachErweiterung = logZeitStart("Mappingstatus nach Erweiterung prüfen");
                     status = pruefeMappingStatusFuerAktuellesBand();
+                    logZeitEnde("Mappingstatus nach Erweiterung prüfen", tMappingStatusNachErweiterung);
                 }
 
                 if (status == MappingStatus.NICHT_VORHANDEN) {
@@ -2112,7 +2137,18 @@ public class PostverordnungenApp extends Application {
         alert.showAndWait();
     }
 
-       private void backupErstellen() {
+    private long logZeitStart(String name) {
+        long start = System.currentTimeMillis();
+        System.out.println("[ZEIT START] " + name);
+        return start;
+    }
+
+    private void logZeitEnde(String name, long start) {
+        long dauer = System.currentTimeMillis() - start;
+        System.out.println("[ZEIT ENDE ] " + name + " -> " + dauer + " ms");
+    }
+
+    private void backupErstellen() {
 
         try {
 
@@ -2799,7 +2835,7 @@ public class PostverordnungenApp extends Application {
     private void starteInitialMappingImHintergrund(int bandId, Runnable onSuccess) {
 
         if (statusLabel != null) {
-            statusLabel.setText("Seitenmapping wird erstellt ...");
+            zeigeArbeitsStatus("Seitenmapping wird erstellt ...");
         }
 
         Task<Void> task = new Task<>() {
@@ -2826,9 +2862,9 @@ public class PostverordnungenApp extends Application {
                 onSuccess.run();
             }
 
-            showAlert("Hinweis", "Grundmapping wurde automatisch erstellt.");
+            zeigeStatusKurz("Grundmapping wurde automatisch erstellt.");
 
-            updateStatusLabel(bandListView.getItems().size());
+           // updateStatusLabel(bandListView.getItems().size());
         });
 
         task.setOnFailed(event -> {
@@ -3577,6 +3613,13 @@ public class PostverordnungenApp extends Application {
         PauseTransition pause = new PauseTransition(Duration.seconds(3));
         pause.setOnFinished(e -> updateStatusLabel(bandListView.getItems().size()));
         pause.play();
+    }
+
+    private void zeigeArbeitsStatus(String text) {
+
+        if (statusLabel == null) return;
+
+        statusLabel.setText(text);
     }
 
     private void updateInhaltListe() {
