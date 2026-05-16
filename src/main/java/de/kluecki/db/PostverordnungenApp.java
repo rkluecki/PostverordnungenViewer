@@ -43,6 +43,7 @@ import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.stage.Modality;
@@ -152,6 +153,7 @@ public class PostverordnungenApp extends Application {
     private QuelleRepository quelleRepository;  // Basisstruktur
     private final SeitenMappingRepository seitenMappingRepository = new SeitenMappingRepository();
     private final SeitenOCRRepository seitenOCRRepository = new SeitenOCRRepository();
+    private SeitenOCR aktuelleSeitenOCR;
 
     // Sonstiges
     private List<String> gebieteCache = null;
@@ -400,10 +402,10 @@ public class PostverordnungenApp extends Application {
 
         menuSuche.getItems().add(mnuOcrTextSuchen);
 
-        MenuItem miBsbOcrImport = new MenuItem("BSB-OCR herunterladen/importieren...");
-        miBsbOcrImport.setOnAction(e -> oeffneOcrDownloadDialog());
+        MenuItem miOcrImport = new MenuItem("OCR aus Archiv herunterladen/importieren...");
+        miOcrImport.setOnAction(e -> oeffneOcrDownloadDialog());
 
-        menuOcr.getItems().add(miBsbOcrImport);
+        menuOcr.getItems().add(miOcrImport);
 
         Menu menuHilfe = new Menu("Hilfe");
 
@@ -1769,6 +1771,9 @@ public class PostverordnungenApp extends Application {
         Button btnOcrKopieren = new Button("OCR kopieren");
         btnOcrKopieren.setTooltip(new Tooltip("OCR-Text der aktuellen Seite in die Zwischenablage kopieren"));
 
+        Button btnOcrKorrigieren = new Button("Korrigierte Fassung bearbeiten...");
+        btnOcrKorrigieren.setTooltip(new Tooltip("Korrigierte OCR-Fassung der aktuellen Seite bearbeiten"));
+
         btnOcrKopieren.setOnAction(e -> {
 
             if (txtOcrText == null || txtOcrText.getText() == null || txtOcrText.getText().isBlank()) {
@@ -1782,6 +1787,16 @@ public class PostverordnungenApp extends Application {
             Clipboard.getSystemClipboard().setContent(content);
 
             zeigeStatusKurz("OCR-Text wurde in die Zwischenablage kopiert.");
+        });
+
+        btnOcrKorrigieren.setOnAction(e -> {
+
+            if (aktuelleSeitenOCR == null || aktuelleSeitenOCR.getSeitenOCRID() <= 0) {
+                zeigeStatusKurz("Keine OCR-Daten zum Bearbeiten vorhanden.");
+                return;
+            }
+
+            zeigeOcrKorrekturDialog(aktuelleSeitenOCR);
         });
 
         lblOcrInfo = new Label("Keine OCR-Daten geladen");
@@ -1801,7 +1816,7 @@ public class PostverordnungenApp extends Application {
             -fx-font-size: 13px;
             """);
 
-        HBox ocrHeader = new HBox(8, lblOcrTitel, btnOcrKopieren);
+        HBox ocrHeader = new HBox(8, lblOcrTitel, btnOcrKopieren, btnOcrKorrigieren);
         ocrHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
         VBox ocrPane = new VBox(6, ocrHeader, lblOcrInfo, txtOcrText);
@@ -1818,6 +1833,91 @@ public class PostverordnungenApp extends Application {
             """);
 
         return ocrPane;
+    }
+
+    private void zeigeOcrKorrekturDialog(SeitenOCR ocr) {
+
+        if (ocr == null || ocr.getSeitenOCRID() <= 0) {
+            zeigeStatusKurz("Keine OCR-Daten zum Bearbeiten vorhanden.");
+            return;
+        }
+
+        Stage dialog = new Stage();
+        dialog.setTitle("OCR-Korrektur bearbeiten");
+        dialog.initModality(Modality.APPLICATION_MODAL);
+
+        Label lblOriginal = new Label("Original-OCR");
+        lblOriginal.setStyle("-fx-font-weight: bold;");
+
+        TextArea txtOriginal = new TextArea();
+        txtOriginal.setEditable(false);
+        txtOriginal.setWrapText(true);
+        txtOriginal.setText(ocr.getOcrText() != null ? ocr.getOcrText() : "");
+        txtOriginal.setStyle("""
+            -fx-font-family: 'Consolas';
+            -fx-font-size: 13px;
+            """);
+
+        Label lblKorrigiert = new Label("Korrigierte Fassung");
+        lblKorrigiert.setStyle("-fx-font-weight: bold;");
+
+        TextArea txtKorrigiert = new TextArea();
+        txtKorrigiert.setWrapText(true);
+        txtKorrigiert.setText(
+                ocr.getOcrTextKorrigiert() != null && !ocr.getOcrTextKorrigiert().isBlank()
+                        ? ocr.getOcrTextKorrigiert()
+                        : (ocr.getOcrText() != null ? ocr.getOcrText() : "")
+        );
+        txtKorrigiert.setStyle("""
+            -fx-font-family: 'Consolas';
+            -fx-font-size: 13px;
+            """);
+
+        VBox originalBox = new VBox(5, lblOriginal, txtOriginal);
+        VBox korrigiertBox = new VBox(5, lblKorrigiert, txtKorrigiert);
+
+        HBox textBereich = new HBox(10, originalBox, korrigiertBox);
+
+        originalBox.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        korrigiertBox.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        textBereich.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        HBox.setHgrow(originalBox, Priority.ALWAYS);
+        HBox.setHgrow(korrigiertBox, Priority.ALWAYS);
+
+        VBox.setVgrow(txtOriginal, Priority.ALWAYS);
+        VBox.setVgrow(txtKorrigiert, Priority.ALWAYS);
+        VBox.setVgrow(textBereich, Priority.ALWAYS);
+        Button btnSpeichern = new Button("Speichern");
+        Button btnAbbrechen = new Button("Abbrechen");
+
+        btnSpeichern.setOnAction(e -> {
+            seitenOCRRepository.updateKorrigiertenText(
+                    ocr.getSeitenOCRID(),
+                    txtKorrigiert.getText()
+            );
+
+            ocr.setOcrTextKorrigiert(txtKorrigiert.getText());
+            aktuelleSeitenOCR = ocr;
+
+            aktualisiereOcrAnzeige();
+
+            zeigeStatusKurz("Korrigierte OCR-Fassung wurde gespeichert.");
+            dialog.close();
+        });
+
+        btnAbbrechen.setOnAction(e -> dialog.close());
+
+        HBox buttonLeiste = new HBox(8, btnSpeichern, btnAbbrechen);
+        buttonLeiste.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox root = new VBox(10, textBereich, buttonLeiste);
+        root.setPadding(new Insets(10));
+        root.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        Scene scene = new Scene(root, 1000, 650);
+        dialog.setScene(scene);
+        dialog.showAndWait();
     }
 
     private void configureSelectionListeners() {
@@ -2354,6 +2454,7 @@ public class PostverordnungenApp extends Application {
         }
 
         txtOcrText.clear();
+        aktuelleSeitenOCR = null;
 
         if (lblOcrInfo != null) {
             lblOcrInfo.setText("Keine OCR-Daten geladen");
@@ -2398,6 +2499,8 @@ public class PostverordnungenApp extends Application {
                 dateiname
         );
 
+        aktuelleSeitenOCR = ocr;
+
         if (ocr == null || ocr.getOcrText() == null || ocr.getOcrText().isBlank()) {
             txtOcrText.setPromptText("Für diese Seite ist noch kein OCR-Text vorhanden.");
 
@@ -2408,7 +2511,13 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
-        String text = ocr.getOcrText();
+        boolean hatKorrigiertenText =
+                ocr.getOcrTextKorrigiert() != null
+                        && !ocr.getOcrTextKorrigiert().isBlank();
+
+        String text = hatKorrigiertenText
+                ? ocr.getOcrTextKorrigiert()
+                : ocr.getOcrText();
 
         txtOcrText.setText(text);
 
@@ -2422,8 +2531,12 @@ public class PostverordnungenApp extends Application {
                     ? ocr.getOcrFormat()
                     : "Format unbekannt";
 
+            String textArt = hatKorrigiertenText
+                    ? "OCR korrigiert"
+                    : "Original-OCR";
+
             lblOcrInfo.setText(
-                    "OCR vorhanden | " + quelle +
+                    textArt + " | " + quelle +
                             " | " + format +
                             " | " + text.length() + " Zeichen"
             );

@@ -10,6 +10,10 @@ public class SeitenOCR {
     private String dateiname;
     private String logischeSeite;
     private String ocrText;
+    private String ocrTextKorrigiert;
+    private String ocrKorrekturStatus;
+    private LocalDateTime korrigiertAm;
+    private LocalDateTime geprueftAm;
     private String ocrQuelle;
     private String ocrFormat;
     private LocalDateTime erstelltAm;
@@ -63,6 +67,22 @@ public class SeitenOCR {
         this.ocrText = ocrText;
     }
 
+    public String getOcrTextKorrigiert() {
+        return ocrTextKorrigiert;
+    }
+
+    public void setOcrTextKorrigiert(String ocrTextKorrigiert) {
+        this.ocrTextKorrigiert = ocrTextKorrigiert;
+    }
+
+    public String getOcrKorrekturStatus() {
+        return ocrKorrekturStatus;
+    }
+
+    public void setOcrKorrekturStatus(String ocrKorrekturStatus) {
+        this.ocrKorrekturStatus = ocrKorrekturStatus;
+    }
+
     public String getOcrQuelle() {
         return ocrQuelle;
     }
@@ -93,5 +113,21 @@ public class SeitenOCR {
 
     public void setGeaendertAm(LocalDateTime geaendertAm) {
         this.geaendertAm = geaendertAm;
+    }
+
+    public LocalDateTime getKorrigiertAm() {
+        return korrigiertAm;
+    }
+
+    public void setKorrigiertAm(LocalDateTime korrigiertAm) {
+        this.korrigiertAm = korrigiertAm;
+    }
+
+    public LocalDateTime getGeprueftAm() {
+        return geprueftAm;
+    }
+
+    public void setGeprueftAm(LocalDateTime geprueftAm) {
+        this.geprueftAm = geprueftAm;
     }
 }

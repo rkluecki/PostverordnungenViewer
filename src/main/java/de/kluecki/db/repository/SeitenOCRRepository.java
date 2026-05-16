@@ -22,10 +22,14 @@ public class SeitenOCRRepository {
                     Dateiname,
                     LogischeSeite,
                     OCRText,
+                    OCRTextKorrigiert,
+                    OCRKorrekturStatus,
                     OCRQuelle,
                     OCRFormat,
                     ErstelltAm,
-                    GeaendertAm
+                    GeaendertAm,
+                    KorrigiertAm,
+                    GeprueftAm
                 FROM dbo.SeitenOCR
                 WHERE BandID = ?
                   AND Dateiname = ?
@@ -48,6 +52,8 @@ public class SeitenOCRRepository {
                     ocr.setDateiname(rs.getString("Dateiname"));
                     ocr.setLogischeSeite(rs.getString("LogischeSeite"));
                     ocr.setOcrText(rs.getString("OCRText"));
+                    ocr.setOcrTextKorrigiert(rs.getString("OCRTextKorrigiert"));
+                    ocr.setOcrKorrekturStatus(rs.getString("OCRKorrekturStatus"));
                     ocr.setOcrQuelle(rs.getString("OCRQuelle"));
                     ocr.setOcrFormat(rs.getString("OCRFormat"));
 
@@ -57,6 +63,14 @@ public class SeitenOCRRepository {
 
                     if (rs.getTimestamp("GeaendertAm") != null) {
                         ocr.setGeaendertAm(rs.getTimestamp("GeaendertAm").toLocalDateTime());
+                    }
+
+                    if (rs.getTimestamp("KorrigiertAm") != null) {
+                        ocr.setKorrigiertAm(rs.getTimestamp("KorrigiertAm").toLocalDateTime());
+                    }
+
+                    if (rs.getTimestamp("GeprueftAm") != null) {
+                        ocr.setGeprueftAm(rs.getTimestamp("GeprueftAm").toLocalDateTime());
                     }
 
                     return ocr;
@@ -180,12 +194,21 @@ public class SeitenOCRRepository {
                 BEGIN
                     UPDATE dbo.SeitenOCR
                     SET
-                        BildIndex = ?,
-                        LogischeSeite = ?,
-                        OCRText = ?,
-                        OCRQuelle = ?,
-                        OCRFormat = ?,
-                        GeaendertAm = SYSUTCDATETIME()
+                       BildIndex = ?,
+                       LogischeSeite = ?,
+                       OCRText = CASE
+                          WHEN OCRText IS NULL OR LTRIM(RTRIM(OCRText)) = '' THEN ?
+                          ELSE OCRText
+                       END,
+                       OCRQuelle = CASE
+                          WHEN OCRQuelle IS NULL OR LTRIM(RTRIM(OCRQuelle)) = '' THEN ?
+                          ELSE OCRQuelle
+                       END,
+                       OCRFormat = CASE
+                          WHEN OCRFormat IS NULL OR LTRIM(RTRIM(OCRFormat)) = '' THEN ?
+                          ELSE OCRFormat
+                       END,
+                       GeaendertAm = SYSUTCDATETIME() = SYSUTCDATETIME()
                     WHERE BandID = ?
                       AND Dateiname = ?
                 END
@@ -247,4 +270,37 @@ public class SeitenOCRRepository {
             e.printStackTrace();
         }
     }
+
+    public void updateKorrigiertenText(int seitenOCRID, String korrigierterText) {
+
+        String sql = """
+            UPDATE dbo.SeitenOCR
+            SET
+                OCRTextKorrigiert = ?,
+                OCRKorrekturStatus = ?,
+                KorrigiertAm = SYSUTCDATETIME(),
+                GeaendertAm = SYSUTCDATETIME()
+            WHERE SeitenOCRID = ?
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, korrigierterText);
+
+            if (korrigierterText == null || korrigierterText.trim().isBlank()) {
+                stmt.setString(2, "leer");
+            } else {
+                stmt.setString(2, "korrigiert");
+            }
+
+            stmt.setInt(3, seitenOCRID);
+
+            stmt.executeUpdate();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 }
