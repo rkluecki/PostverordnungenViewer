@@ -25,22 +25,18 @@ public class OcrDownloadDialog {
     ) {
         Stage dialog = new Stage();
 
-        // Testweise BLB als zweiter Archivtyp.
-        // Später machen wir daraus eine Auswahl im Dialog.
-        // OcrArchivTyp archivTyp = OcrArchivTyp.BSB_MDZ;
-        OcrArchivTyp archivTyp = OcrArchivTyp.BLB_KARLSRUHE;
+        OcrArchivTyp startArchivTyp = OcrArchivTyp.BSB_MDZ;
 
-        String archivAnzeige = getArchivTypAnzeige(archivTyp);
-        String idLabelText = getArchivTypIdLabel(archivTyp);
-        String idPromptText = getArchivTypIdPrompt(archivTyp);
-        String fensterTitel = archivAnzeige + "-OCR herunterladen / importieren";
-        String hauptTitel = archivAnzeige + "-OCR für Band herunterladen";
+        String startArchivAnzeige = getArchivTypAnzeige(startArchivTyp);
+        String startIdLabelText = getArchivTypIdLabel(startArchivTyp);
+        String startIdPromptText = getArchivTypIdPrompt(startArchivTyp);
 
-        dialog.setTitle(fensterTitel);
+        dialog.setTitle(startArchivAnzeige + "-OCR herunterladen / importieren");
+
         dialog.initOwner(owner);
         dialog.initModality(Modality.APPLICATION_MODAL);
 
-        Label lblTitel = new Label(hauptTitel);
+        Label lblTitel = new Label(startArchivAnzeige + "-OCR für Band herunterladen");
         lblTitel.setStyle("""
                 -fx-font-size: 15px;
                 -fx-font-weight: bold;
@@ -55,10 +51,34 @@ public class OcrDownloadDialog {
         Label lblBandIdWert = new Label(String.valueOf(bandId));
 
         Label lblArchivTyp = new Label("OCR-Quelle:");
-        Label lblArchivTypWert = new Label(archivAnzeige);
 
+        ComboBox<OcrArchivTyp> cmbArchivTyp = new ComboBox<>();
+        cmbArchivTyp.getItems().addAll(
+                OcrArchivTyp.BSB_MDZ,
+                OcrArchivTyp.BLB_KARLSRUHE
+        );
+        cmbArchivTyp.setValue(startArchivTyp);
+        cmbArchivTyp.setMaxWidth(Double.MAX_VALUE);
+
+        cmbArchivTyp.setCellFactory(listView -> new ListCell<>() {
+            @Override
+            protected void updateItem(OcrArchivTyp item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : getArchivTypAnzeige(item));
+            }
+        });
+
+        cmbArchivTyp.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(OcrArchivTyp item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : getArchivTypAnzeige(item));
+            }
+        });
+
+        Label lblObjectId = new Label(startIdLabelText);
         TextField txtObjectId = new TextField();
-        txtObjectId.setPromptText(idPromptText);
+        txtObjectId.setPromptText(startIdPromptText);
         txtObjectId.setPrefColumnCount(22);
 
         Label lblHinweis = new Label("""
@@ -89,11 +109,39 @@ public class OcrDownloadDialog {
             btnStart.setDisable(leer);
         });
 
+        cmbArchivTyp.valueProperty().addListener((obs, alterTyp, neuerTyp) -> {
+
+            if (neuerTyp == null) {
+                return;
+            }
+
+            String neueArchivAnzeige = getArchivTypAnzeige(neuerTyp);
+
+            dialog.setTitle(neueArchivAnzeige + "-OCR herunterladen / importieren");
+            lblTitel.setText(neueArchivAnzeige + "-OCR für Band herunterladen");
+
+            lblObjectId.setText(getArchivTypIdLabel(neuerTyp));
+            txtObjectId.setPromptText(getArchivTypIdPrompt(neuerTyp));
+            txtObjectId.clear();
+
+            btnStart.setDisable(true);
+        });
+
         btnStart.setOnAction(e -> {
 
             String objectId = txtObjectId.getText() != null
                     ? txtObjectId.getText().trim()
                     : "";
+
+            OcrArchivTyp archivTyp = cmbArchivTyp.getValue();
+
+            if (archivTyp == null) {
+                txtStatus.setText("Bitte zuerst eine OCR-Quelle auswählen.");
+                return;
+            }
+
+            String archivAnzeige = getArchivTypAnzeige(archivTyp);
+            String idLabelText = getArchivTypIdLabel(archivTyp);
 
             if (objectId.isBlank()) {
                 txtStatus.setText("Bitte zuerst eine " + idLabelText + " eingeben.");
@@ -102,6 +150,7 @@ public class OcrDownloadDialog {
 
             btnStart.setDisable(true);
             txtObjectId.setDisable(true);
+            cmbArchivTyp.setDisable(true);
             txtStatus.clear();
 
             txtStatus.appendText("OCR-Quelle: " + archivAnzeige + System.lineSeparator());
@@ -139,6 +188,7 @@ public class OcrDownloadDialog {
 
                 btnStart.setDisable(false);
                 txtObjectId.setDisable(false);
+                cmbArchivTyp.setDisable(false);
             });
 
             task.setOnFailed(event -> {
@@ -153,6 +203,7 @@ public class OcrDownloadDialog {
 
                 btnStart.setDisable(false);
                 txtObjectId.setDisable(false);
+                cmbArchivTyp.setDisable(false);
             });
 
             Thread thread = new Thread(task);
@@ -174,9 +225,9 @@ public class OcrDownloadDialog {
         grid.add(lblBandIdWert, 1, 1);
 
         grid.add(lblArchivTyp, 0, 2);
-        grid.add(lblArchivTypWert, 1, 2);
+        grid.add(cmbArchivTyp, 1, 2);
 
-        grid.add(new Label(idLabelText), 0, 3);
+        grid.add(lblObjectId, 0, 3);
         grid.add(txtObjectId, 1, 3);
 
         ColumnConstraints col1 = new ColumnConstraints();
