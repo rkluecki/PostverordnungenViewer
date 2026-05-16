@@ -29,9 +29,11 @@ public class OcrDownloadDialog {
             String bandAnzeige
     ) {
         Stage dialog = new Stage();
-        dialog.setTitle("BSB-OCR herunterladen / importieren");
+        dialog.setTitle("BSB/MDZ-OCR herunterladen / importieren");
         dialog.initOwner(owner);
         dialog.initModality(Modality.APPLICATION_MODAL);
+
+        OcrArchivTyp archivTyp = OcrArchivTyp.BSB_MDZ;
 
         Label lblTitel = new Label("BSB/MDZ-OCR für Band herunterladen");
         lblTitel.setStyle("""
@@ -46,6 +48,9 @@ public class OcrDownloadDialog {
 
         Label lblBandId = new Label("BandID:");
         Label lblBandIdWert = new Label(String.valueOf(bandId));
+
+        Label lblArchivTyp = new Label("OCR-Quelle:");
+        Label lblArchivTypWert = new Label(getArchivTypAnzeige(archivTyp));
 
         TextField txtObjectId = new TextField();
         txtObjectId.setPromptText("z. B. bsb10335662");
@@ -94,12 +99,18 @@ public class OcrDownloadDialog {
             txtObjectId.setDisable(true);
             txtStatus.clear();
 
+            txtStatus.appendText("OCR-Quelle: " + getArchivTypAnzeige(archivTyp) + System.lineSeparator());
+            txtStatus.appendText("Object-ID: " + objectId + System.lineSeparator());
+            txtStatus.appendText("Import wird vorbereitet..." + System.lineSeparator());
+            txtStatus.appendText(System.lineSeparator());
+
             OcrDownloadService service = new OcrDownloadService();
 
             Task<OcrDownloadErgebnis> task = new Task<>() {
                 @Override
                 protected OcrDownloadErgebnis call() {
-                    return service.downloadUndImportiereBsbOcrFuerBand(
+                    return service.downloadUndImportiereOcrFuerBand(
+                            archivTyp,
                             bandId,
                             objectId,
                             meldung -> Platform.runLater(() -> {
@@ -157,8 +168,11 @@ public class OcrDownloadDialog {
         grid.add(lblBandId, 0, 1);
         grid.add(lblBandIdWert, 1, 1);
 
-        grid.add(new Label("BSB/MDZ Object-ID:"), 0, 2);
-        grid.add(txtObjectId, 1, 2);
+        grid.add(lblArchivTyp, 0, 2);
+        grid.add(lblArchivTypWert, 1, 2);
+
+        grid.add(new Label("BSB/MDZ Object-ID:"), 0, 3);
+        grid.add(txtObjectId, 1, 3);
 
         ColumnConstraints col1 = new ColumnConstraints();
         col1.setMinWidth(130);
@@ -184,5 +198,14 @@ public class OcrDownloadDialog {
         Scene scene = new Scene(root, 560, 380);
         dialog.setScene(scene);
         dialog.showAndWait();
+    }
+
+    private static String getArchivTypAnzeige(OcrArchivTyp archivTyp) {
+
+        if (archivTyp == OcrArchivTyp.BSB_MDZ) {
+            return "BSB/MDZ Digitale Sammlungen";
+        }
+
+        return "Unbekannte OCR-Quelle";
     }
 }

@@ -35,6 +35,37 @@ public class OcrDownloadService {
 
     private final SeitenOCRRepository seitenOCRRepository = new SeitenOCRRepository();
 
+    public OcrDownloadErgebnis downloadUndImportiereOcrFuerBand(
+            OcrArchivTyp archivTyp,
+            int bandId,
+            String objectId,
+            Consumer<String> progressCallback
+    ) {
+
+        if (archivTyp == OcrArchivTyp.BSB_MDZ) {
+            return downloadUndImportiereBsbOcrFuerBand(
+                    bandId,
+                    objectId,
+                    progressCallback
+            );
+        }
+
+        String meldung = "OCR-Archivtyp wird noch nicht unterstützt: " + archivTyp;
+
+        meldeFortschritt(progressCallback, meldung);
+
+        return new OcrDownloadErgebnis(
+                bandId,
+                objectId,
+                0,
+                0,
+                0,
+                0,
+                false,
+                meldung
+        );
+    }
+
     public OcrDownloadErgebnis downloadUndImportiereBsbOcrFuerBand(int bandId, String objectId) {
         return downloadUndImportiereBsbOcrFuerBand(
                 bandId,
@@ -125,8 +156,8 @@ public class OcrDownloadService {
                 ocr.setDateiname(mappingInfo.dateiname());
                 ocr.setLogischeSeite(mappingInfo.logischeSeite());
                 ocr.setOcrText(text);
-                ocr.setOcrQuelle("BSB / " + objectId);
-                ocr.setOcrFormat("hOCR direkt");
+                ocr.setOcrQuelle("BSB/MDZ Digitale Sammlungen / " + objectId);
+                ocr.setOcrFormat("hOCR");
 
                 seitenOCRRepository.insertOrUpdate(ocr);
 
