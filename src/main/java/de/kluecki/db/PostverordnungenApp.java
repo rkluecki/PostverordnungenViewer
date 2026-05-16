@@ -35,6 +35,7 @@ import de.kluecki.db.UI.InhaltseinheitenWindow;
 import de.kluecki.db.model.*;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.*;
+import de.kluecki.ocr.OcrSucheDialog;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -67,6 +68,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 import de.kluecki.ocr.OcrDownloadDialog;
+import de.kluecki.db.model.SeitenOCRSuchtreffer;
 
 
 import javafx.scene.control.cell.TextFieldTableCell;
@@ -391,6 +393,11 @@ public class PostverordnungenApp extends Application {
 
         menuSuche.getItems().add(mnuHeftEintraegeSuchen);
 
+        MenuItem mnuOcrTextSuchen = new MenuItem("OCR-Text suchen...");
+        mnuOcrTextSuchen.setOnAction(e -> oeffneOcrSucheDialog());
+
+        menuSuche.getItems().add(mnuOcrTextSuchen);
+
         MenuItem miBsbOcrImport = new MenuItem("BSB-OCR herunterladen/importieren...");
         miBsbOcrImport.setOnAction(e -> oeffneOcrDownloadDialog());
 
@@ -457,6 +464,86 @@ public class PostverordnungenApp extends Application {
                 menuOcr,
                 menuHilfe);
         return menuBar;
+    }
+
+    private void oeffneOcrSucheDialog() {
+
+        if (aktuellesGebiet == null || aktuellesGebiet.isBlank()
+                || aktuellesBand == null || aktuellesBand.isBlank()) {
+
+            showAlert("OCR-Suche", "Bitte zuerst ein Gebiet und ein Band auswählen.");
+            return;
+        }
+
+        int bandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            showAlert("OCR-Suche", "BandID konnte nicht ermittelt werden.");
+            return;
+        }
+
+        Stage ownerStage = null;
+
+        if (gebietListView != null && gebietListView.getScene() != null) {
+            ownerStage = (Stage) gebietListView.getScene().getWindow();
+        }
+
+        String bandAnzeige = aktuellesGebiet + " – " + aktuellesBand;
+
+        OcrSucheDialog.show(
+                ownerStage,
+                bandId,
+                bandAnzeige,
+                treffer -> springeZuOcrSuchtreffer(treffer)
+        );
+    }
+
+    private void springeZuOcrSuchtreffer(SeitenOCRSuchtreffer treffer) {
+
+        if (treffer == null) {
+            return;
+        }
+
+        String dateiname = treffer.getDateiname();
+
+        if (dateiname == null || dateiname.isBlank()) {
+            showAlert("OCR-Suche", "Der Suchtreffer enthält keinen Dateinamen.");
+            return;
+        }
+
+        Path bildPfad = findeBildPfadInAktuellerListe(dateiname);
+
+        if (bildPfad == null) {
+            showAlert(
+                    "OCR-Suche",
+                    "Die Bilddatei zum OCR-Treffer wurde in der aktuellen Bildliste nicht gefunden:\n"
+                            + dateiname
+            );
+            return;
+        }
+
+        int index = aktuelleBildliste.indexOf(bildPfad);
+
+        if (index < 0) {
+            showAlert(
+                    "OCR-Suche",
+                    "Die Bilddatei wurde gefunden, konnte aber nicht in der Bildliste positioniert werden:\n"
+                            + dateiname
+            );
+            return;
+        }
+
+        wechsleAufBandEbeneFuerFreieNavigation();
+
+        aktuellerBildIndex = index;
+        ladeAktuellesBild();
+
+        zeigeStatusKurz(
+                "OCR-Treffer geöffnet: "
+                        + dateiname
+                        + " / logische Seite "
+                        + treffer.getLogischeSeite()
+        );
     }
 
     private void oeffneOcrDownloadDialog() {

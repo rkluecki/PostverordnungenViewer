@@ -2,10 +2,13 @@ package de.kluecki.db.repository;
 
 import de.kluecki.db.DatabaseConnection;
 import de.kluecki.db.model.SeitenOCR;
+import de.kluecki.db.model.SeitenOCRSuchtreffer;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SeitenOCRRepository {
 
@@ -65,6 +68,104 @@ public class SeitenOCRRepository {
         }
 
         return null;
+    }
+
+    public List<SeitenOCRSuchtreffer> sucheOcrText(int bandId, String suchbegriff) {
+
+        List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
+
+        if (suchbegriff == null || suchbegriff.trim().isBlank()) {
+            return treffer;
+        }
+
+        String sql = """
+            SELECT TOP 200
+                SeitenOCRID,
+                BandID,
+                BildIndex,
+                Dateiname,
+                LogischeSeite,
+                OCRQuelle,
+                OCRFormat,
+                OCRText
+            FROM dbo.SeitenOCR
+            WHERE BandID = ?
+              AND OCRText LIKE ?
+            ORDER BY BildIndex
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            String muster = "%" + suchbegriff.trim() + "%";
+
+            stmt.setInt(1, bandId);
+            stmt.setString(2, muster);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+
+                while (rs.next()) {
+                    SeitenOCRSuchtreffer suchtreffer = new SeitenOCRSuchtreffer();
+
+                    String ocrText = rs.getString("OCRText");
+
+                    suchtreffer.setSeitenOCRID(rs.getInt("SeitenOCRID"));
+                    suchtreffer.setBandID(rs.getInt("BandID"));
+                    suchtreffer.setBildIndex(rs.getInt("BildIndex"));
+                    suchtreffer.setDateiname(rs.getString("Dateiname"));
+                    suchtreffer.setLogischeSeite(rs.getString("LogischeSeite"));
+                    suchtreffer.setOcrQuelle(rs.getString("OCRQuelle"));
+                    suchtreffer.setOcrFormat(rs.getString("OCRFormat"));
+                    suchtreffer.setTextAusschnitt(erstelleTextAusschnitt(ocrText, suchbegriff.trim()));
+
+                    treffer.add(suchtreffer);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return treffer;
+    }
+
+    private String erstelleTextAusschnitt(String text, String suchbegriff) {
+
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return text.length() > 160 ? text.substring(0, 160) + "..." : text;
+        }
+
+        String textKlein = text.toLowerCase();
+        String suchbegriffKlein = suchbegriff.toLowerCase();
+
+        int position = textKlein.indexOf(suchbegriffKlein);
+
+        if (position < 0) {
+            return text.length() > 160 ? text.substring(0, 160) + "..." : text;
+        }
+
+        int start = Math.max(0, position - 70);
+        int ende = Math.min(text.length(), position + suchbegriff.length() + 90);
+
+        String ausschnitt = text.substring(start, ende)
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        if (start > 0) {
+            ausschnitt = "... " + ausschnitt;
+        }
+
+        if (ende < text.length()) {
+            ausschnitt = ausschnitt + " ...";
+        }
+
+        return ausschnitt;
     }
 
     public void insertOrUpdate(SeitenOCR ocr) {
