@@ -69,6 +69,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 import de.kluecki.ocr.OcrDownloadDialog;
 import de.kluecki.db.model.SeitenOCRSuchtreffer;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 
 
 import javafx.scene.control.cell.TextFieldTableCell;
@@ -1764,14 +1766,30 @@ public class PostverordnungenApp extends Application {
         -fx-font-size: 13px;
         """);
 
+        Button btnOcrKopieren = new Button("OCR kopieren");
+        btnOcrKopieren.setTooltip(new Tooltip("OCR-Text der aktuellen Seite in die Zwischenablage kopieren"));
+
+        btnOcrKopieren.setOnAction(e -> {
+
+            if (txtOcrText == null || txtOcrText.getText() == null || txtOcrText.getText().isBlank()) {
+                zeigeStatusKurz("Kein OCR-Text zum Kopieren vorhanden.");
+                return;
+            }
+
+            ClipboardContent content = new ClipboardContent();
+            content.putString(txtOcrText.getText());
+
+            Clipboard.getSystemClipboard().setContent(content);
+
+            zeigeStatusKurz("OCR-Text wurde in die Zwischenablage kopiert.");
+        });
+
         lblOcrInfo = new Label("Keine OCR-Daten geladen");
         lblOcrInfo.setStyle("""
         -fx-font-size: 11px;
         -fx-text-fill: #666666;
         -fx-font-style: italic;
         """);
-
-        txtOcrText = new TextArea();
 
         txtOcrText = new TextArea();
         txtOcrText.setEditable(false);
@@ -1783,10 +1801,13 @@ public class PostverordnungenApp extends Application {
             -fx-font-size: 13px;
             """);
 
-        VBox ocrPane = new VBox(6, lblOcrTitel, lblOcrInfo, txtOcrText);
+        HBox ocrHeader = new HBox(8, lblOcrTitel, btnOcrKopieren);
+        ocrHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        VBox ocrPane = new VBox(6, ocrHeader, lblOcrInfo, txtOcrText);
         ocrPane.setPadding(new Insets(8));
-        ocrPane.setPrefWidth(420);
-        ocrPane.setMinWidth(300);
+        ocrPane.setPrefWidth(520);
+        ocrPane.setMinWidth(360);
 
         VBox.setVgrow(txtOcrText, Priority.ALWAYS);
 
@@ -2381,7 +2402,7 @@ public class PostverordnungenApp extends Application {
             txtOcrText.setPromptText("Für diese Seite ist noch kein OCR-Text vorhanden.");
 
             if (lblOcrInfo != null) {
-                lblOcrInfo.setText("Keine OCR-Daten für " + dateiname);
+                lblOcrInfo.setText("OCR nicht vorhanden | " + dateiname);
             }
 
             return;
@@ -2402,9 +2423,9 @@ public class PostverordnungenApp extends Application {
                     : "Format unbekannt";
 
             lblOcrInfo.setText(
-                    "OCR: " + quelle +
+                    "OCR vorhanden | " + quelle +
                             " | " + format +
-                            " | Zeichen: " + text.length()
+                            " | " + text.length() + " Zeichen"
             );
         }
     }
