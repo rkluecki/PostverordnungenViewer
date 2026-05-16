@@ -50,6 +50,14 @@ public class OcrDownloadService {
             );
         }
 
+        if (archivTyp == OcrArchivTyp.BLB_KARLSRUHE) {
+            return downloadUndImportiereBlbOcrFuerBand(
+                    bandId,
+                    objectId,
+                    progressCallback
+            );
+        }
+
         String meldung = "OCR-Archivtyp wird noch nicht unterstützt: " + archivTyp;
 
         meldeFortschritt(progressCallback, meldung);
@@ -64,6 +72,375 @@ public class OcrDownloadService {
                 false,
                 meldung
         );
+    }
+
+    private OcrDownloadErgebnis downloadUndImportiereBlbOcrFuerBand(
+            int bandId,
+            String manifestId,
+            Consumer<String> progressCallback
+    ) {
+        String bereinigteManifestId = manifestId != null
+                ? manifestId.trim()
+                : "";
+
+        if (bereinigteManifestId.isBlank()) {
+            String meldung = "BLB Manifest-ID fehlt.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    manifestId,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    meldung
+            );
+        }
+
+        String manifestUrl = "https://digital.blb-karlsruhe.de/i3f/v20/"
+                + bereinigteManifestId
+                + "/manifest";
+
+        meldeFortschritt(progressCallback, "BLB-OCR-Import gestartet.");
+        meldeFortschritt(progressCallback, "Manifest-ID: " + bereinigteManifestId);
+        meldeFortschritt(progressCallback, "Manifest-URL:");
+        meldeFortschritt(progressCallback, manifestUrl);
+        meldeFortschritt(progressCallback, "Manifest wird geladen...");
+
+        int erfolgreich = 0;
+        int ohneOcr = 0;
+        int fehler = 0;
+
+        try {
+            String manifestText = ladeTextVonUrl(manifestUrl);
+
+            if (manifestText == null || manifestText.isBlank()) {
+                String meldung = "BLB-Manifest konnte nicht geladen werden oder ist leer.";
+
+                meldeFortschritt(progressCallback, meldung);
+
+                return new OcrDownloadErgebnis(
+                        bandId,
+                        bereinigteManifestId,
+                        0,
+                        0,
+                        0,
+                        0,
+                        false,
+                        meldung
+                );
+            }
+
+            List<String> canvasIds = extrahiereBlbCanvasIds(manifestText);
+            List<SeitenMappingInfo> mappingSeiten = ladeSeitenMappings(bandId);
+
+            meldeFortschritt(progressCallback, "Gefundene Canvas-/Page-IDs: " + canvasIds.size());
+            meldeFortschritt(progressCallback, "SeitenMapping-Einträge im aktuellen Band: " + mappingSeiten.size());
+
+            if (canvasIds.isEmpty()) {
+                String meldung = "Keine BLB Canvas-/Page-IDs im Manifest gefunden. Import abgebrochen.";
+
+                meldeFortschritt(progressCallback, meldung);
+
+                return new OcrDownloadErgebnis(
+                        bandId,
+                        bereinigteManifestId,
+                        0,
+                        0,
+                        0,
+                        0,
+                        false,
+                        meldung
+                );
+            }
+
+            if (mappingSeiten.isEmpty()) {
+                String meldung = "Kein SeitenMapping für BandID "
+                        + bandId
+                        + " vorhanden. Import abgebrochen.";
+
+                meldeFortschritt(progressCallback, meldung);
+
+                return new OcrDownloadErgebnis(
+                        bandId,
+                        bereinigteManifestId,
+                        canvasIds.size(),
+                        0,
+                        0,
+                        0,
+                        false,
+                        meldung
+                );
+            }
+
+            // Sicherheitsprüfung vor dem Schreiben:
+            // Jede BLB-Page-ID muss als PageID.jpg im SeitenMapping gefunden werden.
+            int fehlendeMappings = 0;
+
+            for (String canvasId : canvasIds) {
+                SeitenMappingInfo mappingInfo = findeSeitenMappingFuerBlbCanvasId(
+                        canvasId,
+                        mappingSeiten
+                );
+
+                if (mappingInfo == null) {
+                    fehlendeMappings++;
+
+                    meldeFortschritt(progressCallback,
+                            "FEHLT im SeitenMapping: " + canvasId + ".jpg"
+                    );
+                }
+            }
+
+            if (fehlendeMappings > 0) {
+                String meldung = "BLB-Import abgebrochen: "
+                        + fehlendeMappings
+                        + " Canvas/Page-ID(s) konnten nicht eindeutig dem SeitenMapping zugeordnet werden.";
+
+                meldeFortschritt(progressCallback, meldung);
+
+                return new OcrDownloadErgebnis(
+                        bandId,
+                        bereinigteManifestId,
+                        canvasIds.size(),
+                        0,
+                        0,
+                        fehlendeMappings,
+                        false,
+                        meldung
+                );
+            }
+
+            meldeFortschritt(progressCallback, "Alle BLB Canvas/Page-IDs wurden im SeitenMapping gefunden.");
+            meldeFortschritt(progressCallback, "OCR-Texte werden jetzt gespeichert...");
+
+            for (int i = 0; i < canvasIds.size(); i++) {
+                String canvasId = canvasIds.get(i);
+                int aktuelleNummer = i + 1;
+
+                SeitenMappingInfo mappingInfo = findeSeitenMappingFuerBlbCanvasId(
+                        canvasId,
+                        mappingSeiten
+                );
+
+                try {
+                    String altoUrl = "https://digital.blb-karlsruhe.de/download/fulltext/alto3/" + canvasId;
+                    String altoXml = ladeTextVonUrl(altoUrl);
+
+                    if (altoXml == null || altoXml.isBlank()) {
+                        ohneOcr++;
+
+                        meldeFortschritt(progressCallback,
+                                aktuelleNummer + " / " + canvasIds.size()
+                                        + " ohne ALTO: " + mappingInfo.dateiname()
+                        );
+
+                        continue;
+                    }
+
+                    String text = extrahiereTextAusAlto(altoXml);
+
+                    if (text == null || text.isBlank()) {
+                        ohneOcr++;
+
+                        meldeFortschritt(progressCallback,
+                                aktuelleNummer + " / " + canvasIds.size()
+                                        + " ohne Text: " + mappingInfo.dateiname()
+                        );
+
+                        continue;
+                    }
+
+                    SeitenOCR ocr = new SeitenOCR();
+                    ocr.setBandID(bandId);
+                    ocr.setBildIndex(mappingInfo.bildIndex());
+                    ocr.setDateiname(mappingInfo.dateiname());
+                    ocr.setLogischeSeite(mappingInfo.logischeSeite());
+                    ocr.setOcrText(text);
+                    ocr.setOcrQuelle("BLB Karlsruhe Digitale Sammlungen / " + bereinigteManifestId);
+                    ocr.setOcrFormat("ALTO");
+
+                    seitenOCRRepository.insertOrUpdate(ocr);
+
+                    erfolgreich++;
+
+                    meldeFortschritt(progressCallback,
+                            aktuelleNummer + " / " + canvasIds.size()
+                                    + " gespeichert: " + mappingInfo.dateiname()
+                                    + " | BLB Page-ID: " + canvasId
+                                    + " | Zeichen: " + text.length()
+                    );
+
+                    Thread.sleep(150);
+
+                } catch (Exception ex) {
+                    fehler++;
+
+                    meldeFortschritt(progressCallback,
+                            aktuelleNummer + " / " + canvasIds.size()
+                                    + " FEHLER: " + canvasId
+                                    + " / " + mappingInfo.dateiname()
+                                    + " | " + ex.getMessage()
+                    );
+                }
+            }
+
+            String meldung = "BLB-OCR-Import abgeschlossen.";
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigteManifestId,
+                    canvasIds.size(),
+                    erfolgreich,
+                    ohneOcr,
+                    fehler,
+                    true,
+                    meldung
+            );
+
+        } catch (Exception ex) {
+            String meldung = "Fehler beim BLB-OCR-Import: " + ex.getMessage();
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigteManifestId,
+                    0,
+                    erfolgreich,
+                    ohneOcr,
+                    fehler + 1,
+                    false,
+                    meldung
+            );
+        }
+    }
+
+    private SeitenMappingInfo findeSeitenMappingFuerBlbCanvasId(
+            String canvasId,
+            List<SeitenMappingInfo> mappingSeiten
+    ) {
+        if (canvasId == null || canvasId.isBlank()
+                || mappingSeiten == null || mappingSeiten.isEmpty()) {
+            return null;
+        }
+
+        String erwarteterDateiname = canvasId + ".jpg";
+
+        for (SeitenMappingInfo info : mappingSeiten) {
+            if (info.dateiname() != null
+                    && info.dateiname().equalsIgnoreCase(erwarteterDateiname)) {
+                return info;
+            }
+        }
+
+        return null;
+    }
+
+    private List<String> extrahiereBlbCanvasIds(String manifestText) {
+
+        List<String> result = new ArrayList<>();
+
+        if (manifestText == null || manifestText.isBlank()) {
+            return result;
+        }
+
+        Pattern pattern = Pattern.compile("/canvas/(\\d+)");
+        Matcher matcher = pattern.matcher(manifestText);
+
+        while (matcher.find()) {
+            String canvasId = matcher.group(1);
+
+            if (!result.contains(canvasId)) {
+                result.add(canvasId);
+            }
+        }
+
+        return result;
+    }
+
+    private String ladeTextVonUrl(String url) throws Exception {
+
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(20))
+                .build();
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(60))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = client.send(
+                request,
+                HttpResponse.BodyHandlers.ofString()
+        );
+
+        if (response.statusCode() != 200) {
+            return null;
+        }
+
+        return response.body();
+    }
+
+    private String extrahiereTextAusAlto(String altoXml) {
+
+        if (altoXml == null || altoXml.isBlank()) {
+            return "";
+        }
+
+        StringBuilder result = new StringBuilder();
+
+        Pattern textLinePattern = Pattern.compile(
+                "<TextLine\\b[^>]*>(.*?)</TextLine>",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+
+        Matcher lineMatcher = textLinePattern.matcher(altoXml);
+
+        while (lineMatcher.find()) {
+            String lineXml = lineMatcher.group(1);
+            String lineText = extrahiereAltoWoerterAusZeile(lineXml);
+
+            if (!lineText.isBlank()) {
+                result.append(lineText).append(System.lineSeparator());
+            }
+        }
+
+        return result.toString().trim();
+    }
+
+    private String extrahiereAltoWoerterAusZeile(String lineXml) {
+
+        if (lineXml == null || lineXml.isBlank()) {
+            return "";
+        }
+
+        StringBuilder line = new StringBuilder();
+
+        Pattern stringPattern = Pattern.compile(
+                "<String\\b[^>]*\\bCONTENT=\"([^\"]*)\"[^>]*/?>",
+                Pattern.CASE_INSENSITIVE
+        );
+
+        Matcher stringMatcher = stringPattern.matcher(lineXml);
+
+        while (stringMatcher.find()) {
+            String wort = dekodiereHtmlEntities(stringMatcher.group(1));
+
+            if (!wort.isBlank()) {
+                if (!line.isEmpty()) {
+                    line.append(" ");
+                }
+
+                line.append(wort);
+            }
+        }
+
+        return line.toString().trim();
     }
 
     public OcrDownloadErgebnis downloadUndImportiereBsbOcrFuerBand(int bandId, String objectId) {

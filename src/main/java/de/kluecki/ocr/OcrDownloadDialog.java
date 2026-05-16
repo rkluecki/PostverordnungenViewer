@@ -1,22 +1,17 @@
 package de.kluecki.ocr;
 
+import de.kluecki.ocr.OcrDownloadService.OcrDownloadErgebnis;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import de.kluecki.ocr.OcrDownloadService.OcrDownloadErgebnis;
-import javafx.application.Platform;
-import javafx.concurrent.Task;
 
 /**
- * Dialog für den späteren OCR-Download/-Import.
- *
- * Aktueller Stand:
- * - zeigt BandID und Bandbezeichnung
- * - erlaubt Eingabe der BSB/MDZ-Object-ID
- * - startet den Import noch NICHT
+ * Dialog für den OCR-Download/-Import.
  *
  * Wichtig:
  * OCR-Import setzt ein vorhandenes SeitenMapping / Grundmapping voraus.
@@ -29,13 +24,23 @@ public class OcrDownloadDialog {
             String bandAnzeige
     ) {
         Stage dialog = new Stage();
-        dialog.setTitle("BSB/MDZ-OCR herunterladen / importieren");
+
+        // Testweise BLB als zweiter Archivtyp.
+        // Später machen wir daraus eine Auswahl im Dialog.
+        // OcrArchivTyp archivTyp = OcrArchivTyp.BSB_MDZ;
+        OcrArchivTyp archivTyp = OcrArchivTyp.BLB_KARLSRUHE;
+
+        String archivAnzeige = getArchivTypAnzeige(archivTyp);
+        String idLabelText = getArchivTypIdLabel(archivTyp);
+        String idPromptText = getArchivTypIdPrompt(archivTyp);
+        String fensterTitel = archivAnzeige + "-OCR herunterladen / importieren";
+        String hauptTitel = archivAnzeige + "-OCR für Band herunterladen";
+
+        dialog.setTitle(fensterTitel);
         dialog.initOwner(owner);
         dialog.initModality(Modality.APPLICATION_MODAL);
 
-        OcrArchivTyp archivTyp = OcrArchivTyp.BSB_MDZ;
-
-        Label lblTitel = new Label("BSB/MDZ-OCR für Band herunterladen");
+        Label lblTitel = new Label(hauptTitel);
         lblTitel.setStyle("""
                 -fx-font-size: 15px;
                 -fx-font-weight: bold;
@@ -50,10 +55,10 @@ public class OcrDownloadDialog {
         Label lblBandIdWert = new Label(String.valueOf(bandId));
 
         Label lblArchivTyp = new Label("OCR-Quelle:");
-        Label lblArchivTypWert = new Label(getArchivTypAnzeige(archivTyp));
+        Label lblArchivTypWert = new Label(archivAnzeige);
 
         TextField txtObjectId = new TextField();
-        txtObjectId.setPromptText("z. B. bsb10335662");
+        txtObjectId.setPromptText(idPromptText);
         txtObjectId.setPrefColumnCount(22);
 
         Label lblHinweis = new Label("""
@@ -91,7 +96,7 @@ public class OcrDownloadDialog {
                     : "";
 
             if (objectId.isBlank()) {
-                txtStatus.setText("Bitte zuerst eine BSB/MDZ Object-ID eingeben.");
+                txtStatus.setText("Bitte zuerst eine " + idLabelText + " eingeben.");
                 return;
             }
 
@@ -99,8 +104,8 @@ public class OcrDownloadDialog {
             txtObjectId.setDisable(true);
             txtStatus.clear();
 
-            txtStatus.appendText("OCR-Quelle: " + getArchivTypAnzeige(archivTyp) + System.lineSeparator());
-            txtStatus.appendText("Object-ID: " + objectId + System.lineSeparator());
+            txtStatus.appendText("OCR-Quelle: " + archivAnzeige + System.lineSeparator());
+            txtStatus.appendText(idLabelText + " " + objectId + System.lineSeparator());
             txtStatus.appendText("Import wird vorbereitet..." + System.lineSeparator());
             txtStatus.appendText(System.lineSeparator());
 
@@ -171,7 +176,7 @@ public class OcrDownloadDialog {
         grid.add(lblArchivTyp, 0, 2);
         grid.add(lblArchivTypWert, 1, 2);
 
-        grid.add(new Label("BSB/MDZ Object-ID:"), 0, 3);
+        grid.add(new Label(idLabelText), 0, 3);
         grid.add(txtObjectId, 1, 3);
 
         ColumnConstraints col1 = new ColumnConstraints();
@@ -206,6 +211,36 @@ public class OcrDownloadDialog {
             return "BSB/MDZ Digitale Sammlungen";
         }
 
+        if (archivTyp == OcrArchivTyp.BLB_KARLSRUHE) {
+            return "BLB Karlsruhe Digitale Sammlungen";
+        }
+
         return "Unbekannte OCR-Quelle";
+    }
+
+    private static String getArchivTypIdLabel(OcrArchivTyp archivTyp) {
+
+        if (archivTyp == OcrArchivTyp.BSB_MDZ) {
+            return "BSB/MDZ Object-ID:";
+        }
+
+        if (archivTyp == OcrArchivTyp.BLB_KARLSRUHE) {
+            return "BLB Manifest-ID:";
+        }
+
+        return "OCR Objekt-/Manifest-ID:";
+    }
+
+    private static String getArchivTypIdPrompt(OcrArchivTyp archivTyp) {
+
+        if (archivTyp == OcrArchivTyp.BSB_MDZ) {
+            return "z. B. bsb10335662";
+        }
+
+        if (archivTyp == OcrArchivTyp.BLB_KARLSRUHE) {
+            return "z. B. 7010966";
+        }
+
+        return "z. B. Objekt- oder Manifest-ID";
     }
 }
