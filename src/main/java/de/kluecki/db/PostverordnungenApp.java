@@ -28,6 +28,7 @@
 
 package de.kluecki.db;
 
+import de.kluecki.AppResourcePaths;
 import de.kluecki.db.UI.DocumentViewerWindow;
 import de.kluecki.db.UI.HilfeDialog;
 import de.kluecki.db.UI.HilfeEditorDialog;
@@ -191,7 +192,7 @@ public class PostverordnungenApp extends Application {
         Stage splashStage = new Stage();
 
         Image splashImage = new Image(
-                getClass().getResourceAsStream("/images/Ordinata_splash.png")
+                AppResourcePaths.getStartbildPngPath().toUri().toString()
         );
 
         ImageView splashView = new ImageView(splashImage);
@@ -336,6 +337,11 @@ public class PostverordnungenApp extends Application {
         Scene scene = new Scene(root);
         stage.setMaximized(true);
         stage.setTitle("Ordinata – Historische Postverordnungen");
+
+        stage.getIcons().add(
+                new Image(AppResourcePaths.getIconPngPath().toUri().toString())
+        );
+
         stage.setScene(scene);
         stage.show();
     }
@@ -1393,7 +1399,7 @@ public class PostverordnungenApp extends Application {
         statusInfoBox.setMaxWidth(Double.MAX_VALUE);
 
         ImageView logoView = new ImageView(
-                new Image(getClass().getResourceAsStream("/images/Ordinata_logo.png"))
+                new Image(AppResourcePaths.getIconPngPath().toUri().toString())
         );
 
         logoView.setPreserveRatio(true);
