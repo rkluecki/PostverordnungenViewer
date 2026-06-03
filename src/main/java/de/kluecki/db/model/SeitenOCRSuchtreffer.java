@@ -16,7 +16,17 @@ public class SeitenOCRSuchtreffer {
     private String logischeSeite;
     private String ocrQuelle;
     private String ocrFormat;
+    private String trefferArt;
     private String textAusschnitt;
+    private String suchbegriff;
+
+    public String getSuchbegriff() {
+        return suchbegriff;
+    }
+
+    public void setSuchbegriff(String suchbegriff) {
+        this.suchbegriff = suchbegriff;
+    }
 
     public int getSeitenOCRID() {
         return seitenOCRID;
@@ -72,6 +82,14 @@ public class SeitenOCRSuchtreffer {
 
     public void setOcrFormat(String ocrFormat) {
         this.ocrFormat = ocrFormat;
+    }
+
+    public String getTrefferArt() {
+        return trefferArt;
+    }
+
+    public void setTrefferArt(String trefferArt) {
+        this.trefferArt = trefferArt;
     }
 
     public String getTextAusschnitt() {

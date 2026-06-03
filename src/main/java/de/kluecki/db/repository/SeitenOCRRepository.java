@@ -101,20 +101,26 @@ public class SeitenOCRRepository {
                 LogischeSeite,
                 OCRQuelle,
                 OCRFormat,
-                OCRText
+                OCRText,
+                OCRTextKorrigiert
             FROM dbo.SeitenOCR
             WHERE BandID = ?
-              AND OCRText LIKE ?
+              AND (
+                    OCRText LIKE ?
+                    OR OCRTextKorrigiert LIKE ?
+                  )
             ORDER BY BildIndex
             """;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            String muster = "%" + suchbegriff.trim() + "%";
+            String suchbegriffBereinigt = suchbegriff.trim();
+            String muster = "%" + suchbegriffBereinigt + "%";
 
             stmt.setInt(1, bandId);
             stmt.setString(2, muster);
+            stmt.setString(3, muster);
 
             try (ResultSet rs = stmt.executeQuery()) {
 
@@ -122,6 +128,27 @@ public class SeitenOCRRepository {
                     SeitenOCRSuchtreffer suchtreffer = new SeitenOCRSuchtreffer();
 
                     String ocrText = rs.getString("OCRText");
+                    String ocrTextKorrigiert = rs.getString("OCRTextKorrigiert");
+
+                    boolean trefferOriginal =
+                            enthaeltSuchbegriff(ocrText, suchbegriffBereinigt);
+
+                    boolean trefferKorrigiert =
+                            enthaeltSuchbegriff(ocrTextKorrigiert, suchbegriffBereinigt);
+
+                    String trefferArt;
+                    String textFuerAusschnitt;
+
+                    if (trefferOriginal && trefferKorrigiert) {
+                        trefferArt = "Original + korrigiert";
+                        textFuerAusschnitt = ocrTextKorrigiert;
+                    } else if (trefferKorrigiert) {
+                        trefferArt = "Korrigierte Fassung";
+                        textFuerAusschnitt = ocrTextKorrigiert;
+                    } else {
+                        trefferArt = "Original-OCR";
+                        textFuerAusschnitt = ocrText;
+                    }
 
                     suchtreffer.setSeitenOCRID(rs.getInt("SeitenOCRID"));
                     suchtreffer.setBandID(rs.getInt("BandID"));
@@ -130,7 +157,12 @@ public class SeitenOCRRepository {
                     suchtreffer.setLogischeSeite(rs.getString("LogischeSeite"));
                     suchtreffer.setOcrQuelle(rs.getString("OCRQuelle"));
                     suchtreffer.setOcrFormat(rs.getString("OCRFormat"));
-                    suchtreffer.setTextAusschnitt(erstelleTextAusschnitt(ocrText, suchbegriff.trim()));
+
+                    suchtreffer.setTrefferArt(trefferArt);
+                    suchtreffer.setSuchbegriff(suchbegriffBereinigt);
+                    suchtreffer.setTextAusschnitt(
+                            erstelleTextAusschnitt(textFuerAusschnitt, suchbegriffBereinigt)
+                    );
 
                     treffer.add(suchtreffer);
                 }
@@ -141,6 +173,19 @@ public class SeitenOCRRepository {
         }
 
         return treffer;
+    }
+
+    private boolean enthaeltSuchbegriff(String text, String suchbegriff) {
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return false;
+        }
+
+        return text.toLowerCase().contains(suchbegriff.toLowerCase());
     }
 
     private String erstelleTextAusschnitt(String text, String suchbegriff) {

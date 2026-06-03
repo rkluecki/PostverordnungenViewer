@@ -83,6 +83,16 @@ public class OcrSucheDialog {
         );
         colSeite.setPrefWidth(110);
 
+        TableColumn<SeitenOCRSuchtreffer, String> colTrefferArt = new TableColumn<>("Trefferart");
+        colTrefferArt.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleStringProperty(
+                        cellData.getValue().getTrefferArt() != null
+                                ? cellData.getValue().getTrefferArt()
+                                : ""
+                )
+        );
+        colTrefferArt.setPrefWidth(150);
+
         TableColumn<SeitenOCRSuchtreffer, String> colAusschnitt = new TableColumn<>("Textausschnitt");
         colAusschnitt.setCellValueFactory(cellData ->
                 new javafx.beans.property.SimpleStringProperty(
@@ -93,7 +103,7 @@ public class OcrSucheDialog {
         );
         colAusschnitt.setPrefWidth(520);
 
-        tblTreffer.getColumns().addAll(colDateiname, colSeite, colAusschnitt);
+        tblTreffer.getColumns().addAll(colDateiname, colSeite, colTrefferArt, colAusschnitt);
         tblTreffer.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         tblTreffer.setPrefHeight(360);
 
@@ -144,6 +154,12 @@ public class OcrSucheDialog {
             }
         });
 
+        txtSuche.setOnAction(e -> {
+            if (!btnSuchen.isDisabled()) {
+                btnSuchen.fire();
+            }
+        });
+
         Button btnSchliessen = new Button("Schließen");
         btnSchliessen.setOnAction(e -> dialog.close());
 
@@ -170,7 +186,7 @@ public class OcrSucheDialog {
                 buttons
         );
 
-        Scene scene = new Scene(root, 780, 520);
+        Scene scene = new Scene(root, 920, 520);
         dialog.setScene(scene);
         dialog.showAndWait();
     }

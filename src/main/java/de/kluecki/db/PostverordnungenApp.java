@@ -95,6 +95,14 @@ public class PostverordnungenApp extends Application {
     // OCR-Anzeige zur aktuellen Seite
     private TextArea txtOcrText;
     private Label lblOcrInfo;
+    private Label lblOcrTrefferInfo;
+
+    private Button btnOcrTrefferZurueck;
+    private Button btnOcrTrefferWeiter;
+
+    private String aktuellerOcrSuchbegriff;
+    private final List<Integer> aktuelleOcrTrefferPositionen = new ArrayList<>();
+    private int aktuellerOcrTrefferIndex = -1;
 
     // Bildnavigation
     private final List<Path> aktuelleBildliste = new ArrayList<>();
@@ -548,12 +556,211 @@ public class PostverordnungenApp extends Application {
         aktuellerBildIndex = index;
         ladeAktuellesBild();
 
+        Platform.runLater(() ->
+                markiereSuchbegriffImOcrText(treffer.getSuchbegriff())
+        );
+
         zeigeStatusKurz(
                 "OCR-Treffer geöffnet: "
                         + dateiname
                         + " / logische Seite "
                         + treffer.getLogischeSeite()
         );
+    }
+
+    private void markiereSuchbegriffImOcrText(String suchbegriff) {
+
+        aktuelleOcrTrefferPositionen.clear();
+        aktuellerOcrTrefferIndex = -1;
+        aktuellerOcrSuchbegriff = suchbegriff;
+
+        if (btnOcrTrefferZurueck != null) {
+            btnOcrTrefferZurueck.setDisable(true);
+        }
+
+        if (btnOcrTrefferWeiter != null) {
+            btnOcrTrefferWeiter.setDisable(true);
+        }
+
+        if (txtOcrText == null || txtOcrText.getText() == null) {
+            return;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return;
+        }
+
+        String text = txtOcrText.getText();
+
+        if (text.isBlank()) {
+            return;
+        }
+
+        ermittleOcrTrefferPositionen(text, suchbegriff);
+
+        if (aktuelleOcrTrefferPositionen.isEmpty()) {
+            String meldung = "Suchbegriff wurde im angezeigten OCR-Text nicht gefunden: " + suchbegriff;
+
+            if (lblOcrTrefferInfo != null) {
+                lblOcrTrefferInfo.setText(meldung);
+            }
+
+            zeigeStatusKurz(meldung);
+            return;
+        }
+
+        aktuellerOcrTrefferIndex = 0;
+        markiereAktuellenOcrTreffer();
+    }
+
+    private void ermittleOcrTrefferPositionen(String text, String suchbegriff) {
+
+        aktuelleOcrTrefferPositionen.clear();
+
+        if (text == null || text.isBlank()) {
+            return;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return;
+        }
+
+        String textKlein = text.toLowerCase();
+        String suchbegriffKlein = suchbegriff.toLowerCase();
+
+        int position = 0;
+
+        while (true) {
+            position = textKlein.indexOf(suchbegriffKlein, position);
+
+            if (position < 0) {
+                break;
+            }
+
+            aktuelleOcrTrefferPositionen.add(position);
+            position += suchbegriffKlein.length();
+        }
+    }
+
+    private void markiereAktuellenOcrTreffer() {
+
+        if (txtOcrText == null || aktuellerOcrSuchbegriff == null) {
+            return;
+        }
+
+        if (aktuelleOcrTrefferPositionen.isEmpty()) {
+            return;
+        }
+
+        if (aktuellerOcrTrefferIndex < 0
+                || aktuellerOcrTrefferIndex >= aktuelleOcrTrefferPositionen.size()) {
+            return;
+        }
+
+        int position = aktuelleOcrTrefferPositionen.get(aktuellerOcrTrefferIndex);
+        int ende = position + aktuellerOcrSuchbegriff.length();
+
+        txtOcrText.requestFocus();
+        txtOcrText.selectRange(position, ende);
+
+        aktualisiereOcrTrefferAnzeige();
+    }
+
+    private void markiereNaechstenOcrTreffer() {
+
+        if (aktuelleOcrTrefferPositionen.isEmpty()) {
+            return;
+        }
+
+        aktuellerOcrTrefferIndex++;
+
+        if (aktuellerOcrTrefferIndex >= aktuelleOcrTrefferPositionen.size()) {
+            aktuellerOcrTrefferIndex = 0;
+        }
+
+        markiereAktuellenOcrTreffer();
+    }
+
+    private void markiereVorherigenOcrTreffer() {
+
+        if (aktuelleOcrTrefferPositionen.isEmpty()) {
+            return;
+        }
+
+        aktuellerOcrTrefferIndex--;
+
+        if (aktuellerOcrTrefferIndex < 0) {
+            aktuellerOcrTrefferIndex = aktuelleOcrTrefferPositionen.size() - 1;
+        }
+
+        markiereAktuellenOcrTreffer();
+    }
+
+    private void aktualisiereOcrTrefferAnzeige() {
+
+        int anzahl = aktuelleOcrTrefferPositionen.size();
+
+        boolean mehrereTreffer = anzahl > 1;
+
+        if (btnOcrTrefferZurueck != null) {
+            btnOcrTrefferZurueck.setDisable(!mehrereTreffer);
+        }
+
+        if (btnOcrTrefferWeiter != null) {
+            btnOcrTrefferWeiter.setDisable(!mehrereTreffer);
+        }
+
+        String meldung;
+
+        if (anzahl == 1) {
+            meldung = "Suchbegriff markiert: "
+                    + aktuellerOcrSuchbegriff
+                    + " / 1 Treffer auf dieser Seite";
+        } else {
+            meldung = "Suchbegriff markiert: "
+                    + aktuellerOcrSuchbegriff
+                    + " / Treffer "
+                    + (aktuellerOcrTrefferIndex + 1)
+                    + " von "
+                    + anzahl
+                    + " auf dieser Seite";
+        }
+
+        if (lblOcrTrefferInfo != null) {
+            lblOcrTrefferInfo.setText(meldung);
+        }
+
+        zeigeStatusKurz(meldung);
+    }
+
+    private int zaehleSuchbegriffImText(String text, String suchbegriff) {
+
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return 0;
+        }
+
+        String textKlein = text.toLowerCase();
+        String suchbegriffKlein = suchbegriff.toLowerCase();
+
+        int anzahl = 0;
+        int position = 0;
+
+        while (true) {
+            position = textKlein.indexOf(suchbegriffKlein, position);
+
+            if (position < 0) {
+                break;
+            }
+
+            anzahl++;
+            position += suchbegriffKlein.length();
+        }
+
+        return anzahl;
     }
 
     private void oeffneOcrDownloadDialog() {
@@ -1780,6 +1987,24 @@ public class PostverordnungenApp extends Application {
         Button btnOcrKorrigieren = new Button("Korrigierte Fassung bearbeiten...");
         btnOcrKorrigieren.setTooltip(new Tooltip("Korrigierte OCR-Fassung der aktuellen Seite bearbeiten"));
 
+        btnOcrTrefferZurueck = new Button("←");
+        btnOcrTrefferWeiter = new Button("→");
+
+        btnOcrTrefferZurueck.setMinWidth(34);
+        btnOcrTrefferWeiter.setMinWidth(34);
+
+        btnOcrTrefferZurueck.setPrefWidth(34);
+        btnOcrTrefferWeiter.setPrefWidth(34);
+
+        btnOcrTrefferZurueck.setDisable(true);
+        btnOcrTrefferWeiter.setDisable(true);
+
+        btnOcrTrefferZurueck.setTooltip(new Tooltip("Vorherigen Treffer auf dieser OCR-Seite markieren"));
+        btnOcrTrefferWeiter.setTooltip(new Tooltip("Nächsten Treffer auf dieser OCR-Seite markieren"));
+
+        btnOcrTrefferZurueck.setOnAction(e -> markiereVorherigenOcrTreffer());
+        btnOcrTrefferWeiter.setOnAction(e -> markiereNaechstenOcrTreffer());
+
         btnOcrKopieren.setOnAction(e -> {
 
             if (txtOcrText == null || txtOcrText.getText() == null || txtOcrText.getText().isBlank()) {
@@ -1812,6 +2037,13 @@ public class PostverordnungenApp extends Application {
         -fx-font-style: italic;
         """);
 
+        lblOcrTrefferInfo = new Label("");
+        lblOcrTrefferInfo.setStyle("""
+        -fx-font-size: 12px;
+        -fx-text-fill: #7a5a00;
+        -fx-font-weight: bold;
+        """);
+
         txtOcrText = new TextArea();
         txtOcrText.setEditable(false);
         txtOcrText.setWrapText(true);
@@ -1820,12 +2052,26 @@ public class PostverordnungenApp extends Application {
         txtOcrText.setStyle("""
             -fx-font-family: 'Consolas';
             -fx-font-size: 13px;
+            -fx-highlight-fill: yellow;
+            -fx-highlight-text-fill: black;
             """);
 
-        HBox ocrHeader = new HBox(8, lblOcrTitel, btnOcrKopieren, btnOcrKorrigieren);
+        Region ocrHeaderSpacer = new Region();
+        ocrHeaderSpacer.setMinWidth(8);
+
+        HBox ocrHeader = new HBox(
+                8,
+                lblOcrTitel,
+                btnOcrKopieren,
+                btnOcrKorrigieren,
+                ocrHeaderSpacer,
+                btnOcrTrefferZurueck,
+                btnOcrTrefferWeiter
+        );
+
         ocrHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
-        VBox ocrPane = new VBox(6, ocrHeader, lblOcrInfo, txtOcrText);
+        VBox ocrPane = new VBox(6, ocrHeader, lblOcrInfo, lblOcrTrefferInfo, txtOcrText);
         ocrPane.setPadding(new Insets(8));
         ocrPane.setPrefWidth(520);
         ocrPane.setMinWidth(360);
@@ -2454,6 +2700,22 @@ public class PostverordnungenApp extends Application {
     }
 
     private void aktualisiereOcrAnzeige() {
+
+        if (lblOcrTrefferInfo != null) {
+            lblOcrTrefferInfo.setText("");
+        }
+
+        aktuelleOcrTrefferPositionen.clear();
+        aktuellerOcrTrefferIndex = -1;
+        aktuellerOcrSuchbegriff = null;
+
+        if (btnOcrTrefferZurueck != null) {
+            btnOcrTrefferZurueck.setDisable(true);
+        }
+
+        if (btnOcrTrefferWeiter != null) {
+            btnOcrTrefferWeiter.setDisable(true);
+        }
 
         if (txtOcrText == null) {
             return;
