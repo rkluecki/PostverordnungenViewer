@@ -172,6 +172,7 @@ public class PostverordnungenApp extends Application {
     private boolean mappingEnterGedrueckt = false;
     private int mappingZielZeile = -1;
     private boolean mappingAutoWeiter = false;
+    private boolean grundmappingLaeuft = false;
 
     private enum NavigationLevel {
         HEFT,
@@ -931,6 +932,14 @@ public class PostverordnungenApp extends Application {
     }
 
     private void oeffneOcrDownloadDialog() {
+
+        if (grundmappingLaeuft) {
+            showAlert(
+                    "OCR-Import",
+                    "Das Grundmapping läuft noch.\n\nBitte warten, bis das Seitenmapping abgeschlossen ist."
+            );
+            return;
+        }
 
         if (aktuellesGebiet == null || aktuellesGebiet.isBlank()
                 || aktuellesBand == null || aktuellesBand.isBlank()) {
@@ -3520,8 +3529,16 @@ public class PostverordnungenApp extends Application {
 
     private void starteInitialMappingImHintergrund(int bandId, Runnable onSuccess) {
 
+        grundmappingLaeuft = true;
+
+        int anzahlBilder = aktuelleBildliste.size();
+
         if (statusLabel != null) {
-            zeigeArbeitsStatus("Seitenmapping wird erstellt ...");
+            zeigeArbeitsStatus(
+                    "Grundmapping läuft ... 0 / "
+                            + anzahlBilder
+                            + " Seiten vorbereitet. Bitte warten."
+            );
         }
 
         Task<Void> task = new Task<>() {
@@ -3531,15 +3548,37 @@ public class PostverordnungenApp extends Application {
                         .map(path -> path.getFileName().toString())
                         .toList();
 
+                updateMessage(
+                        "Grundmapping läuft ... "
+                                + dateinamen.size()
+                                + " Seiten werden vorbereitet. Bitte warten."
+                );
+
                 seitenMappingRepository.initialisiereGrundmappingFuerBand(
                         bandId,
                         dateinamen
                 );
+
+                updateMessage(
+                        "Grundmapping wird abgeschlossen ... "
+                                + dateinamen.size()
+                                + " Seiten verarbeitet."
+                );
+
                 return null;
             }
         };
 
+        task.messageProperty().addListener((obs, alt, neu) -> {
+            if (statusLabel != null && grundmappingLaeuft && neu != null && !neu.isBlank()) {
+                statusLabel.setText(neu);
+            }
+        });
+
         task.setOnSucceeded(event -> {
+
+            grundmappingLaeuft = false;
+
             if (statusLabel != null) {
                 statusLabel.setText("Seitenmapping wurde erstellt.");
             }
@@ -3554,6 +3593,9 @@ public class PostverordnungenApp extends Application {
         });
 
         task.setOnFailed(event -> {
+
+            grundmappingLaeuft = false;
+
             Throwable ex = task.getException();
             if (ex != null) {
                 ex.printStackTrace();
