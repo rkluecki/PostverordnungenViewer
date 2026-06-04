@@ -83,9 +83,26 @@ public class OcrSucheDialog {
 
         Button btnSuchen = new Button("Suchen");
         btnSuchen.setDisable(true);
+        btnSuchen.setStyle("""
+        -fx-background-color: #e7d7bd;
+        -fx-border-color: #b99b6b;
+        -fx-border-radius: 5;
+        -fx-background-radius: 5;
+        -fx-text-fill: #3f2f1f;
+        -fx-font-weight: bold;
+        -fx-padding: 5 14 5 14;
+        """);
 
         Button btnSuchhilfe = new Button("Hilfe zur Suche");
-        btnSuchhilfe.setTooltip(new Tooltip("Erklärung der Sucharten und Wildcards"));
+        btnSuchhilfe.setTooltip(new Tooltip("Erklärung der Suchbereiche, Sucharten, Trefferblöcke und Wildcards"));
+        btnSuchhilfe.setStyle("""
+        -fx-background-color: #f3eadb;
+        -fx-border-color: #c9b28e;
+        -fx-border-radius: 5;
+        -fx-background-radius: 5;
+        -fx-text-fill: #4f3b26;
+        -fx-padding: 5 12 5 12;
+        """);
 
         final int[] aktuellerOffset = {0};
         final boolean[] offsetVorSucheZuruecksetzen = {true};
