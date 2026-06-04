@@ -65,6 +65,9 @@ public class OcrSucheDialog {
         Button btnSuchen = new Button("Suchen");
         btnSuchen.setDisable(true);
 
+        Button btnSuchhilfe = new Button("Hilfe zur Suche");
+        btnSuchhilfe.setTooltip(new Tooltip("Erklärung der Sucharten und Wildcards"));
+
         Label lblStatus = new Label("Noch keine Suche gestartet.");
         lblStatus.setStyle("""
                 -fx-font-size: 12px;
@@ -169,6 +172,8 @@ public class OcrSucheDialog {
             }
         });
 
+        btnSuchhilfe.setOnAction(e -> zeigeSuchhilfeDialog(dialog));
+
         txtSuche.setOnAction(e -> {
             if (!btnSuchen.isDisabled()) {
                 btnSuchen.fire();
@@ -191,6 +196,7 @@ public class OcrSucheDialog {
         grid.add(new Label("Suchbegriff:"), 0, 2);
         grid.add(txtSuche, 1, 2);
         grid.add(btnSuchen, 2, 2);
+        grid.add(btnSuchhilfe, 3, 2);
 
         HBox buttons = new HBox(8, btnSchliessen);
         buttons.setPadding(new Insets(8, 0, 0, 0));
@@ -208,5 +214,172 @@ public class OcrSucheDialog {
         Scene scene = new Scene(root, 920, 520);
         dialog.setScene(scene);
         dialog.showAndWait();
+    }
+
+    private static void zeigeSuchhilfeDialog(Stage owner) {
+
+        Stage hilfeDialog = new Stage();
+        hilfeDialog.setTitle("Hilfe zur OCR-Suche");
+        hilfeDialog.initOwner(owner);
+        hilfeDialog.initModality(Modality.APPLICATION_MODAL);
+
+        Label lblTitel = new Label("Hilfe zur OCR-Suche");
+        lblTitel.setStyle("""
+            -fx-font-size: 18px;
+            -fx-font-weight: bold;
+            -fx-text-fill: #2b2b2b;
+            """);
+
+        Label lblUntertitel = new Label("Sucharten, Beispiele und Wildcards");
+        lblUntertitel.setStyle("""
+            -fx-font-size: 13px;
+            -fx-text-fill: #666666;
+            """);
+
+        TextArea txtHilfe = new TextArea();
+        txtHilfe.setEditable(false);
+        txtHilfe.setWrapText(true);
+
+        txtHilfe.setStyle("""
+            -fx-font-family: 'Consolas';
+            -fx-font-size: 13px;
+            -fx-control-inner-background: #fffdf7;
+            """);
+
+        txtHilfe.setText(
+                """
+                Die OCR-Suche durchsucht:
+    
+                  • Original-OCR
+                  • korrigierte OCR-Fassung
+    
+                Wenn eine korrigierte Fassung vorhanden ist, wird sie bevorzugt
+                für Trefferanzeige, Textausschnitt und Markierung verwendet.
+    
+    
+                SUCHARTEN
+                ============================================================
+    
+                1) enthält
+                ------------------------------------------------------------
+                Findet den Suchbegriff irgendwo im OCR-Text.
+    
+                Beispiel:
+                  Suchbegriff: könig
+    
+                Findet z. B.:
+                  könig
+                  königlich
+                  königlichen
+                  Königreich
+    
+    
+                2) exakt
+                ------------------------------------------------------------
+                Findet den Suchbegriff als eigenes Wort oder genaue Phrase.
+    
+                Beispiel:
+                  Suchbegriff: königlich
+    
+                Findet:
+                  königlich
+    
+                Findet nicht:
+                  königlichen
+    
+                Hinweis:
+                  Diese Suchart ist gut, wenn ein Begriff nicht nur als Teil
+                  eines längeren Wortes gefunden werden soll.
+    
+    
+                3) beginnt mit
+                ------------------------------------------------------------
+                Findet Wörter, die mit dem Suchbegriff beginnen.
+    
+                Beispiel:
+                  Suchbegriff: könig
+    
+                Findet z. B.:
+                  könig
+                  königlich
+                  königlichen
+                  Königreich
+    
+                Findet nicht:
+                  großköniglich, wenn könig nicht am Wortanfang steht.
+    
+    
+                4) endet mit
+                ------------------------------------------------------------
+                Findet Wörter, die mit dem Suchbegriff enden.
+    
+                Beispiel:
+                  Suchbegriff: lich
+    
+                Findet z. B.:
+                  königlich
+                  amtlich
+                  schriftlich
+    
+                Findet nicht:
+                  lichter, weil nach lich noch weitere Buchstaben folgen.
+    
+    
+                5) Wildcard
+                ------------------------------------------------------------
+                Erlaubt Platzhalter.
+    
+                  %   = beliebig viele Zeichen
+                  _   = genau ein Zeichen
+    
+                Beispiele:
+    
+                  könig%
+                  findet z. B. königlich, königlichen, Königreich
+    
+                  %lich
+                  findet z. B. königlich, amtlich, schriftlich
+    
+                  k_nig%
+                  findet z. B. könig..., wenn genau ein Zeichen zwischen
+                  k und nig steht
+    
+    
+                WICHTIGE HINWEISE
+                ============================================================
+    
+                • Bei Wildcard werden % und _ bewusst als Platzhalter verwendet.
+    
+                • Bei den anderen Sucharten werden % und _ wie normaler Text
+                  behandelt.
+    
+                • Die Trefferliste zeigt, ob der Treffer im Original-OCR,
+                  in der korrigierten Fassung oder in beiden Fassungen gefunden wurde.
+    
+                • Per Doppelklick auf einen Treffer springt Ordinata zur Seite
+                  und markiert den gefundenen Begriff im OCR-Feld.
+    
+                • Mit den Pfeilbuttons im OCR-Bereich kann man bei mehreren
+                  Treffern auf einer Seite vor- und zurückspringen.
+                """
+        );
+
+        Button btnSchliessen = new Button("Schließen");
+        btnSchliessen.setOnAction(e -> hilfeDialog.close());
+
+        HBox buttonLeiste = new HBox(btnSchliessen);
+        buttonLeiste.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+
+        VBox root = new VBox(8, lblTitel, lblUntertitel, txtHilfe, buttonLeiste);
+        root.setPadding(new Insets(14));
+        root.setStyle("""
+            -fx-background-color: #f8f5ef;
+            """);
+
+        VBox.setVgrow(txtHilfe, Priority.ALWAYS);
+
+        Scene scene = new Scene(root, 720, 620);
+        hilfeDialog.setScene(scene);
+        hilfeDialog.showAndWait();
     }
 }
