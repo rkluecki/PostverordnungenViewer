@@ -512,6 +512,7 @@ public class PostverordnungenApp extends Application {
         OcrSucheDialog.show(
                 ownerStage,
                 bandId,
+                aktuellesGebiet,
                 bandAnzeige,
                 treffer -> springeZuOcrSuchtreffer(treffer)
         );
@@ -527,6 +528,38 @@ public class PostverordnungenApp extends Application {
 
         if (dateiname == null || dateiname.isBlank()) {
             showAlert("OCR-Suche", "Der Suchtreffer enthält keinen Dateinamen.");
+            return;
+        }
+
+        int aktuellerBandId = 0;
+
+        if (aktuellesGebiet != null && !aktuellesGebiet.isBlank()
+                && aktuellesBand != null && !aktuellesBand.isBlank()) {
+            aktuellerBandId = ermittleBandId(aktuellesGebiet, aktuellesBand);
+        }
+
+        if (treffer.getBandID() > 0 && treffer.getBandID() != aktuellerBandId) {
+
+            String zielGebiet = treffer.getGebiet();
+            String zielBand = treffer.getBandAnzeige();
+
+            if (zielGebiet == null || zielGebiet.isBlank()
+                    || zielBand == null || zielBand.isBlank()) {
+
+                showAlert(
+                        "OCR-Suche",
+                        "Der Treffer liegt in einem anderen Band, aber Gebiet oder Bandangabe fehlen."
+                );
+                return;
+            }
+
+            boolean gewechselt = waehleGebietUndBandAus(zielGebiet, zielBand);
+
+            if (!gewechselt) {
+                return;
+            }
+
+            Platform.runLater(() -> springeZuOcrSuchtreffer(treffer));
             return;
         }
 
@@ -1701,6 +1734,35 @@ public class PostverordnungenApp extends Application {
                     waehleHeftEintragInTabelleAus(heftEintrag.getHeftEintragID())
             );
         });
+    }
+
+    private boolean waehleGebietUndBandAus(String zielGebiet, String zielBand) {
+
+        if (zielGebiet == null || zielGebiet.isBlank()) {
+            return false;
+        }
+
+        if (zielBand == null || zielBand.isBlank()) {
+            return false;
+        }
+
+        if (!gebietListView.getItems().contains(zielGebiet)) {
+            showAlert("OCR-Suche", "Das Gebiet wurde in der Navigation nicht gefunden:\n" + zielGebiet);
+            return false;
+        }
+
+        gebietListView.getSelectionModel().select(zielGebiet);
+        gebietListView.scrollTo(zielGebiet);
+
+        if (!bandListView.getItems().contains(zielBand)) {
+            showAlert("OCR-Suche", "Der Band wurde im Gebiet nicht gefunden:\n" + zielBand);
+            return false;
+        }
+
+        bandListView.getSelectionModel().select(zielBand);
+        bandListView.scrollTo(zielBand);
+
+        return true;
     }
 
     private BorderPane createDocumentPane(VBox imageToolbar, HBox bildNavigation) {

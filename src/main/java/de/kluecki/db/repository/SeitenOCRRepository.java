@@ -180,6 +180,256 @@ public class SeitenOCRRepository {
         return treffer;
     }
 
+    public List<SeitenOCRSuchtreffer> sucheOcrTextImGebiet(String gebiet, String suchbegriff, String suchart) {
+
+        List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
+
+        if (gebiet == null || gebiet.trim().isBlank()) {
+            return treffer;
+        }
+
+        if (suchbegriff == null || suchbegriff.trim().isBlank()) {
+            return treffer;
+        }
+
+        String sql = """
+        SELECT TOP 1000
+                s.SeitenOCRID,
+                s.BandID,
+                s.BildIndex,
+                s.Dateiname,
+                s.LogischeSeite,
+                s.OCRQuelle,
+                s.OCRFormat,
+                s.OCRText,
+                s.OCRTextKorrigiert,
+                q.Land,
+                q.Jahr,
+                q.JahrVon,
+                q.JahrBis
+            FROM dbo.SeitenOCR s
+            INNER JOIN dbo.Quelle q
+                ON q.QuelleID = s.BandID
+            WHERE q.EbeneTyp = 'BAND'
+              AND q.Land = ?
+              AND (
+                    s.OCRText LIKE ?
+                    OR s.OCRTextKorrigiert LIKE ?
+                  )
+            ORDER BY
+                q.Jahr,
+                q.JahrVon,
+                s.BildIndex
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            String suchbegriffBereinigt = suchbegriff.trim();
+            String muster = baueLikeMuster(suchbegriffBereinigt, suchart);
+
+            stmt.setString(1, gebiet.trim());
+            stmt.setString(2, muster);
+            stmt.setString(3, muster);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+
+                while (rs.next()) {
+                    SeitenOCRSuchtreffer suchtreffer = new SeitenOCRSuchtreffer();
+
+                    String ocrText = rs.getString("OCRText");
+                    String ocrTextKorrigiert = rs.getString("OCRTextKorrigiert");
+
+                    boolean trefferOriginal =
+                            passtSuchbegriff(ocrText, suchbegriffBereinigt, suchart);
+
+                    boolean trefferKorrigiert =
+                            passtSuchbegriff(ocrTextKorrigiert, suchbegriffBereinigt, suchart);
+
+                    if (!trefferOriginal && !trefferKorrigiert) {
+                        continue;
+                    }
+
+                    String trefferArt;
+                    String textFuerAusschnitt;
+
+                    if (trefferOriginal && trefferKorrigiert) {
+                        trefferArt = "Original + korrigiert";
+                        textFuerAusschnitt = ocrTextKorrigiert;
+                    } else if (trefferKorrigiert) {
+                        trefferArt = "Korrigierte Fassung";
+                        textFuerAusschnitt = ocrTextKorrigiert;
+                    } else {
+                        trefferArt = "Original-OCR";
+                        textFuerAusschnitt = ocrText;
+                    }
+
+                    Integer jahr = (Integer) rs.getObject("Jahr");
+                    Integer jahrVon = (Integer) rs.getObject("JahrVon");
+                    Integer jahrBis = (Integer) rs.getObject("JahrBis");
+
+                    suchtreffer.setSeitenOCRID(rs.getInt("SeitenOCRID"));
+                    suchtreffer.setBandID(rs.getInt("BandID"));
+                    suchtreffer.setBildIndex(rs.getInt("BildIndex"));
+                    suchtreffer.setDateiname(rs.getString("Dateiname"));
+                    suchtreffer.setLogischeSeite(rs.getString("LogischeSeite"));
+                    suchtreffer.setOcrQuelle(rs.getString("OCRQuelle"));
+                    suchtreffer.setOcrFormat(rs.getString("OCRFormat"));
+
+                    suchtreffer.setGebiet(rs.getString("Land"));
+                    suchtreffer.setBandAnzeige(baueBandAnzeige(jahr, jahrVon, jahrBis));
+
+                    suchtreffer.setTrefferArt(trefferArt);
+                    suchtreffer.setSuchbegriff(suchbegriffBereinigt);
+                    suchtreffer.setSuchart(suchart);
+                    suchtreffer.setTextAusschnitt(
+                            erstelleTextAusschnitt(textFuerAusschnitt, suchbegriffBereinigt, suchart)
+                    );
+
+                    treffer.add(suchtreffer);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return treffer;
+    }
+
+    public List<SeitenOCRSuchtreffer> sucheOcrTextAlleGebiete(String suchbegriff, String suchart) {
+
+        List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
+
+        if (suchbegriff == null || suchbegriff.trim().isBlank()) {
+            return treffer;
+        }
+
+        String sql = """
+        SELECT TOP 1000
+            s.SeitenOCRID,
+            s.BandID,
+            s.BildIndex,
+            s.Dateiname,
+            s.LogischeSeite,
+            s.OCRQuelle,
+            s.OCRFormat,
+            s.OCRText,
+            s.OCRTextKorrigiert,
+            q.Land,
+            q.Jahr,
+            q.JahrVon,
+            q.JahrBis
+        FROM dbo.SeitenOCR s
+        INNER JOIN dbo.Quelle q
+            ON q.QuelleID = s.BandID
+        WHERE q.EbeneTyp = 'BAND'
+          AND (
+                s.OCRText LIKE ?
+                OR s.OCRTextKorrigiert LIKE ?
+              )
+        ORDER BY
+            q.Land,
+            q.Jahr,
+            q.JahrVon,
+            s.BildIndex
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            String suchbegriffBereinigt = suchbegriff.trim();
+            String muster = baueLikeMuster(suchbegriffBereinigt, suchart);
+
+            stmt.setString(1, muster);
+            stmt.setString(2, muster);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+
+                while (rs.next()) {
+                    SeitenOCRSuchtreffer suchtreffer = new SeitenOCRSuchtreffer();
+
+                    String ocrText = rs.getString("OCRText");
+                    String ocrTextKorrigiert = rs.getString("OCRTextKorrigiert");
+
+                    boolean trefferOriginal =
+                            passtSuchbegriff(ocrText, suchbegriffBereinigt, suchart);
+
+                    boolean trefferKorrigiert =
+                            passtSuchbegriff(ocrTextKorrigiert, suchbegriffBereinigt, suchart);
+
+                    if (!trefferOriginal && !trefferKorrigiert) {
+                        continue;
+                    }
+
+                    String trefferArt;
+                    String textFuerAusschnitt;
+
+                    if (trefferOriginal && trefferKorrigiert) {
+                        trefferArt = "Original + korrigiert";
+                        textFuerAusschnitt = ocrTextKorrigiert;
+                    } else if (trefferKorrigiert) {
+                        trefferArt = "Korrigierte Fassung";
+                        textFuerAusschnitt = ocrTextKorrigiert;
+                    } else {
+                        trefferArt = "Original-OCR";
+                        textFuerAusschnitt = ocrText;
+                    }
+
+                    Integer jahr = (Integer) rs.getObject("Jahr");
+                    Integer jahrVon = (Integer) rs.getObject("JahrVon");
+                    Integer jahrBis = (Integer) rs.getObject("JahrBis");
+
+                    suchtreffer.setSeitenOCRID(rs.getInt("SeitenOCRID"));
+                    suchtreffer.setBandID(rs.getInt("BandID"));
+                    suchtreffer.setBildIndex(rs.getInt("BildIndex"));
+                    suchtreffer.setDateiname(rs.getString("Dateiname"));
+                    suchtreffer.setLogischeSeite(rs.getString("LogischeSeite"));
+                    suchtreffer.setOcrQuelle(rs.getString("OCRQuelle"));
+                    suchtreffer.setOcrFormat(rs.getString("OCRFormat"));
+
+                    suchtreffer.setGebiet(rs.getString("Land"));
+                    suchtreffer.setBandAnzeige(baueBandAnzeige(jahr, jahrVon, jahrBis));
+
+                    suchtreffer.setTrefferArt(trefferArt);
+                    suchtreffer.setSuchbegriff(suchbegriffBereinigt);
+                    suchtreffer.setSuchart(suchart);
+                    suchtreffer.setTextAusschnitt(
+                            erstelleTextAusschnitt(textFuerAusschnitt, suchbegriffBereinigt, suchart)
+                    );
+
+                    treffer.add(suchtreffer);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return treffer;
+    }
+
+    private String baueBandAnzeige(Integer jahr, Integer jahrVon, Integer jahrBis) {
+
+        if (jahrVon != null && jahrBis != null && !jahrVon.equals(jahrBis)) {
+            return jahrVon + "-" + jahrBis;
+        }
+
+        if (jahr != null) {
+            return String.valueOf(jahr);
+        }
+
+        if (jahrVon != null && jahrBis != null) {
+            return jahrVon + "-" + jahrBis;
+        }
+
+        if (jahrVon != null) {
+            return String.valueOf(jahrVon);
+        }
+
+        return "";
+    }
+
     private String baueLikeMuster(String suchbegriff, String suchart) {
 
         if (suchbegriff == null) {
@@ -466,7 +716,7 @@ public class SeitenOCRRepository {
                           WHEN OCRFormat IS NULL OR LTRIM(RTRIM(OCRFormat)) = '' THEN ?
                           ELSE OCRFormat
                        END,
-                       GeaendertAm = SYSUTCDATETIME() = SYSUTCDATETIME()
+                       GeaendertAm = SYSUTCDATETIME()
                     WHERE BandID = ?
                       AND Dateiname = ?
                 END

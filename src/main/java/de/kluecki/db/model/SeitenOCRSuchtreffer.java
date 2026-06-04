@@ -20,6 +20,8 @@ public class SeitenOCRSuchtreffer {
     private String textAusschnitt;
     private String suchbegriff;
     private String suchart;
+    private String gebiet;
+    private String bandAnzeige;
 
     public String getSuchart() {
         return suchart;
@@ -107,5 +109,21 @@ public class SeitenOCRSuchtreffer {
 
     public void setTextAusschnitt(String textAusschnitt) {
         this.textAusschnitt = textAusschnitt;
+    }
+
+    public String getGebiet() {
+        return gebiet;
+    }
+
+    public void setGebiet(String gebiet) {
+        this.gebiet = gebiet;
+    }
+
+    public String getBandAnzeige() {
+        return bandAnzeige;
+    }
+
+    public void setBandAnzeige(String bandAnzeige) {
+        this.bandAnzeige = bandAnzeige;
     }
 }

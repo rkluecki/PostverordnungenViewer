@@ -26,15 +26,16 @@ public class OcrSucheDialog {
     public static void show(
             Stage owner,
             int bandId,
+            String gebiet,
             String bandAnzeige,
             Consumer<SeitenOCRSuchtreffer> onTrefferAuswahl
     ) {
         Stage dialog = new Stage();
         dialog.setTitle("OCR-Text suchen");
         dialog.initOwner(owner);
-        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.initModality(Modality.NONE);
 
-        Label lblTitel = new Label("OCR-Text im aktuellen Band suchen");
+        Label lblTitel = new Label("OCR-Text suchen");
         lblTitel.setStyle("""
                 -fx-font-size: 15px;
                 -fx-font-weight: bold;
@@ -45,6 +46,13 @@ public class OcrSucheDialog {
                 bandAnzeige != null && !bandAnzeige.isBlank()
                         ? bandAnzeige
                         : "(kein Bandname verfügbar)"
+        );
+
+        Label lblGebiet = new Label("Aktuelles Gebiet:");
+        Label lblGebietWert = new Label(
+                gebiet != null && !gebiet.isBlank()
+                        ? gebiet
+                        : "(kein Gebiet verfügbar)"
         );
 
         TextField txtSuche = new TextField();
@@ -62,6 +70,15 @@ public class OcrSucheDialog {
         cmbSuchart.getSelectionModel().select("enthält");
         cmbSuchart.setPrefWidth(130);
 
+        ComboBox<String> cmbSuchbereich = new ComboBox<>();
+        cmbSuchbereich.getItems().addAll(
+                "aktueller Band",
+                "aktuelles Gebiet",
+                "alle Gebiete"
+        );
+        cmbSuchbereich.getSelectionModel().select("aktueller Band");
+        cmbSuchbereich.setPrefWidth(160);
+
         Button btnSuchen = new Button("Suchen");
         btnSuchen.setDisable(true);
 
@@ -77,6 +94,26 @@ public class OcrSucheDialog {
         TableView<SeitenOCRSuchtreffer> tblTreffer = new TableView<>();
         tblTreffer.setPlaceholder(new Label("Keine Treffer vorhanden"));
 
+        TableColumn<SeitenOCRSuchtreffer, String> colGebiet = new TableColumn<>("Gebiet");
+        colGebiet.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleStringProperty(
+                        cellData.getValue().getGebiet() != null
+                                ? cellData.getValue().getGebiet()
+                                : ""
+                )
+        );
+        colGebiet.setPrefWidth(100);
+
+        TableColumn<SeitenOCRSuchtreffer, String> colBand = new TableColumn<>("Band");
+        colBand.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleStringProperty(
+                        cellData.getValue().getBandAnzeige() != null
+                                ? cellData.getValue().getBandAnzeige()
+                                : ""
+                )
+        );
+        colBand.setPrefWidth(130);
+
         TableColumn<SeitenOCRSuchtreffer, String> colDateiname = new TableColumn<>("Dateiname");
         colDateiname.setCellValueFactory(cellData ->
                 new javafx.beans.property.SimpleStringProperty(
@@ -85,7 +122,7 @@ public class OcrSucheDialog {
                                 : ""
                 )
         );
-        colDateiname.setPrefWidth(100);
+        colDateiname.setPrefWidth(90);
 
         TableColumn<SeitenOCRSuchtreffer, String> colSeite = new TableColumn<>("Logische Seite");
         colSeite.setCellValueFactory(cellData ->
@@ -117,9 +154,9 @@ public class OcrSucheDialog {
         );
         colAusschnitt.setPrefWidth(520);
 
-        tblTreffer.getColumns().addAll(colDateiname, colSeite, colTrefferArt, colAusschnitt);
+        tblTreffer.getColumns().addAll(colGebiet, colBand, colDateiname, colSeite, colTrefferArt, colAusschnitt);
         tblTreffer.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        tblTreffer.setPrefHeight(360);
+        tblTreffer.setPrefHeight(460);
 
         tblTreffer.setRowFactory(tv -> {
             TableRow<SeitenOCRSuchtreffer> row = new TableRow<>();
@@ -132,7 +169,6 @@ public class OcrSucheDialog {
                         onTrefferAuswahl.accept(treffer);
                     }
 
-                    dialog.close();
                 }
             });
 
@@ -158,8 +194,40 @@ public class OcrSucheDialog {
                     ? cmbSuchart.getValue()
                     : "enthält";
 
-            List<SeitenOCRSuchtreffer> treffer =
-                    repository.sucheOcrText(bandId, suchbegriff, suchart);
+            String suchbereich = cmbSuchbereich.getValue() != null
+                    ? cmbSuchbereich.getValue()
+                    : "aktueller Band";
+
+            List<SeitenOCRSuchtreffer> treffer;
+
+            if ("aktuelles Gebiet".equals(suchbereich)) {
+
+                treffer = repository.sucheOcrTextImGebiet(
+                        gebiet,
+                        suchbegriff,
+                        suchart
+                );
+
+            } else if ("alle Gebiete".equals(suchbereich)) {
+
+                treffer = repository.sucheOcrTextAlleGebiete(
+                        suchbegriff,
+                        suchart
+                );
+
+            }  else {
+
+            treffer = repository.sucheOcrText(
+                    bandId,
+                    suchbegriff,
+                    suchart
+            );
+
+            for (SeitenOCRSuchtreffer t : treffer) {
+                t.setGebiet(gebiet);
+                t.setBandAnzeige(bandAnzeige);
+            }
+        }
 
             tblTreffer.setItems(FXCollections.observableArrayList(treffer));
 
@@ -187,16 +255,22 @@ public class OcrSucheDialog {
         grid.setHgap(10);
         grid.setVgap(8);
 
-        grid.add(lblBand, 0, 0);
-        grid.add(lblBandWert, 1, 0);
+        grid.add(lblGebiet, 0, 0);
+        grid.add(lblGebietWert, 1, 0);
 
-        grid.add(new Label("Suchart:"), 0, 1);
-        grid.add(cmbSuchart, 1, 1);
+        grid.add(lblBand, 0, 1);
+        grid.add(lblBandWert, 1, 1);
 
-        grid.add(new Label("Suchbegriff:"), 0, 2);
-        grid.add(txtSuche, 1, 2);
-        grid.add(btnSuchen, 2, 2);
-        grid.add(btnSuchhilfe, 3, 2);
+        grid.add(new Label("Suchbereich:"), 0, 2);
+        grid.add(cmbSuchbereich, 1, 2);
+
+        grid.add(new Label("Suchart:"), 0, 3);
+        grid.add(cmbSuchart, 1, 3);
+
+        grid.add(new Label("Suchbegriff:"), 0, 4);
+        grid.add(txtSuche, 1, 4);
+        grid.add(btnSuchen, 2, 4);
+        grid.add(btnSuchhilfe, 3, 4);
 
         HBox buttons = new HBox(8, btnSchliessen);
         buttons.setPadding(new Insets(8, 0, 0, 0));
@@ -211,9 +285,9 @@ public class OcrSucheDialog {
                 buttons
         );
 
-        Scene scene = new Scene(root, 920, 520);
+        Scene scene = new Scene(root, 1250, 650);
         dialog.setScene(scene);
-        dialog.showAndWait();
+        dialog.show();
     }
 
     private static void zeigeSuchhilfeDialog(Stage owner) {
