@@ -102,6 +102,7 @@ public class PostverordnungenApp extends Application {
 
     private String aktuellerOcrSuchbegriff;
     private final List<Integer> aktuelleOcrTrefferPositionen = new ArrayList<>();
+    private final List<Integer> aktuelleOcrTrefferLaengen = new ArrayList<>();
     private int aktuellerOcrTrefferIndex = -1;
 
     // Bildnavigation
@@ -557,7 +558,7 @@ public class PostverordnungenApp extends Application {
         ladeAktuellesBild();
 
         Platform.runLater(() ->
-                markiereSuchbegriffImOcrText(treffer.getSuchbegriff())
+                markiereSuchbegriffImOcrText(treffer.getSuchbegriff(), treffer.getSuchart())
         );
 
         zeigeStatusKurz(
@@ -568,9 +569,10 @@ public class PostverordnungenApp extends Application {
         );
     }
 
-    private void markiereSuchbegriffImOcrText(String suchbegriff) {
+    private void markiereSuchbegriffImOcrText(String suchbegriff, String suchart) {
 
         aktuelleOcrTrefferPositionen.clear();
+        aktuelleOcrTrefferLaengen.clear();
         aktuellerOcrTrefferIndex = -1;
         aktuellerOcrSuchbegriff = suchbegriff;
 
@@ -596,7 +598,7 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
-        ermittleOcrTrefferPositionen(text, suchbegriff);
+        ermittleOcrTrefferPositionen(text, suchbegriff, suchart);
 
         if (aktuelleOcrTrefferPositionen.isEmpty()) {
             String meldung = "Suchbegriff wurde im angezeigten OCR-Text nicht gefunden: " + suchbegriff;
@@ -613,7 +615,7 @@ public class PostverordnungenApp extends Application {
         markiereAktuellenOcrTreffer();
     }
 
-    private void ermittleOcrTrefferPositionen(String text, String suchbegriff) {
+    private void ermittleOcrTrefferPositionen(String text, String suchbegriff, String suchart) {
 
         aktuelleOcrTrefferPositionen.clear();
 
@@ -622,6 +624,26 @@ public class PostverordnungenApp extends Application {
         }
 
         if (suchbegriff == null || suchbegriff.isBlank()) {
+            return;
+        }
+
+        if ("exakt".equals(suchart)) {
+            ermittleExakteOcrTrefferPositionen(text, suchbegriff);
+            return;
+        }
+
+        if ("beginnt mit".equals(suchart)) {
+            ermittleOcrTrefferPositionenWortBeginntMit(text, suchbegriff);
+            return;
+        }
+
+        if ("endet mit".equals(suchart)) {
+            ermittleOcrTrefferPositionenWortEndetMit(text, suchbegriff);
+            return;
+        }
+
+        if ("Wildcard".equals(suchart)) {
+            ermittleOcrTrefferPositionenWildcard(text, suchbegriff);
             return;
         }
 
@@ -638,8 +660,113 @@ public class PostverordnungenApp extends Application {
             }
 
             aktuelleOcrTrefferPositionen.add(position);
+            aktuelleOcrTrefferLaengen.add(suchbegriff.length());
+
             position += suchbegriffKlein.length();
         }
+    }
+
+    private void ermittleOcrTrefferPositionenWortBeginntMit(String text, String suchbegriff) {
+
+        String regex = "(?<![\\p{L}\\p{N}])"
+                + java.util.regex.Pattern.quote(suchbegriff);
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                regex,
+                java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE
+        );
+
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find()) {
+            aktuelleOcrTrefferPositionen.add(matcher.start());
+            aktuelleOcrTrefferLaengen.add(matcher.end() - matcher.start());
+        }
+    }
+
+    private void ermittleOcrTrefferPositionenWortEndetMit(String text, String suchbegriff) {
+
+        String regex = java.util.regex.Pattern.quote(suchbegriff)
+                + "(?![\\p{L}\\p{N}])";
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                regex,
+                java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE
+        );
+
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find()) {
+            aktuelleOcrTrefferPositionen.add(matcher.start());
+            aktuelleOcrTrefferLaengen.add(matcher.end() - matcher.start());
+        }
+    }
+
+    private void ermittleExakteOcrTrefferPositionen(String text, String suchbegriff) {
+
+        String regex = "(?<![\\p{L}\\p{N}])"
+                + java.util.regex.Pattern.quote(suchbegriff)
+                + "(?![\\p{L}\\p{N}])";
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                regex,
+                java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE
+        );
+
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find()) {
+            aktuelleOcrTrefferPositionen.add(matcher.start());
+            aktuelleOcrTrefferLaengen.add(matcher.end() - matcher.start());
+        }
+    }
+
+    private void ermittleOcrTrefferPositionenWildcard(String text, String wildcardMuster) {
+
+        if (text == null || text.isBlank()) {
+            return;
+        }
+
+        if (wildcardMuster == null || wildcardMuster.isBlank()) {
+            return;
+        }
+
+        String regex = sqlLikeMusterZuRegexFuerTreffer(wildcardMuster);
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                regex,
+                java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE
+        );
+
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find()) {
+            if (matcher.start() == matcher.end()) {
+                continue;
+            }
+
+            aktuelleOcrTrefferPositionen.add(matcher.start());
+            aktuelleOcrTrefferLaengen.add(matcher.end() - matcher.start());
+        }
+    }
+
+    private String sqlLikeMusterZuRegexFuerTreffer(String muster) {
+
+        StringBuilder regex = new StringBuilder();
+
+        for (int i = 0; i < muster.length(); i++) {
+            char zeichen = muster.charAt(i);
+
+            if (zeichen == '%') {
+                regex.append("[\\p{L}\\p{N}]*");
+            } else if (zeichen == '_') {
+                regex.append("[\\p{L}\\p{N}]");
+            } else {
+                regex.append(java.util.regex.Pattern.quote(String.valueOf(zeichen)));
+            }
+        }
+
+        return regex.toString();
     }
 
     private void markiereAktuellenOcrTreffer() {
@@ -658,8 +785,15 @@ public class PostverordnungenApp extends Application {
         }
 
         int position = aktuelleOcrTrefferPositionen.get(aktuellerOcrTrefferIndex);
-        int ende = position + aktuellerOcrSuchbegriff.length();
 
+        int laenge = aktuellerOcrSuchbegriff.length();
+
+        if (aktuellerOcrTrefferIndex >= 0
+                && aktuellerOcrTrefferIndex < aktuelleOcrTrefferLaengen.size()) {
+            laenge = aktuelleOcrTrefferLaengen.get(aktuellerOcrTrefferIndex);
+        }
+
+        int ende = position + laenge;
         txtOcrText.requestFocus();
         txtOcrText.selectRange(position, ende);
 
@@ -2706,6 +2840,7 @@ public class PostverordnungenApp extends Application {
         }
 
         aktuelleOcrTrefferPositionen.clear();
+        aktuelleOcrTrefferLaengen.clear();
         aktuellerOcrTrefferIndex = -1;
         aktuellerOcrSuchbegriff = null;
 

@@ -84,7 +84,7 @@ public class SeitenOCRRepository {
         return null;
     }
 
-    public List<SeitenOCRSuchtreffer> sucheOcrText(int bandId, String suchbegriff) {
+    public List<SeitenOCRSuchtreffer> sucheOcrText(int bandId, String suchbegriff, String suchart) {
 
         List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
 
@@ -116,7 +116,7 @@ public class SeitenOCRRepository {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             String suchbegriffBereinigt = suchbegriff.trim();
-            String muster = "%" + suchbegriffBereinigt + "%";
+            String muster = baueLikeMuster(suchbegriffBereinigt, suchart);
 
             stmt.setInt(1, bandId);
             stmt.setString(2, muster);
@@ -131,10 +131,14 @@ public class SeitenOCRRepository {
                     String ocrTextKorrigiert = rs.getString("OCRTextKorrigiert");
 
                     boolean trefferOriginal =
-                            enthaeltSuchbegriff(ocrText, suchbegriffBereinigt);
+                            passtSuchbegriff(ocrText, suchbegriffBereinigt, suchart);
 
                     boolean trefferKorrigiert =
-                            enthaeltSuchbegriff(ocrTextKorrigiert, suchbegriffBereinigt);
+                            passtSuchbegriff(ocrTextKorrigiert, suchbegriffBereinigt, suchart);
+
+                    if (!trefferOriginal && !trefferKorrigiert) {
+                        continue;
+                    }
 
                     String trefferArt;
                     String textFuerAusschnitt;
@@ -160,8 +164,9 @@ public class SeitenOCRRepository {
 
                     suchtreffer.setTrefferArt(trefferArt);
                     suchtreffer.setSuchbegriff(suchbegriffBereinigt);
+                    suchtreffer.setSuchart(suchart);
                     suchtreffer.setTextAusschnitt(
-                            erstelleTextAusschnitt(textFuerAusschnitt, suchbegriffBereinigt)
+                            erstelleTextAusschnitt(textFuerAusschnitt, suchbegriffBereinigt, suchart)
                     );
 
                     treffer.add(suchtreffer);
@@ -175,7 +180,29 @@ public class SeitenOCRRepository {
         return treffer;
     }
 
-    private boolean enthaeltSuchbegriff(String text, String suchbegriff) {
+    private String baueLikeMuster(String suchbegriff, String suchart) {
+
+        if (suchbegriff == null) {
+            return "";
+        }
+
+        String wert = suchbegriff.trim();
+
+        if (suchart == null || suchart.isBlank()) {
+            return "%" + wert + "%";
+        }
+
+        return switch (suchart) {
+            case "exakt" -> "%" + wert + "%";
+            case "beginnt mit" -> "%" + wert + "%";
+            case "endet mit" -> "%" + wert + "%";
+            case "Wildcard" -> "%" + wert + "%";
+            case "enthält" -> "%" + wert + "%";
+            default -> "%" + wert + "%";
+        };
+    }
+
+    private boolean passtSuchbegriff(String text, String suchbegriff, String suchart) {
 
         if (text == null || text.isBlank()) {
             return false;
@@ -185,10 +212,119 @@ public class SeitenOCRRepository {
             return false;
         }
 
-        return text.toLowerCase().contains(suchbegriff.toLowerCase());
+        String textKlein = text.toLowerCase();
+        String suchbegriffKlein = suchbegriff.trim().toLowerCase();
+
+        if (suchart == null || suchart.isBlank()) {
+            return textKlein.contains(suchbegriffKlein);
+        }
+
+        return switch (suchart) {
+            case "exakt" -> passtExakterBegriff(textKlein, suchbegriffKlein);
+            case "beginnt mit" -> passtWortBeginntMit(text, suchbegriff);
+            case "endet mit" -> passtWortEndetMit(text, suchbegriff);
+            case "Wildcard" -> passtWildcardMuster(textKlein, suchbegriffKlein);
+            case "enthält" -> textKlein.contains(suchbegriffKlein);
+            default -> textKlein.contains(suchbegriffKlein);
+        };
     }
 
-    private String erstelleTextAusschnitt(String text, String suchbegriff) {
+    private boolean passtWortBeginntMit(String text, String suchbegriff) {
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return false;
+        }
+
+        String regex = "(?<![\\p{L}\\p{N}])"
+                + java.util.regex.Pattern.quote(suchbegriff);
+
+        return java.util.regex.Pattern
+                .compile(regex, java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE)
+                .matcher(text)
+                .find();
+    }
+
+    private boolean passtWortEndetMit(String text, String suchbegriff) {
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return false;
+        }
+
+        String regex = java.util.regex.Pattern.quote(suchbegriff)
+                + "(?![\\p{L}\\p{N}])";
+
+        return java.util.regex.Pattern
+                .compile(regex, java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE)
+                .matcher(text)
+                .find();
+    }
+
+    private boolean passtExakterBegriff(String text, String suchbegriff) {
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return false;
+        }
+
+        String regex = "(?<![\\p{L}\\p{N}])"
+                + java.util.regex.Pattern.quote(suchbegriff)
+                + "(?![\\p{L}\\p{N}])";
+
+        return java.util.regex.Pattern
+                .compile(regex, java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE)
+                .matcher(text)
+                .find();
+    }
+
+    private boolean passtWildcardMuster(String text, String muster) {
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        if (muster == null || muster.isBlank()) {
+            return false;
+        }
+
+        String regex = sqlLikeMusterZuRegex(muster);
+
+        return java.util.regex.Pattern
+                .compile(regex, java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE)
+                .matcher(text)
+                .find();
+    }
+
+    private String sqlLikeMusterZuRegex(String muster) {
+
+        StringBuilder regex = new StringBuilder();
+
+        for (int i = 0; i < muster.length(); i++) {
+            char zeichen = muster.charAt(i);
+
+            if (zeichen == '%') {
+                regex.append(".*");
+            } else if (zeichen == '_') {
+                regex.append(".");
+            } else {
+                regex.append(java.util.regex.Pattern.quote(String.valueOf(zeichen)));
+            }
+        }
+
+        return regex.toString();
+    }
+
+    private String erstelleTextAusschnitt(String text, String suchbegriff, String suchart) {
 
         if (text == null || text.isBlank()) {
             return "";
@@ -198,10 +334,7 @@ public class SeitenOCRRepository {
             return text.length() > 160 ? text.substring(0, 160) + "..." : text;
         }
 
-        String textKlein = text.toLowerCase();
-        String suchbegriffKlein = suchbegriff.toLowerCase();
-
-        int position = textKlein.indexOf(suchbegriffKlein);
+        int position = findeAusschnittPosition(text, suchbegriff, suchart);
 
         if (position < 0) {
             return text.length() > 160 ? text.substring(0, 160) + "..." : text;
@@ -225,6 +358,86 @@ public class SeitenOCRRepository {
         }
 
         return ausschnitt;
+    }
+
+    private int findeAusschnittPosition(String text, String suchbegriff, String suchart) {
+
+        if (text == null || text.isBlank()) {
+            return -1;
+        }
+
+        if (suchbegriff == null || suchbegriff.isBlank()) {
+            return -1;
+        }
+
+        if ("exakt".equals(suchart)) {
+            return findeRegexPosition(
+                    text,
+                    "(?<![\\p{L}\\p{N}])"
+                            + java.util.regex.Pattern.quote(suchbegriff)
+                            + "(?![\\p{L}\\p{N}])"
+            );
+        }
+
+        if ("beginnt mit".equals(suchart)) {
+            return findeRegexPosition(
+                    text,
+                    "(?<![\\p{L}\\p{N}])"
+                            + java.util.regex.Pattern.quote(suchbegriff)
+            );
+        }
+
+        if ("endet mit".equals(suchart)) {
+            return findeRegexPosition(
+                    text,
+                    java.util.regex.Pattern.quote(suchbegriff)
+                            + "(?![\\p{L}\\p{N}])"
+            );
+        }
+
+        if ("Wildcard".equals(suchart)) {
+            return findeRegexPosition(
+                    text,
+                    sqlLikeMusterZuRegexFuerAusschnitt(suchbegriff)
+            );
+        }
+
+        return text.toLowerCase().indexOf(suchbegriff.toLowerCase());
+    }
+
+    private int findeRegexPosition(String text, String regex) {
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                regex,
+                java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE
+        );
+
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+
+        if (matcher.find()) {
+            return matcher.start();
+        }
+
+        return -1;
+    }
+
+    private String sqlLikeMusterZuRegexFuerAusschnitt(String muster) {
+
+        StringBuilder regex = new StringBuilder();
+
+        for (int i = 0; i < muster.length(); i++) {
+            char zeichen = muster.charAt(i);
+
+            if (zeichen == '%') {
+                regex.append("[\\p{L}\\p{N}]*");
+            } else if (zeichen == '_') {
+                regex.append("[\\p{L}\\p{N}]");
+            } else {
+                regex.append(java.util.regex.Pattern.quote(String.valueOf(zeichen)));
+            }
+        }
+
+        return regex.toString();
     }
 
     public void insertOrUpdate(SeitenOCR ocr) {

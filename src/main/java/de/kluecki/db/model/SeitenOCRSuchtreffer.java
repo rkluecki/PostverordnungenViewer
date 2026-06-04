@@ -19,6 +19,15 @@ public class SeitenOCRSuchtreffer {
     private String trefferArt;
     private String textAusschnitt;
     private String suchbegriff;
+    private String suchart;
+
+    public String getSuchart() {
+        return suchart;
+    }
+
+    public void setSuchart(String suchart) {
+        this.suchart = suchart;
+    }
 
     public String getSuchbegriff() {
         return suchbegriff;

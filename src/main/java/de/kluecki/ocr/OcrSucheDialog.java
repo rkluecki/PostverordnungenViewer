@@ -51,6 +51,17 @@ public class OcrSucheDialog {
         txtSuche.setPromptText("Suchbegriff eingeben...");
         txtSuche.setPrefColumnCount(30);
 
+        ComboBox<String> cmbSuchart = new ComboBox<>();
+        cmbSuchart.getItems().addAll(
+                "enthält",
+                "exakt",
+                "beginnt mit",
+                "endet mit",
+                "Wildcard"
+        );
+        cmbSuchart.getSelectionModel().select("enthält");
+        cmbSuchart.setPrefWidth(130);
+
         Button btnSuchen = new Button("Suchen");
         btnSuchen.setDisable(true);
 
@@ -140,8 +151,12 @@ public class OcrSucheDialog {
 
             SeitenOCRRepository repository = new SeitenOCRRepository();
 
+            String suchart = cmbSuchart.getValue() != null
+                    ? cmbSuchart.getValue()
+                    : "enthält";
+
             List<SeitenOCRSuchtreffer> treffer =
-                    repository.sucheOcrText(bandId, suchbegriff);
+                    repository.sucheOcrText(bandId, suchbegriff, suchart);
 
             tblTreffer.setItems(FXCollections.observableArrayList(treffer));
 
@@ -169,9 +184,13 @@ public class OcrSucheDialog {
 
         grid.add(lblBand, 0, 0);
         grid.add(lblBandWert, 1, 0);
-        grid.add(new Label("Suchbegriff:"), 0, 1);
-        grid.add(txtSuche, 1, 1);
-        grid.add(btnSuchen, 2, 1);
+
+        grid.add(new Label("Suchart:"), 0, 1);
+        grid.add(cmbSuchart, 1, 1);
+
+        grid.add(new Label("Suchbegriff:"), 0, 2);
+        grid.add(txtSuche, 1, 2);
+        grid.add(btnSuchen, 2, 2);
 
         HBox buttons = new HBox(8, btnSchliessen);
         buttons.setPadding(new Insets(8, 0, 0, 0));
