@@ -12,6 +12,21 @@ import java.util.List;
 
 public class SeitenOCRRepository {
 
+    private static final int STANDARD_SUCH_LIMIT = 1000;
+    private static final int MAX_SUCH_LIMIT = 5000;
+
+    private int bereinigeOffset(int offset) {
+        return Math.max(0, offset);
+    }
+
+    private int bereinigeLimit(int limit) {
+        if (limit <= 0) {
+            return STANDARD_SUCH_LIMIT;
+        }
+
+        return Math.min(limit, MAX_SUCH_LIMIT);
+    }
+
     public SeitenOCR findByBandIdAndDateiname(int bandId, String dateiname) {
 
         String sql = """
@@ -85,6 +100,16 @@ public class SeitenOCRRepository {
     }
 
     public List<SeitenOCRSuchtreffer> sucheOcrText(int bandId, String suchbegriff, String suchart) {
+        return sucheOcrText(bandId, suchbegriff, suchart, 0, STANDARD_SUCH_LIMIT);
+    }
+
+    public List<SeitenOCRSuchtreffer> sucheOcrText(
+            int bandId,
+            String suchbegriff,
+            String suchart,
+            int offset,
+            int limit
+    ) {
 
         List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
 
@@ -92,8 +117,11 @@ public class SeitenOCRRepository {
             return treffer;
         }
 
+        int offsetBereinigt = bereinigeOffset(offset);
+        int limitBereinigt = bereinigeLimit(limit);
+
         String sql = """
-            SELECT TOP 200
+            SELECT
                 SeitenOCRID,
                 BandID,
                 BildIndex,
@@ -110,6 +138,8 @@ public class SeitenOCRRepository {
                     OR OCRTextKorrigiert LIKE ?
                   )
             ORDER BY BildIndex
+            OFFSET ? ROWS
+            FETCH NEXT ? ROWS ONLY
             """;
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -121,6 +151,8 @@ public class SeitenOCRRepository {
             stmt.setInt(1, bandId);
             stmt.setString(2, muster);
             stmt.setString(3, muster);
+            stmt.setInt(4, offsetBereinigt);
+            stmt.setInt(5, limitBereinigt);
 
             try (ResultSet rs = stmt.executeQuery()) {
 
@@ -181,6 +213,16 @@ public class SeitenOCRRepository {
     }
 
     public List<SeitenOCRSuchtreffer> sucheOcrTextImGebiet(String gebiet, String suchbegriff, String suchart) {
+        return sucheOcrTextImGebiet(gebiet, suchbegriff, suchart, 0, STANDARD_SUCH_LIMIT);
+    }
+
+    public List<SeitenOCRSuchtreffer> sucheOcrTextImGebiet(
+            String gebiet,
+            String suchbegriff,
+            String suchart,
+            int offset,
+            int limit
+    ) {
 
         List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
 
@@ -192,35 +234,40 @@ public class SeitenOCRRepository {
             return treffer;
         }
 
+        int offsetBereinigt = bereinigeOffset(offset);
+        int limitBereinigt = bereinigeLimit(limit);
+
         String sql = """
-        SELECT TOP 1000
-                s.SeitenOCRID,
-                s.BandID,
-                s.BildIndex,
-                s.Dateiname,
-                s.LogischeSeite,
-                s.OCRQuelle,
-                s.OCRFormat,
-                s.OCRText,
-                s.OCRTextKorrigiert,
-                q.Land,
-                q.Jahr,
-                q.JahrVon,
-                q.JahrBis
-            FROM dbo.SeitenOCR s
-            INNER JOIN dbo.Quelle q
-                ON q.QuelleID = s.BandID
-            WHERE q.EbeneTyp = 'BAND'
-              AND q.Land = ?
-              AND (
-                    s.OCRText LIKE ?
-                    OR s.OCRTextKorrigiert LIKE ?
-                  )
-            ORDER BY
-                q.Jahr,
-                q.JahrVon,
-                s.BildIndex
-            """;
+        SELECT
+            s.SeitenOCRID,
+            s.BandID,
+            s.BildIndex,
+            s.Dateiname,
+            s.LogischeSeite,
+            s.OCRQuelle,
+            s.OCRFormat,
+            s.OCRText,
+            s.OCRTextKorrigiert,
+            q.Land,
+            q.Jahr,
+            q.JahrVon,
+            q.JahrBis
+        FROM dbo.SeitenOCR s
+        INNER JOIN dbo.Quelle q
+            ON q.QuelleID = s.BandID
+        WHERE q.EbeneTyp = 'BAND'
+          AND q.Land = ?
+          AND (
+                s.OCRText LIKE ?
+                OR s.OCRTextKorrigiert LIKE ?
+              )
+        ORDER BY
+            q.Jahr,
+            q.JahrVon,
+            s.BildIndex
+        OFFSET ? ROWS
+        FETCH NEXT ? ROWS ONLY
+        """;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -231,6 +278,8 @@ public class SeitenOCRRepository {
             stmt.setString(1, gebiet.trim());
             stmt.setString(2, muster);
             stmt.setString(3, muster);
+            stmt.setInt(4, offsetBereinigt);
+            stmt.setInt(5, limitBereinigt);
 
             try (ResultSet rs = stmt.executeQuery()) {
 
@@ -298,6 +347,15 @@ public class SeitenOCRRepository {
     }
 
     public List<SeitenOCRSuchtreffer> sucheOcrTextAlleGebiete(String suchbegriff, String suchart) {
+        return sucheOcrTextAlleGebiete(suchbegriff, suchart, 0, STANDARD_SUCH_LIMIT);
+    }
+
+    public List<SeitenOCRSuchtreffer> sucheOcrTextAlleGebiete(
+            String suchbegriff,
+            String suchart,
+            int offset,
+            int limit
+    ) {
 
         List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
 
@@ -305,8 +363,11 @@ public class SeitenOCRRepository {
             return treffer;
         }
 
+        int offsetBereinigt = bereinigeOffset(offset);
+        int limitBereinigt = bereinigeLimit(limit);
+
         String sql = """
-        SELECT TOP 1000
+        SELECT
             s.SeitenOCRID,
             s.BandID,
             s.BildIndex,
@@ -333,6 +394,8 @@ public class SeitenOCRRepository {
             q.Jahr,
             q.JahrVon,
             s.BildIndex
+        OFFSET ? ROWS
+        FETCH NEXT ? ROWS ONLY
         """;
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -343,6 +406,8 @@ public class SeitenOCRRepository {
 
             stmt.setString(1, muster);
             stmt.setString(2, muster);
+            stmt.setInt(3, offsetBereinigt);
+            stmt.setInt(4, limitBereinigt);
 
             try (ResultSet rs = stmt.executeQuery()) {
 

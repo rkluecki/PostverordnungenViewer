@@ -23,6 +23,8 @@ import java.util.List;
  */
 public class OcrSucheDialog {
 
+    private static final int TREFFER_PRO_SEITE = 1000;
+
     public static void show(
             Stage owner,
             int bandId,
@@ -84,6 +86,15 @@ public class OcrSucheDialog {
 
         Button btnSuchhilfe = new Button("Hilfe zur Suche");
         btnSuchhilfe.setTooltip(new Tooltip("Erklärung der Sucharten und Wildcards"));
+
+        final int[] aktuellerOffset = {0};
+        final boolean[] offsetVorSucheZuruecksetzen = {true};
+
+        Button btnVorherigeTreffer = new Button("← Vorherige Treffer");
+        btnVorherigeTreffer.setDisable(true);
+
+        Button btnWeitereTreffer = new Button("Weitere Treffer →");
+        btnWeitereTreffer.setDisable(true);
 
         Label lblStatus = new Label("Noch keine Suche gestartet.");
         lblStatus.setStyle("""
@@ -179,7 +190,13 @@ public class OcrSucheDialog {
             btnSuchen.setDisable(neu == null || neu.trim().isBlank());
         });
 
+        // TODO Paginierung: Suchausführung im nächsten Schritt in Hilfsmethode auslagern.
         btnSuchen.setOnAction(e -> {
+            if (offsetVorSucheZuruecksetzen[0]) {
+                aktuellerOffset[0] = 0;
+            }
+
+            offsetVorSucheZuruecksetzen[0] = true;
             String suchbegriff = txtSuche.getText() != null
                     ? txtSuche.getText().trim()
                     : "";
@@ -205,23 +222,29 @@ public class OcrSucheDialog {
                 treffer = repository.sucheOcrTextImGebiet(
                         gebiet,
                         suchbegriff,
-                        suchart
+                        suchart,
+                        aktuellerOffset[0],
+                        TREFFER_PRO_SEITE
                 );
 
             } else if ("alle Gebiete".equals(suchbereich)) {
 
                 treffer = repository.sucheOcrTextAlleGebiete(
                         suchbegriff,
-                        suchart
+                        suchart,
+                        aktuellerOffset[0],
+                        TREFFER_PRO_SEITE
                 );
 
             }  else {
 
-            treffer = repository.sucheOcrText(
-                    bandId,
-                    suchbegriff,
-                    suchart
-            );
+                treffer = repository.sucheOcrText(
+                        bandId,
+                        suchbegriff,
+                        suchart,
+                        aktuellerOffset[0],
+                        TREFFER_PRO_SEITE
+                );
 
             for (SeitenOCRSuchtreffer t : treffer) {
                 t.setGebiet(gebiet);
@@ -231,13 +254,35 @@ public class OcrSucheDialog {
 
             tblTreffer.setItems(FXCollections.observableArrayList(treffer));
 
+            btnVorherigeTreffer.setDisable(aktuellerOffset[0] == 0);
+            btnWeitereTreffer.setDisable(treffer.size() < TREFFER_PRO_SEITE);
+
             if (treffer.isEmpty()) {
-                lblStatus.setText("Keine Treffer für: " + suchbegriff);
-            } else if (treffer.size() == 1) {
-                lblStatus.setText("1 Treffer für: " + suchbegriff);
+                if (aktuellerOffset[0] == 0) {
+                    lblStatus.setText("Keine Treffer für: " + suchbegriff);
+                } else {
+                    lblStatus.setText("Keine weiteren Treffer ab Treffer " + (aktuellerOffset[0] + 1) + " für: " + suchbegriff);
+                }
             } else {
-                lblStatus.setText(treffer.size() + " Treffer für: " + suchbegriff);
+                int von = aktuellerOffset[0] + 1;
+                int bis = aktuellerOffset[0] + treffer.size();
+
+                lblStatus.setText(
+                        "Treffer " + von + "–" + bis + " für: " + suchbegriff
+                );
             }
+        });
+
+        btnWeitereTreffer.setOnAction(e -> {
+            aktuellerOffset[0] += TREFFER_PRO_SEITE;
+            offsetVorSucheZuruecksetzen[0] = false;
+            btnSuchen.fire();
+        });
+
+        btnVorherigeTreffer.setOnAction(e -> {
+            aktuellerOffset[0] = Math.max(0, aktuellerOffset[0] - TREFFER_PRO_SEITE);
+            offsetVorSucheZuruecksetzen[0] = false;
+            btnSuchen.fire();
         });
 
         btnSuchhilfe.setOnAction(e -> zeigeSuchhilfeDialog(dialog));
@@ -272,7 +317,7 @@ public class OcrSucheDialog {
         grid.add(btnSuchen, 2, 4);
         grid.add(btnSuchhilfe, 3, 4);
 
-        HBox buttons = new HBox(8, btnSchliessen);
+        HBox buttons = new HBox(8, btnVorherigeTreffer, btnWeitereTreffer, btnSchliessen);
         buttons.setPadding(new Insets(8, 0, 0, 0));
 
         VBox root = new VBox(12);
