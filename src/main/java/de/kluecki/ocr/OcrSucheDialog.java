@@ -142,7 +142,14 @@ public class OcrSucheDialog {
         """);
 
         TableView<SeitenOCRSuchtreffer> tblTreffer = new TableView<>();
-        tblTreffer.setPlaceholder(new Label("Keine Treffer vorhanden"));
+
+        Label lblKeineTreffer = new Label("Keine Treffer vorhanden");
+        lblKeineTreffer.setStyle("""
+        -fx-font-size: 13px;
+        -fx-text-fill: #6b5438;
+        """);
+
+        tblTreffer.setPlaceholder(lblKeineTreffer);
 
         TableColumn<SeitenOCRSuchtreffer, String> colGebiet = new TableColumn<>("Gebiet");
         colGebiet.setCellValueFactory(cellData ->
@@ -152,7 +159,7 @@ public class OcrSucheDialog {
                                 : ""
                 )
         );
-        colGebiet.setPrefWidth(100);
+        colGebiet.setPrefWidth(110);
 
         TableColumn<SeitenOCRSuchtreffer, String> colBand = new TableColumn<>("Band");
         colBand.setCellValueFactory(cellData ->
@@ -162,7 +169,7 @@ public class OcrSucheDialog {
                                 : ""
                 )
         );
-        colBand.setPrefWidth(130);
+        colBand.setPrefWidth(150);
 
         TableColumn<SeitenOCRSuchtreffer, String> colDateiname = new TableColumn<>("Dateiname");
         colDateiname.setCellValueFactory(cellData ->
@@ -172,9 +179,9 @@ public class OcrSucheDialog {
                                 : ""
                 )
         );
-        colDateiname.setPrefWidth(90);
+        colDateiname.setPrefWidth(110);
 
-        TableColumn<SeitenOCRSuchtreffer, String> colSeite = new TableColumn<>("Logische Seite");
+        TableColumn<SeitenOCRSuchtreffer, String> colSeite = new TableColumn<>("Seite");
         colSeite.setCellValueFactory(cellData ->
                 new javafx.beans.property.SimpleStringProperty(
                         cellData.getValue().getLogischeSeite() != null
@@ -182,7 +189,7 @@ public class OcrSucheDialog {
                                 : ""
                 )
         );
-        colSeite.setPrefWidth(110);
+        colSeite.setPrefWidth(105);
 
         TableColumn<SeitenOCRSuchtreffer, String> colTrefferArt = new TableColumn<>("Trefferart");
         colTrefferArt.setCellValueFactory(cellData ->
@@ -192,7 +199,7 @@ public class OcrSucheDialog {
                                 : ""
                 )
         );
-        colTrefferArt.setPrefWidth(150);
+        colTrefferArt.setPrefWidth(140);
 
         TableColumn<SeitenOCRSuchtreffer, String> colAusschnitt = new TableColumn<>("Textausschnitt");
         colAusschnitt.setCellValueFactory(cellData ->
@@ -202,11 +209,37 @@ public class OcrSucheDialog {
                                 : ""
                 )
         );
-        colAusschnitt.setPrefWidth(520);
+        colAusschnitt.setPrefWidth(620);
+
+        colAusschnitt.setCellFactory(column -> new TableCell<>() {
+
+            @Override
+            protected void updateItem(String text, boolean empty) {
+                super.updateItem(text, empty);
+
+                if (empty || text == null || text.isBlank()) {
+                    setText(null);
+                    setTooltip(null);
+                } else {
+                    setText(text);
+                    setTooltip(new Tooltip(text));
+                }
+            }
+        });
 
         tblTreffer.getColumns().addAll(colGebiet, colBand, colDateiname, colSeite, colTrefferArt, colAusschnitt);
         tblTreffer.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         tblTreffer.setPrefHeight(460);
+        tblTreffer.setFixedCellSize(28);
+        tblTreffer.setStyle("""
+        -fx-font-size: 12px;
+        -fx-table-cell-border-color: #e1d8c8;
+        -fx-control-inner-background: #fffdf8;
+        -fx-background-color: #fffdf8;
+        -fx-border-color: #cfc0a8;
+        -fx-border-radius: 4;
+        -fx-background-radius: 4;
+        """);
 
         tblTreffer.setRowFactory(tv -> {
             TableRow<SeitenOCRSuchtreffer> row = new TableRow<>();
@@ -417,10 +450,18 @@ public class OcrSucheDialog {
         buttons.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         VBox root = new VBox(12);
         root.setPadding(new Insets(14));
+
+        Label lblTrefferHinweis = new Label("Hinweis: Doppelklick auf einen Treffer öffnet die Seite und markiert den OCR-Treffer.");
+        lblTrefferHinweis.setStyle("""
+        -fx-font-size: 11px;
+        -fx-text-fill: #7a684f;
+        """);
+
         root.getChildren().addAll(
                 lblTitel,
                 grid,
                 lblStatus,
+                lblTrefferHinweis,
                 tblTreffer,
                 buttons
         );
