@@ -129,7 +129,7 @@ public class SeitenMappingRepository {
 
     public void initialisiereGrundmappingFuerBand(int bandId, List<String> dateinamen) {
 
-        if (hatMappingZuBand(bandId)) {
+        if (bandId <= 0) {
             return;
         }
 
@@ -137,14 +137,45 @@ public class SeitenMappingRepository {
             return;
         }
 
-        for (int i = 0; i < dateinamen.size(); i++) {
-            SeitenMapping mapping = new SeitenMapping();
-            mapping.setBandID(bandId);
-            mapping.setBildIndex(i + 1);
-            mapping.setDateiname(dateinamen.get(i));
-            mapping.setLogischeSeite(String.valueOf(i + 1));
+        String sql = """
+            INSERT INTO dbo.SeitenMapping (BandID, BildIndex, Dateiname, LogischeSeite)
+            SELECT ?, ?, ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM dbo.SeitenMapping WITH (UPDLOCK, HOLDLOCK)
+                WHERE BandID = ?
+                  AND BildIndex = ?
+            )
+            """;
 
-            insert(mapping);
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            for (int i = 0; i < dateinamen.size(); i++) {
+
+                String dateiname = dateinamen.get(i);
+
+                if (dateiname == null || dateiname.isBlank()) {
+                    continue;
+                }
+
+                int bildIndex = i + 1;
+
+                stmt.setInt(1, bandId);
+                stmt.setInt(2, bildIndex);
+                stmt.setString(3, dateiname);
+                stmt.setString(4, String.valueOf(bildIndex));
+
+                stmt.setInt(5, bandId);
+                stmt.setInt(6, bildIndex);
+
+                stmt.addBatch();
+            }
+
+            stmt.executeBatch();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Grundmapping konnte nicht initialisiert werden.", e);
         }
     }
 
