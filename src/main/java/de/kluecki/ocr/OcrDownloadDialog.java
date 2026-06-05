@@ -81,6 +81,31 @@ public class OcrDownloadDialog {
         txtObjectId.setPromptText(startIdPromptText);
         txtObjectId.setPrefColumnCount(22);
 
+        CheckBox chkBlbBereich = new CheckBox("BLB Manifest-ID-Bereich importieren");
+
+        Label lblManifestVon = new Label("Manifest-ID von:");
+        TextField txtManifestVon = new TextField();
+        txtManifestVon.setPromptText("z. B. 7010966");
+        txtManifestVon.setPrefColumnCount(10);
+
+        Label lblManifestBis = new Label("Manifest-ID bis:");
+        TextField txtManifestBis = new TextField();
+        txtManifestBis.setPromptText("z. B. 7010990");
+        txtManifestBis.setPrefColumnCount(10);
+
+        lblManifestVon.setVisible(false);
+        lblManifestVon.setManaged(false);
+        txtManifestVon.setVisible(false);
+        txtManifestVon.setManaged(false);
+
+        lblManifestBis.setVisible(false);
+        lblManifestBis.setManaged(false);
+        txtManifestBis.setVisible(false);
+        txtManifestBis.setManaged(false);
+
+        chkBlbBereich.setVisible(false);
+        chkBlbBereich.setManaged(false);
+
         Label lblHinweis = new Label("""
                 Hinweis:
                 Der OCR-Import darf erst gestartet werden, wenn für diesen Band
@@ -109,6 +134,54 @@ public class OcrDownloadDialog {
             btnStart.setDisable(leer);
         });
 
+        Runnable aktualisiereStartButton = () -> {
+
+            OcrArchivTyp aktuellerTyp = cmbArchivTyp.getValue();
+
+            if (aktuellerTyp == OcrArchivTyp.BLB_KARLSRUHE && chkBlbBereich.isSelected()) {
+
+                boolean vonLeer = txtManifestVon.getText() == null
+                        || txtManifestVon.getText().trim().isBlank();
+
+                boolean bisLeer = txtManifestBis.getText() == null
+                        || txtManifestBis.getText().trim().isBlank();
+
+                btnStart.setDisable(vonLeer || bisLeer);
+
+            } else {
+
+                boolean leer = txtObjectId.getText() == null
+                        || txtObjectId.getText().trim().isBlank();
+
+                btnStart.setDisable(leer);
+            }
+        };
+
+        chkBlbBereich.selectedProperty().addListener((obs, alt, neu) -> {
+
+            boolean bereichAktiv = neu != null && neu;
+
+            lblObjectId.setVisible(!bereichAktiv);
+            lblObjectId.setManaged(!bereichAktiv);
+            txtObjectId.setVisible(!bereichAktiv);
+            txtObjectId.setManaged(!bereichAktiv);
+
+            lblManifestVon.setVisible(bereichAktiv);
+            lblManifestVon.setManaged(bereichAktiv);
+            txtManifestVon.setVisible(bereichAktiv);
+            txtManifestVon.setManaged(bereichAktiv);
+
+            lblManifestBis.setVisible(bereichAktiv);
+            lblManifestBis.setManaged(bereichAktiv);
+            txtManifestBis.setVisible(bereichAktiv);
+            txtManifestBis.setManaged(bereichAktiv);
+
+            aktualisiereStartButton.run();
+        });
+
+        txtManifestVon.textProperty().addListener((obs, alt, neu) -> aktualisiereStartButton.run());
+        txtManifestBis.textProperty().addListener((obs, alt, neu) -> aktualisiereStartButton.run());
+
         cmbArchivTyp.valueProperty().addListener((obs, alterTyp, neuerTyp) -> {
 
             if (neuerTyp == null) {
@@ -124,6 +197,18 @@ public class OcrDownloadDialog {
             txtObjectId.setPromptText(getArchivTypIdPrompt(neuerTyp));
             txtObjectId.clear();
 
+            boolean istBlb = neuerTyp == OcrArchivTyp.BLB_KARLSRUHE;
+
+            chkBlbBereich.setVisible(istBlb);
+            chkBlbBereich.setManaged(istBlb);
+
+            if (!istBlb) {
+                chkBlbBereich.setSelected(false);
+            }
+
+            txtManifestVon.clear();
+            txtManifestBis.clear();
+
             btnStart.setDisable(true);
         });
 
@@ -133,7 +218,18 @@ public class OcrDownloadDialog {
                     ? txtObjectId.getText().trim()
                     : "";
 
+            String manifestVonText = txtManifestVon.getText() != null
+                    ? txtManifestVon.getText().trim()
+                    : "";
+
+            String manifestBisText = txtManifestBis.getText() != null
+                    ? txtManifestBis.getText().trim()
+                    : "";
+
             OcrArchivTyp archivTyp = cmbArchivTyp.getValue();
+
+            boolean blbBereichAktiv = archivTyp == OcrArchivTyp.BLB_KARLSRUHE
+                    && chkBlbBereich.isSelected();
 
             if (archivTyp == null) {
                 txtStatus.setText("Bitte zuerst eine OCR-Quelle auswählen.");
@@ -143,26 +239,69 @@ public class OcrDownloadDialog {
             String archivAnzeige = getArchivTypAnzeige(archivTyp);
             String idLabelText = getArchivTypIdLabel(archivTyp);
 
-            if (objectId.isBlank()) {
-                txtStatus.setText("Bitte zuerst eine " + idLabelText + " eingeben.");
-                return;
+            if (blbBereichAktiv) {
+
+                if (manifestVonText.isBlank() || manifestBisText.isBlank()) {
+                    txtStatus.setText("Bitte Manifest-ID von und Manifest-ID bis eingeben.");
+                    return;
+                }
+
+                try {
+                    Integer.parseInt(manifestVonText);
+                    Integer.parseInt(manifestBisText);
+                } catch (NumberFormatException ex) {
+                    txtStatus.setText("Manifest-ID von/bis müssen ganze Zahlen sein.");
+                    return;
+                }
+
+            } else {
+
+                if (objectId.isBlank()) {
+                    txtStatus.setText("Bitte zuerst eine " + idLabelText + " eingeben.");
+                    return;
+                }
             }
 
             btnStart.setDisable(true);
             txtObjectId.setDisable(true);
+            txtManifestVon.setDisable(true);
+            txtManifestBis.setDisable(true);
+            chkBlbBereich.setDisable(true);
             cmbArchivTyp.setDisable(true);
             txtStatus.clear();
 
             txtStatus.appendText("OCR-Quelle: " + archivAnzeige + System.lineSeparator());
-            txtStatus.appendText(idLabelText + " " + objectId + System.lineSeparator());
+
+            if (blbBereichAktiv) {
+                txtStatus.appendText("BLB Manifest-ID von: " + manifestVonText + System.lineSeparator());
+                txtStatus.appendText("BLB Manifest-ID bis: " + manifestBisText + System.lineSeparator());
+            } else {
+                txtStatus.appendText(idLabelText + " " + objectId + System.lineSeparator());
+            }
+
             txtStatus.appendText("Import wird vorbereitet..." + System.lineSeparator());
             txtStatus.appendText(System.lineSeparator());
-
             OcrDownloadService service = new OcrDownloadService();
 
             Task<OcrDownloadErgebnis> task = new Task<>() {
                 @Override
                 protected OcrDownloadErgebnis call() {
+
+                    if (blbBereichAktiv) {
+                        int manifestVon = Integer.parseInt(manifestVonText);
+                        int manifestBis = Integer.parseInt(manifestBisText);
+
+                        return service.downloadUndImportiereBlbOcrFuerManifestBereich(
+                                bandId,
+                                manifestVon,
+                                manifestBis,
+                                meldung -> Platform.runLater(() -> {
+                                    txtStatus.appendText(meldung + System.lineSeparator());
+                                    txtStatus.positionCaret(txtStatus.getText().length());
+                                })
+                        );
+                    }
+
                     return service.downloadUndImportiereOcrFuerBand(
                             archivTyp,
                             bandId,
@@ -181,14 +320,23 @@ public class OcrDownloadDialog {
                 txtStatus.appendText(System.lineSeparator());
                 txtStatus.appendText(ergebnis.meldung() + System.lineSeparator());
                 txtStatus.appendText("Gestartet: " + ergebnis.gestartet() + System.lineSeparator());
-                txtStatus.appendText("Mapping-Seiten: " + ergebnis.mappingSeiten() + System.lineSeparator());
+
+                if (blbBereichAktiv) {
+                    txtStatus.appendText("Geprüfte Manifest-IDs: " + ergebnis.mappingSeiten() + System.lineSeparator());
+                } else {
+                    txtStatus.appendText("Mapping-Seiten: " + ergebnis.mappingSeiten() + System.lineSeparator());
+                }
+
                 txtStatus.appendText("Erfolgreich gespeichert: " + ergebnis.erfolgreich() + System.lineSeparator());
                 txtStatus.appendText("Ohne OCR/Text: " + ergebnis.ohneOcr() + System.lineSeparator());
                 txtStatus.appendText("Fehler: " + ergebnis.fehler() + System.lineSeparator());
 
-                btnStart.setDisable(false);
                 txtObjectId.setDisable(false);
+                txtManifestVon.setDisable(false);
+                txtManifestBis.setDisable(false);
+                chkBlbBereich.setDisable(false);
                 cmbArchivTyp.setDisable(false);
+                btnStart.setDisable(false);
             });
 
             task.setOnFailed(event -> {
@@ -201,9 +349,12 @@ public class OcrDownloadDialog {
                     txtStatus.appendText(ex.getMessage() + System.lineSeparator());
                 }
 
-                btnStart.setDisable(false);
                 txtObjectId.setDisable(false);
+                txtManifestVon.setDisable(false);
+                txtManifestBis.setDisable(false);
+                chkBlbBereich.setDisable(false);
                 cmbArchivTyp.setDisable(false);
+                btnStart.setDisable(false);
             });
 
             Thread thread = new Thread(task);
@@ -229,6 +380,14 @@ public class OcrDownloadDialog {
 
         grid.add(lblObjectId, 0, 3);
         grid.add(txtObjectId, 1, 3);
+
+        grid.add(chkBlbBereich, 1, 4);
+
+        grid.add(lblManifestVon, 0, 5);
+        grid.add(txtManifestVon, 1, 5);
+
+        grid.add(lblManifestBis, 0, 6);
+        grid.add(txtManifestBis, 1, 6);
 
         ColumnConstraints col1 = new ColumnConstraints();
         col1.setMinWidth(130);

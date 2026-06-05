@@ -74,6 +74,106 @@ public class OcrDownloadService {
         );
     }
 
+    public OcrDownloadErgebnis downloadUndImportiereBlbOcrFuerManifestBereich(
+            int bandId,
+            int manifestIdVon,
+            int manifestIdBis,
+            Consumer<String> progressCallback
+    ) {
+
+        int startId = Math.min(manifestIdVon, manifestIdBis);
+        int endId = Math.max(manifestIdVon, manifestIdBis);
+
+        int gepruefteManifeste = 0;
+        int passendeManifeste = 0;
+        int uebersprungeneManifeste = 0;
+        int erfolgreichGesamt = 0;
+        int ohneOcrGesamt = 0;
+        int fehlerGesamt = 0;
+
+        meldeFortschritt(progressCallback, "BLB-Manifestbereich-Import gestartet.");
+        meldeFortschritt(progressCallback, "Manifest-ID von: " + startId);
+        meldeFortschritt(progressCallback, "Manifest-ID bis: " + endId);
+        meldeFortschritt(progressCallback, "");
+
+        for (int manifestId = startId; manifestId <= endId; manifestId++) {
+
+            gepruefteManifeste++;
+
+            meldeFortschritt(progressCallback, "==================================================");
+            meldeFortschritt(progressCallback, "Prüfe BLB Manifest-ID: " + manifestId);
+            meldeFortschritt(progressCallback, "==================================================");
+
+            OcrDownloadErgebnis einzelErgebnis = downloadUndImportiereBlbOcrFuerBand(
+                    bandId,
+                    String.valueOf(manifestId),
+                    progressCallback
+            );
+
+            if (einzelErgebnis.gestartet()) {
+                passendeManifeste++;
+                erfolgreichGesamt += einzelErgebnis.erfolgreich();
+                ohneOcrGesamt += einzelErgebnis.ohneOcr();
+                fehlerGesamt += einzelErgebnis.fehler();
+
+                meldeFortschritt(progressCallback,
+                        "Manifest-ID " + manifestId + " verarbeitet."
+                );
+            } else {
+                uebersprungeneManifeste++;
+
+                meldeFortschritt(progressCallback,
+                        "Manifest-ID " + manifestId + " übersprungen: "
+                                + einzelErgebnis.meldung()
+                );
+            }
+
+            meldeFortschritt(progressCallback, "");
+
+            try {
+                Thread.sleep(800);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+
+                String meldung = "BLB-Manifestbereich-Import wurde unterbrochen.";
+
+                meldeFortschritt(progressCallback, meldung);
+
+                return new OcrDownloadErgebnis(
+                        bandId,
+                        startId + "-" + endId,
+                        gepruefteManifeste,
+                        erfolgreichGesamt,
+                        ohneOcrGesamt,
+                        fehlerGesamt + 1,
+                        false,
+                        meldung
+                );
+            }
+        }
+
+        String meldung = "BLB-Manifestbereich-Import abgeschlossen. "
+                + "Geprüfte Manifest-IDs: " + gepruefteManifeste
+                + ", passende Manifeste: " + passendeManifeste
+                + ", übersprungen: " + uebersprungeneManifeste
+                + ", gespeicherte OCR-Seiten: " + erfolgreichGesamt
+                + ", ohne OCR/Text: " + ohneOcrGesamt
+                + ", Fehler: " + fehlerGesamt;
+
+        meldeFortschritt(progressCallback, meldung);
+
+        return new OcrDownloadErgebnis(
+                bandId,
+                startId + "-" + endId,
+                gepruefteManifeste,
+                erfolgreichGesamt,
+                ohneOcrGesamt,
+                fehlerGesamt,
+                true,
+                meldung
+        );
+    }
+
     private OcrDownloadErgebnis downloadUndImportiereBlbOcrFuerBand(
             int bandId,
             String manifestId,
