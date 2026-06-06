@@ -83,6 +83,12 @@ public class OcrDownloadDialog {
 
         CheckBox chkBlbBereich = new CheckBox("BLB Manifest-ID-Bereich importieren");
 
+        CheckBox chkVorhandeneOcrUeberspringen = new CheckBox("Vorhandene OCR-Seiten überspringen (empfohlen)");
+        chkVorhandeneOcrUeberspringen.setSelected(true);
+        chkVorhandeneOcrUeberspringen.setTooltip(new Tooltip(
+                "Wenn aktiv, werden Seiten mit bereits vorhandener OCR nicht erneut beim Archiv angefragt."
+        ));
+
         Label lblManifestVon = new Label("Manifest-ID von:");
         TextField txtManifestVon = new TextField();
         txtManifestVon.setPromptText("z. B. 7010966");
@@ -198,9 +204,18 @@ public class OcrDownloadDialog {
             txtObjectId.clear();
 
             boolean istBlb = neuerTyp == OcrArchivTyp.BLB_KARLSRUHE;
+            boolean istBsbMdz = neuerTyp == OcrArchivTyp.BSB_MDZ;
 
             chkBlbBereich.setVisible(istBlb);
             chkBlbBereich.setManaged(istBlb);
+
+            chkVorhandeneOcrUeberspringen.setDisable(!istBsbMdz);
+
+            if (istBsbMdz) {
+                chkVorhandeneOcrUeberspringen.setSelected(true);
+            } else {
+                chkVorhandeneOcrUeberspringen.setSelected(false);
+            }
 
             if (!istBlb) {
                 chkBlbBereich.setSelected(false);
@@ -267,6 +282,7 @@ public class OcrDownloadDialog {
             txtManifestVon.setDisable(true);
             txtManifestBis.setDisable(true);
             chkBlbBereich.setDisable(true);
+            chkVorhandeneOcrUeberspringen.setDisable(true);
             cmbArchivTyp.setDisable(true);
             txtStatus.clear();
 
@@ -306,6 +322,7 @@ public class OcrDownloadDialog {
                             archivTyp,
                             bandId,
                             objectId,
+                            chkVorhandeneOcrUeberspringen.isSelected(),
                             meldung -> Platform.runLater(() -> {
                                 txtStatus.appendText(meldung + System.lineSeparator());
                                 txtStatus.positionCaret(txtStatus.getText().length());
@@ -335,6 +352,7 @@ public class OcrDownloadDialog {
                 txtManifestVon.setDisable(false);
                 txtManifestBis.setDisable(false);
                 chkBlbBereich.setDisable(false);
+                chkVorhandeneOcrUeberspringen.setDisable(cmbArchivTyp.getValue() != OcrArchivTyp.BSB_MDZ);
                 cmbArchivTyp.setDisable(false);
                 btnStart.setDisable(false);
             });
@@ -381,13 +399,15 @@ public class OcrDownloadDialog {
         grid.add(lblObjectId, 0, 3);
         grid.add(txtObjectId, 1, 3);
 
-        grid.add(chkBlbBereich, 1, 4);
+        grid.add(chkVorhandeneOcrUeberspringen, 1, 4);
 
-        grid.add(lblManifestVon, 0, 5);
-        grid.add(txtManifestVon, 1, 5);
+        grid.add(chkBlbBereich, 1, 5);
 
-        grid.add(lblManifestBis, 0, 6);
-        grid.add(txtManifestBis, 1, 6);
+        grid.add(lblManifestVon, 0, 6);
+        grid.add(txtManifestVon, 1, 6);
+
+        grid.add(lblManifestBis, 0, 7);
+        grid.add(txtManifestBis, 1, 7);
 
         ColumnConstraints col1 = new ColumnConstraints();
         col1.setMinWidth(130);

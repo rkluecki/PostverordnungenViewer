@@ -99,6 +99,32 @@ public class SeitenOCRRepository {
         return null;
     }
 
+    public boolean existsByBandIdAndDateiname(int bandId, String dateiname) {
+
+        String sql = """
+            SELECT 1
+            FROM dbo.SeitenOCR
+            WHERE BandID = ?
+              AND Dateiname = ?
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, bandId);
+            stmt.setString(2, dateiname);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
     public List<SeitenOCRSuchtreffer> sucheOcrText(int bandId, String suchbegriff, String suchart) {
         return sucheOcrText(bandId, suchbegriff, suchart, 0, STANDARD_SUCH_LIMIT);
     }

@@ -23,9 +23,9 @@ import java.util.function.Consumer;
  *
  * Aktueller Schwerpunkt:
  * - BSB/MDZ-OCR-API
- * - hOCR herunterladen
- * - hOCR in einfachen Text umwandeln
- * - OCRText pro Band + Dateiname in dbo.SeitenOCR speichern
+ * - BLB-Karlsruhe-OCR
+ * - hOCR / ALTO herunterladen
+ * - OCR-Text pro Band + Dateiname in dbo.SeitenOCR speichern
  *
  * Wichtig:
  * Es wird NICHT blind durchnummeriert.
@@ -41,11 +41,28 @@ public class OcrDownloadService {
             String objectId,
             Consumer<String> progressCallback
     ) {
+        return downloadUndImportiereOcrFuerBand(
+                archivTyp,
+                bandId,
+                objectId,
+                false,
+                progressCallback
+        );
+    }
+
+    public OcrDownloadErgebnis downloadUndImportiereOcrFuerBand(
+            OcrArchivTyp archivTyp,
+            int bandId,
+            String objectId,
+            boolean vorhandeneOcrUeberspringen,
+            Consumer<String> progressCallback
+    ) {
 
         if (archivTyp == OcrArchivTyp.BSB_MDZ) {
             return downloadUndImportiereBsbOcrFuerBand(
                     bandId,
                     objectId,
+                    vorhandeneOcrUeberspringen,
                     progressCallback
             );
         }
@@ -276,8 +293,6 @@ public class OcrDownloadService {
                 );
             }
 
-            // Sicherheitsprüfung vor dem Schreiben:
-            // Jede BLB-Page-ID muss als PageID.jpg im SeitenMapping gefunden werden.
             int fehlendeMappings = 0;
 
             for (String canvasId : canvasIds) {
@@ -547,6 +562,7 @@ public class OcrDownloadService {
         return downloadUndImportiereBsbOcrFuerBand(
                 bandId,
                 objectId,
+                false,
                 System.out::println
         );
     }
@@ -556,10 +572,25 @@ public class OcrDownloadService {
             String objectId,
             Consumer<String> progressCallback
     ) {
+        return downloadUndImportiereBsbOcrFuerBand(
+                bandId,
+                objectId,
+                false,
+                progressCallback
+        );
+    }
+
+    public OcrDownloadErgebnis downloadUndImportiereBsbOcrFuerBand(
+            int bandId,
+            String objectId,
+            boolean vorhandeneOcrUeberspringen,
+            Consumer<String> progressCallback
+    ) {
 
         int erfolgreich = 0;
         int ohneOcr = 0;
         int fehler = 0;
+        int uebersprungen = 0;
 
         List<SeitenMappingInfo> seiten = ladeSeitenMappings(bandId);
 
@@ -583,16 +614,45 @@ public class OcrDownloadService {
             );
         }
 
+        if (vorhandeneOcrUeberspringen) {
+            meldeFortschritt(progressCallback,
+                    "Vorhandene OCR-Seiten werden übersprungen. Es werden nur fehlende OCR-Seiten nachgeladen."
+            );
+        }
+
         for (int index = 0; index < seiten.size(); index++) {
 
             SeitenMappingInfo mappingInfo = seiten.get(index);
             int aktuelleNummer = index + 1;
 
             try {
+                if (vorhandeneOcrUeberspringen
+                        && seitenOCRRepository.existsByBandIdAndDateiname(
+                        bandId,
+                        mappingInfo.dateiname()
+                )) {
+                    uebersprungen++;
+
+                    meldeFortschritt(progressCallback,
+                            aktuelleNummer + " / " + seiten.size()
+                                    + " übersprungen, OCR bereits vorhanden: "
+                                    + mappingInfo.dateiname()
+                    );
+
+                    continue;
+                }
+
                 String pageNum = ermittlePageNumAusDateiname(mappingInfo.dateiname());
 
                 if (pageNum == null || pageNum.isBlank()) {
                     fehler++;
+
+                    meldeFortschritt(progressCallback,
+                            aktuelleNummer + " / " + seiten.size()
+                                    + " FEHLER: Seitenzahl aus Dateiname nicht ermittelbar: "
+                                    + mappingInfo.dateiname()
+                    );
+
                     continue;
                 }
 
@@ -646,7 +706,6 @@ public class OcrDownloadService {
                                 + " | Zeichen: " + text.length()
                 );
 
-                // Kleine Pause, damit die API nicht unnötig hart angefragt wird.
                 Thread.sleep(250);
 
             } catch (Exception e) {
@@ -655,6 +714,7 @@ public class OcrDownloadService {
                 meldeFortschritt(progressCallback,
                         aktuelleNummer + " / " + seiten.size()
                                 + " FEHLER: " + mappingInfo.dateiname()
+                                + " | " + e.getMessage()
                 );
 
                 e.printStackTrace();
@@ -662,6 +722,10 @@ public class OcrDownloadService {
         }
 
         String meldung = "OCR-Download abgeschlossen.";
+
+        if (vorhandeneOcrUeberspringen) {
+            meldung = meldung + " Übersprungen wegen vorhandener OCR: " + uebersprungen + ".";
+        }
 
         return new OcrDownloadErgebnis(
                 bandId,
