@@ -36,6 +36,10 @@ public class OcrDownloadDialog {
         dialog.initOwner(owner);
         dialog.initModality(Modality.APPLICATION_MODAL);
 
+        dialog.setResizable(true);
+        dialog.setMinWidth(760);
+        dialog.setMinHeight(560);
+
         Label lblTitel = new Label(startArchivAnzeige + "-OCR für Band herunterladen");
         lblTitel.setStyle("""
                 -fx-font-size: 15px;
@@ -120,7 +124,7 @@ public class OcrDownloadDialog {
                 Dateinamen aus dem SeitenMapping.
                 """);
         lblHinweis.setWrapText(true);
-        lblHinweis.setMaxWidth(520);
+        lblHinweis.setMaxWidth(700);
         lblHinweis.setStyle("""
                 -fx-font-size: 12px;
                 -fx-text-fill: #555555;
@@ -129,7 +133,8 @@ public class OcrDownloadDialog {
         TextArea txtStatus = new TextArea();
         txtStatus.setEditable(false);
         txtStatus.setWrapText(true);
-        txtStatus.setPrefRowCount(6);
+        txtStatus.setPrefRowCount(14);
+        txtStatus.setPrefHeight(260);
         txtStatus.setPromptText("Hier erscheint später der Fortschritt des OCR-Imports.");
 
         Button btnStart = new Button("Import starten");
@@ -430,7 +435,9 @@ public class OcrDownloadDialog {
                 buttons
         );
 
-        Scene scene = new Scene(root, 560, 380);
+        VBox.setVgrow(txtStatus, Priority.ALWAYS);
+
+        Scene scene = new Scene(root, 760, 560);
         dialog.setScene(scene);
         dialog.showAndWait();
     }
