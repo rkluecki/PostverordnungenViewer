@@ -73,6 +73,7 @@ import de.kluecki.ocr.OcrDownloadDialog;
 import de.kluecki.db.model.SeitenOCRSuchtreffer;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import de.kluecki.db.core.AppInfo;
 
 
 import javafx.scene.control.cell.TextFieldTableCell;
@@ -345,8 +346,14 @@ public class PostverordnungenApp extends Application {
         updateOutputButtons();
 
         Scene scene = new Scene(root);
+
+        scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN),
+                this::oeffneOcrSucheDialog
+        );
+
         stage.setMaximized(true);
-        stage.setTitle("Ordinata – Historische Postverordnungen");
+        stage.setTitle(AppInfo.TITEL_MIT_VERSION);
 
         stage.getIcons().add(
                 new Image(AppResourcePaths.getIconPngPath().toUri().toString())
@@ -416,6 +423,10 @@ public class PostverordnungenApp extends Application {
         MenuItem mnuOcrTextSuchen = new MenuItem("OCR-Text suchen...");
         mnuOcrTextSuchen.setOnAction(e -> oeffneOcrSucheDialog());
 
+        mnuOcrTextSuchen.setAccelerator(
+                new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN)
+        );
+
         menuSuche.getItems().add(mnuOcrTextSuchen);
 
         MenuItem miOcrImport = new MenuItem("OCR aus Archiv herunterladen/importieren...");
@@ -437,7 +448,7 @@ public class PostverordnungenApp extends Application {
             HilfeEditorDialog.show(stage);
         });
 
-        MenuItem miUeber = new MenuItem("Über Postverordnungen");
+        MenuItem miUeber = new MenuItem("Über Ordinata");
         miUeber.setOnAction(e -> zeigeUeberDialog());
 
         menuHilfe.getItems().addAll(
@@ -972,34 +983,13 @@ public class PostverordnungenApp extends Application {
 
     private void zeigeUeberDialog() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Über Postverordnungen");
-        alert.setHeaderText("Postverordnungen");
+        alert.setTitle("Über " + AppInfo.NAME);
+        alert.setHeaderText(AppInfo.TITEL);
         alert.setContentText(
-                "So arbeiten Sie mit dem Programm:\n\n" +
-
-                        "1. Links ein Gebiet auswählen\n" +
-                        "2. Jahr (Band) auswählen\n" +
-                        "3. Heft auswählen\n" +
-                        "4. HeftEintrag auswählen\n\n" +
-
-                        "→ Jetzt sehen Sie die richtige Seite im Bild\n\n" +
-
-                        "Seiten wechseln:\n" +
-                        "- Mit den Pfeilen oder Buttons\n" +
-                        "- Oder direkt eine Seitenzahl eingeben\n\n" +
-
-                        "Neue Daten erfassen:\n" +
-                        "- Startseite markieren\n" +
-                        "- Endseite markieren\n" +
-                        "- Danach 'Heft' oder 'HeftEintrag erfassen'\n\n" +
-
-                        "Wichtig (Seitenmapping):\n" +
-                        "Stammdaten → Seitenmapping bearbeiten\n\n" +
-
-                        "Dort immer benutzen:\n" +
-                        "→ 'Mapping bereinigen (empfohlen)'\n\n" +
-
-                        "Das behebt die meisten Probleme automatisch."
+                "Version " + AppInfo.VERSION + "\n\n" +
+                        AppInfo.SUITE + "\n\n" +
+                        AppInfo.COPYRIGHT + "\n\n" +
+                        "Private Forschungs- und Sammlungssoftware."
         );
 
         alert.showAndWait();
@@ -1381,13 +1371,25 @@ public class PostverordnungenApp extends Application {
         statusLabel = new Label("0 Quellen geladen");
         statusLabel.setId("statusLabel");
 
-        HBox statusBar = new HBox(statusLabel);
+        Label appInfoLabel = new Label(AppInfo.COPYRIGHT_KURZ);
+        appInfoLabel.setStyle("""
+        -fx-text-fill: #405040;
+        -fx-font-size: 11px;
+    """);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox statusBar = new HBox(statusLabel, spacer, appInfoLabel);
+        statusBar.setAlignment(Pos.CENTER_LEFT);
+
         statusBar.setStyle("""
-            -fx-padding: 6 10 6 10;
-            -fx-background-color: #eaeaea;
-            -fx-border-color: #d0d0d0;
-            -fx-border-width: 1 0 0 0;
-        """);
+        -fx-padding: 6 10 6 10;
+        -fx-background-color: #d2e2dc;
+        -fx-border-color: #b8ccc4;
+        -fx-border-width: 1 0 0 0;
+    """);
+
         return statusBar;
     }
 

@@ -104,6 +104,18 @@ public class OcrSucheDialog {
         -fx-padding: 5 12 5 12;
         """);
 
+        Button btnZuruecksetzen = new Button("Zurücksetzen");
+        btnZuruecksetzen.setDisable(true);
+        btnZuruecksetzen.setTooltip(new Tooltip("Suchfeld, Trefferliste und Trefferblöcke zurücksetzen"));
+        btnZuruecksetzen.setStyle("""
+        -fx-background-color: #eeeeee;
+        -fx-border-color: #c8c8c8;
+        -fx-border-radius: 5;
+        -fx-background-radius: 5;
+        -fx-text-fill: #333333;
+        -fx-padding: 5 12 5 12;
+        """);
+
         final int[] aktuellerOffset = {0};
         final boolean[] offsetVorSucheZuruecksetzen = {true};
 
@@ -259,7 +271,13 @@ public class OcrSucheDialog {
         });
 
         txtSuche.textProperty().addListener((obs, alt, neu) -> {
-            btnSuchen.setDisable(neu == null || neu.trim().isBlank());
+            boolean suchfeldLeer = neu == null || neu.trim().isBlank();
+
+            btnSuchen.setDisable(suchfeldLeer);
+
+            if (!suchfeldLeer) {
+                btnZuruecksetzen.setDisable(false);
+            }
         });
 
         // TODO Paginierung: Suchausführung im nächsten Schritt in Hilfsmethode auslagern.
@@ -371,6 +389,24 @@ public class OcrSucheDialog {
             btnSuchen.fire();
         });
 
+        btnZuruecksetzen.setOnAction(e -> {
+            txtSuche.clear();
+
+            aktuellerOffset[0] = 0;
+            offsetVorSucheZuruecksetzen[0] = true;
+
+            tblTreffer.getItems().clear();
+
+            lblStatus.setText("Noch keine Suche gestartet.");
+
+            btnVorherigeTreffer.setDisable(true);
+            btnWeitereTreffer.setDisable(true);
+            btnSuchen.setDisable(true);
+            btnZuruecksetzen.setDisable(true);
+
+            tblTreffer.getSelectionModel().clearSelection();
+        });
+
         btnSuchhilfe.setOnAction(e -> zeigeSuchhilfeDialog(dialog));
 
         txtSuche.setOnAction(e -> {
@@ -430,7 +466,8 @@ public class OcrSucheDialog {
         grid.add(lblSuchbegriff, 0, 4);
         grid.add(txtSuche, 1, 4);
         grid.add(btnSuchen, 2, 4);
-        grid.add(btnSuchhilfe, 3, 4);
+        grid.add(btnZuruecksetzen, 3, 4);
+        grid.add(btnSuchhilfe, 4, 4);
 
         Label lblTrefferNavigation = new Label("Trefferblöcke:");
         lblTrefferNavigation.setStyle("""
