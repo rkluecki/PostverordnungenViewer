@@ -192,6 +192,70 @@ public class PostverordnungenApp extends Application {
     private static final String BACKUP_DIR =
             "D:\\Postgeschichte_PC\\Postverordnungen_Backup";
 
+    private static final String STYLE_APP_BACKGROUND = """
+        -fx-background-color: #f7f6ef;
+        """;
+
+    private static final String STYLE_MENU_BAR = """
+        -fx-background-color: #d2e2dc;
+        -fx-border-color: #b8ccc4;
+        -fx-border-width: 0 0 1 0;
+        -fx-padding: 2 6 2 6;
+        """;
+
+    private static final String STYLE_STATUS_BAR = """
+        -fx-padding: 6 12 6 12;
+        -fx-background-color: #d2e2dc;
+        -fx-border-color: #b8ccc4;
+        -fx-border-width: 1 0 0 0;
+        """;
+
+    private static final String STYLE_NAVIGATION = """
+        -fx-padding: 10;
+        -fx-background-color: #f1f4ec;
+        -fx-border-color: #becdc3;
+        -fx-border-width: 0 1 0 0;
+        """;
+
+    private static final String STYLE_DOCUMENT_PANE = """
+        -fx-padding: 10;
+        -fx-background-color: #fbfaf5;
+        -fx-border-color: #c7d2c9;
+        -fx-border-width: 1;
+        """;
+
+    private static final String STYLE_DOCUMENT_HEADER = """
+        -fx-padding: 6 8 8 8;
+        -fx-background-color: #fbfaf5;
+        -fx-border-color: #d8ddd3;
+        -fx-border-width: 0 0 1 0;
+        """;
+
+    private static final String STYLE_TOOLBAR = """
+        -fx-padding: 6;
+        -fx-background-color: #edf3ef;
+        -fx-border-color: #c5d4cd;
+        -fx-border-width: 1;
+        """;
+
+    private static final String STYLE_OCR_PANE = """
+        -fx-background-color: #fbfaf5;
+        -fx-border-color: #c7d2c9;
+        -fx-border-width: 0 0 0 1;
+        """;
+
+    private static final String STYLE_NAV_LABEL = """
+        -fx-font-weight: bold;
+        -fx-text-fill: #263b2f;
+        -fx-font-size: 12px;
+        -fx-padding: 2 0 0 0;
+        """;
+
+    private static final String STYLE_NAV_LIST = """
+        -fx-background-color: #ffffff;
+        -fx-border-color: #c5cec6;
+        -fx-border-width: 1;
+        """;
 
     @Override
     public void start(Stage stage) {
@@ -248,6 +312,7 @@ public class PostverordnungenApp extends Application {
         quelleRepository = new QuelleRepository();
 
         BorderPane root = new BorderPane();
+        root.setStyle(STYLE_APP_BACKGROUND);
 
         root.setTop(createMenuBar());
         root.setBottom(createStatusBar());
@@ -365,6 +430,7 @@ public class PostverordnungenApp extends Application {
 
     private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
+        menuBar.setStyle(STYLE_MENU_BAR);
 
         Menu menuDatei = new Menu("Datei");
         Menu menuBearbeiten = new Menu("Bearbeiten");
@@ -1383,12 +1449,7 @@ public class PostverordnungenApp extends Application {
         HBox statusBar = new HBox(statusLabel, spacer, appInfoLabel);
         statusBar.setAlignment(Pos.CENTER_LEFT);
 
-        statusBar.setStyle("""
-        -fx-padding: 6 10 6 10;
-        -fx-background-color: #d2e2dc;
-        -fx-border-color: #b8ccc4;
-        -fx-border-width: 1 0 0 0;
-    """);
+        statusBar.setStyle(STYLE_STATUS_BAR);
 
         return statusBar;
     }
@@ -1563,13 +1624,16 @@ public class PostverordnungenApp extends Application {
 
     private VBox createNavigationPane() {
         Label lblGebiete = new Label("Gebiete");
+        lblGebiete.setStyle(STYLE_NAV_LABEL);
+
         Label lblBaende = new Label("Jahr / Band");
+        lblBaende.setStyle(STYLE_NAV_LABEL);
 
         Label lblHefte = new Label("Hefte");
-        lblHefte.setStyle("-fx-font-weight: bold;");
+        lblHefte.setStyle(STYLE_NAV_LABEL);
 
         Label lblHeftEintraege = new Label("HeftEinträge");
-        lblHeftEintraege.setStyle("-fx-font-weight: bold;");
+        lblHeftEintraege.setStyle(STYLE_NAV_LABEL);
 
         cmbTypFilter = new ComboBox<>();
 
@@ -1582,7 +1646,7 @@ public class PostverordnungenApp extends Application {
         cmbTypFilter.getSelectionModel().selectFirst();
 
         Label lblBetreffe = new Label("Inhalte des HeftEintrags");
-        lblBetreffe.setStyle("-fx-font-weight: bold;");
+        lblBetreffe.setStyle(STYLE_NAV_LABEL);
 
         btnInhaltseinheiten = new Button("Inhaltseinträge");
         btnInhaltseinheiten.setMaxWidth(Double.MAX_VALUE);
@@ -1619,19 +1683,20 @@ public class PostverordnungenApp extends Application {
                 btnInhaltseinheiten
         );
 
-        navigation.setPrefWidth(380);
+        navigation.setPrefWidth(360);
         navigation.setMinWidth(320);
-        navigation.setMaxWidth(450);
-        navigation.setStyle("""
-            -fx-padding: 8;
-            -fx-background-color: #f4f4f4;
-            -fx-border-color: #d0d0d0;
-            -fx-border-width: 0 1 0 0;
-        """);
+        navigation.setMaxWidth(420);
+        navigation.setStyle(STYLE_NAVIGATION);
 
-        gebietListView.setPrefHeight(150);
-        bandListView.setPrefHeight(250);
-        heftListView.setPrefHeight(120);
+        gebietListView.setPrefHeight(130);
+        bandListView.setPrefHeight(210);
+        heftListView.setPrefHeight(100);
+
+        gebietListView.setStyle(STYLE_NAV_LIST);
+        bandListView.setStyle(STYLE_NAV_LIST);
+        heftListView.setStyle(STYLE_NAV_LIST);
+        tblHeftEintraege.setStyle(STYLE_NAV_LIST);
+        lstInhalteDetail.setStyle(STYLE_NAV_LIST);
 
         heftListView.setOnMouseClicked(e -> {
 
@@ -1778,12 +1843,7 @@ public class PostverordnungenApp extends Application {
 
     private BorderPane createDocumentPane(VBox imageToolbar, HBox bildNavigation) {
         BorderPane documentPane = new BorderPane();
-        documentPane.setStyle("""
-        -fx-padding: 10;
-        -fx-background-color: white;
-        -fx-border-color: #d0d0d0;
-        -fx-border-width: 1;
-    """);
+        documentPane.setStyle(STYLE_DOCUMENT_PANE);
 
         VBox documentHeader = createDocumentHeader(imageToolbar);
 
@@ -1791,7 +1851,7 @@ public class PostverordnungenApp extends Application {
 
         SplitPane bildUndOcrPane = new SplitPane();
         bildUndOcrPane.getItems().addAll(imageScrollPane, ocrPane);
-        bildUndOcrPane.setDividerPositions(0.60);
+        bildUndOcrPane.setDividerPositions(0.58);
 
         documentPane.setTop(documentHeader);
         documentPane.setCenter(bildUndOcrPane);
@@ -1817,7 +1877,7 @@ public class PostverordnungenApp extends Application {
         );
 
         logoView.setPreserveRatio(true);
-        logoView.setFitWidth(100);
+        logoView.setFitWidth(82);
 
         lblOrdinataJahr = new Label("© " + java.time.Year.now());
         lblOrdinataJahr.setStyle("""
@@ -1828,15 +1888,15 @@ public class PostverordnungenApp extends Application {
         VBox logoBox = new VBox(2, logoView, lblOrdinataJahr);
         logoBox.setAlignment(javafx.geometry.Pos.CENTER);
         logoBox.setStyle("""
-        -fx-padding: 0 10 0 20;
-    """);
+            -fx-padding: 0 8 0 16;
+            """);
         logoBox.setAlignment(javafx.geometry.Pos.TOP_RIGHT);
 
         HBox topRow = new HBox(statusInfoBox, logoBox);
         HBox.setHgrow(statusInfoBox, Priority.ALWAYS);
 
         VBox documentHeader = new VBox(
-                8,
+                6,
                 topRow,
                 imageToolbar
         );
@@ -1996,11 +2056,7 @@ public class PostverordnungenApp extends Application {
 
         imageToolbar.setPadding(new Insets(5));
 
-        imageToolbar.setStyle("""
-        -fx-padding: 5;
-        -fx-background-color: #f0f0f0;
-        -fx-border-color: #d0d0d0;
-    """);
+        imageToolbar.setStyle(STYLE_TOOLBAR);
 
         return imageToolbar;
     }
@@ -2257,39 +2313,42 @@ public class PostverordnungenApp extends Application {
         txtOcrText.setPromptText("Für diese Seite ist noch kein OCR-Text vorhanden.");
 
         txtOcrText.setStyle("""
-            -fx-font-family: 'Consolas';
-            -fx-font-size: 13px;
-            -fx-highlight-fill: yellow;
-            -fx-highlight-text-fill: black;
-            """);
+        -fx-font-family: 'Consolas';
+        -fx-font-size: 13px;
+        -fx-control-inner-background: #fffef9;
+        -fx-highlight-fill: #fff2a8;
+        -fx-highlight-text-fill: black;
+        """);
 
-        Region ocrHeaderSpacer = new Region();
-        ocrHeaderSpacer.setMinWidth(8);
+        Region ocrHeaderFill = new Region();
+        HBox.setHgrow(ocrHeaderFill, Priority.ALWAYS);
 
         HBox ocrHeader = new HBox(
                 8,
                 lblOcrTitel,
+                ocrHeaderFill,
                 btnOcrKopieren,
                 btnOcrKorrigieren,
-                ocrHeaderSpacer,
                 btnOcrTrefferZurueck,
                 btnOcrTrefferWeiter
         );
 
         ocrHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
+        ocrHeader.setStyle("""
+        -fx-padding: 0 0 4 0;
+        -fx-border-color: #d8ddd3;
+        -fx-border-width: 0 0 1 0;
+        """);
+
         VBox ocrPane = new VBox(6, ocrHeader, lblOcrInfo, lblOcrTrefferInfo, txtOcrText);
         ocrPane.setPadding(new Insets(8));
-        ocrPane.setPrefWidth(520);
-        ocrPane.setMinWidth(360);
+        ocrPane.setPrefWidth(560);
+        ocrPane.setMinWidth(420);
 
         VBox.setVgrow(txtOcrText, Priority.ALWAYS);
 
-        ocrPane.setStyle("""
-            -fx-background-color: #fafafa;
-            -fx-border-color: #d0d0d0;
-            -fx-border-width: 0 0 0 1;
-            """);
+        ocrPane.setStyle(STYLE_OCR_PANE);
 
         return ocrPane;
     }
@@ -2376,6 +2435,12 @@ public class PostverordnungenApp extends Application {
 
         Scene scene = new Scene(root, 1000, 650);
         dialog.setScene(scene);
+
+        dialog.setOnShown(e -> {
+            txtKorrigiert.requestFocus();
+            txtKorrigiert.positionCaret(0);
+        });
+
         dialog.showAndWait();
     }
 
