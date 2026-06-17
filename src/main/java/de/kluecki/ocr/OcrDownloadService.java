@@ -174,7 +174,7 @@ public class OcrDownloadService {
                 + ", passende Manifeste: " + passendeManifeste
                 + ", übersprungen: " + uebersprungeneManifeste
                 + ", gespeicherte OCR-Seiten: " + erfolgreichGesamt
-                + ", ohne OCR/Text: " + ohneOcrGesamt
+                + ", OCR nachholen (eigene OCR): " + ohneOcrGesamt
                 + ", Fehler: " + fehlerGesamt;
 
         meldeFortschritt(progressCallback, meldung);
@@ -350,7 +350,8 @@ public class OcrDownloadService {
 
                         meldeFortschritt(progressCallback,
                                 aktuelleNummer + " / " + canvasIds.size()
-                                        + " ohne ALTO: " + mappingInfo.dateiname()
+                                        + " OCR nachholen (eigene OCR): " + mappingInfo.dateiname()
+                                        + " | Grund: BLB liefert keine ALTO-Datei"
                         );
 
                         continue;
@@ -363,7 +364,8 @@ public class OcrDownloadService {
 
                         meldeFortschritt(progressCallback,
                                 aktuelleNummer + " / " + canvasIds.size()
-                                        + " ohne Text: " + mappingInfo.dateiname()
+                                        + " OCR nachholen (eigene OCR): " + mappingInfo.dateiname()
+                                        + " | Grund: ALTO vorhanden, aber ohne erkennbaren Text"
                         );
 
                         continue;

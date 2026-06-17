@@ -350,7 +350,7 @@ public class OcrDownloadDialog {
                 }
 
                 txtStatus.appendText("Erfolgreich gespeichert: " + ergebnis.erfolgreich() + System.lineSeparator());
-                txtStatus.appendText("Ohne OCR/Text: " + ergebnis.ohneOcr() + System.lineSeparator());
+                txtStatus.appendText("OCR nachholen (eigene OCR): " + ergebnis.ohneOcr() + System.lineSeparator());
                 txtStatus.appendText("Fehler: " + ergebnis.fehler() + System.lineSeparator());
 
                 txtObjectId.setDisable(false);
