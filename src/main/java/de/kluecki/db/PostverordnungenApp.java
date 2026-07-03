@@ -74,8 +74,7 @@ import de.kluecki.db.model.SeitenOCRSuchtreffer;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import de.kluecki.db.core.AppInfo;
-
-
+import javafx.stage.DirectoryChooser;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.util.Duration;
 import javafx.util.converter.DefaultStringConverter;
@@ -188,9 +187,6 @@ public class PostverordnungenApp extends Application {
     }
 
     private NavigationLevel aktuellesLevel = NavigationLevel.HEFT;
-
-    private static final String BACKUP_DIR =
-            "D:\\Postgeschichte_PC\\Postverordnungen_Backup";
 
     private static final String STYLE_APP_BACKGROUND = """
         -fx-background-color: #f7f6ef;
@@ -442,8 +438,13 @@ public class PostverordnungenApp extends Application {
         MenuItem miBackupErstellen = new MenuItem("Backup erstellen");
         miBackupErstellen.setOnAction(e -> backupErstellen());
 
-        menuDatei.getItems().add(
-                miBackupErstellen
+        MenuItem miEinstellungen = new MenuItem("Einstellungen...");
+        miEinstellungen.setOnAction(e -> oeffneEinstellungenDialog());
+
+        menuDatei.getItems().addAll(
+                miBackupErstellen,
+                new SeparatorMenuItem(),
+                miEinstellungen
         );
 
         MenuItem mnuHeftEintraegeSuchen = new MenuItem("HeftEinträge suchen...");
@@ -2886,21 +2887,23 @@ public class PostverordnungenApp extends Application {
 
             Connection conn = DatabaseConnection.getConnection();
 
+            String backupRoot = Config.getBackupPath();
+
             String zeitstempel =
                     LocalDateTime.now().format(
                             DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
                     );
 
-            File backupDir = new File(BACKUP_DIR);
+            File backupDir = new File(backupRoot);
 
-            if(!backupDir.exists()){
+            if (!backupDir.exists()) {
                 showAlert("Backup Fehler",
-                        "Backup Ordner existiert nicht:\n" + BACKUP_DIR);
+                        "Backup Ordner existiert nicht:\n" + backupRoot);
                 return;
             }
 
             String backupPfad =
-                    BACKUP_DIR +
+                    backupRoot +
                             "\\QuellenDB_" +
                             zeitstempel +
                             ".bak";
@@ -5389,5 +5392,87 @@ public class PostverordnungenApp extends Application {
             e.printStackTrace();
             showAlert("Fehler", "Band/Jahr konnte nicht angelegt werden.");
         }
+    }
+
+    private void oeffneEinstellungenDialog() {
+
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Einstellungen");
+        dialog.setHeaderText("Ordinata-Pfade");
+
+        ButtonType speichernButtonType = new ButtonType("Speichern", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(speichernButtonType, ButtonType.CANCEL);
+
+        TextField txtVerordnungenRoot = new TextField(Config.getImageRootPath());
+        txtVerordnungenRoot.setPrefColumnCount(45);
+
+        Button btnVerordnungenDurchsuchen = new Button("Durchsuchen...");
+        btnVerordnungenDurchsuchen.setOnAction(e -> {
+            DirectoryChooser chooser = new DirectoryChooser();
+            chooser.setTitle("Verordnungen-Basisordner auswählen");
+
+            File aktuellerOrdner = new File(txtVerordnungenRoot.getText());
+            if (aktuellerOrdner.exists() && aktuellerOrdner.isDirectory()) {
+                chooser.setInitialDirectory(aktuellerOrdner);
+            }
+
+            File selected = chooser.showDialog(dialog.getDialogPane().getScene().getWindow());
+            if (selected != null) {
+                txtVerordnungenRoot.setText(selected.getAbsolutePath());
+            }
+        });
+
+        TextField txtBackupRoot = new TextField(Config.getBackupPath());
+        txtBackupRoot.setPrefColumnCount(45);
+
+        Button btnBackupDurchsuchen = new Button("Durchsuchen...");
+        btnBackupDurchsuchen.setOnAction(e -> {
+            DirectoryChooser chooser = new DirectoryChooser();
+            chooser.setTitle("Backup-Ordner auswählen");
+
+            File aktuellerOrdner = new File(txtBackupRoot.getText());
+            if (aktuellerOrdner.exists() && aktuellerOrdner.isDirectory()) {
+                chooser.setInitialDirectory(aktuellerOrdner);
+            }
+
+            File selected = chooser.showDialog(dialog.getDialogPane().getScene().getWindow());
+            if (selected != null) {
+                txtBackupRoot.setText(selected.getAbsolutePath());
+            }
+        });
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(15));
+
+        grid.add(new Label("Verordnungen-Basisordner:"), 0, 0);
+        grid.add(txtVerordnungenRoot, 1, 0);
+        grid.add(btnVerordnungenDurchsuchen, 2, 0);
+
+        grid.add(new Label("Backup-Ordner:"), 0, 1);
+        grid.add(txtBackupRoot, 1, 1);
+        grid.add(btnBackupDurchsuchen, 2, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(button -> {
+            if (button == speichernButtonType) {
+                Config.setImageRootPath(txtVerordnungenRoot.getText());
+                Config.setBackupPath(txtBackupRoot.getText());
+
+                gebieteCache = null;
+                gebietListView.getItems().setAll(loadGebiete());
+                bandListView.getItems().clear();
+                heftListView.getItems().clear();
+                aktuelleBildliste.clear();
+
+                statusLabel.setText("Einstellungen gespeichert");
+            }
+
+            return null;
+        });
+
+        dialog.showAndWait();
     }
 }
