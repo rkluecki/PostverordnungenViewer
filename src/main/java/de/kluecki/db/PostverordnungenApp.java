@@ -70,6 +70,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 import de.kluecki.ocr.OcrDownloadDialog;
+import de.kluecki.ocr.OcrPruefungDialog;
 import de.kluecki.db.model.SeitenOCRSuchtreffer;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -268,13 +269,22 @@ public class PostverordnungenApp extends Application {
 
         ImageView splashView = new ImageView(splashImage);
         splashView.setPreserveRatio(true);
-        splashView.setFitWidth(700);
+        splashView.setFitWidth(680);
 
-        StackPane splashRoot = new StackPane(splashView);
+        StackPane bildFlaeche = new StackPane(splashView);
+        bildFlaeche.setAlignment(javafx.geometry.Pos.CENTER);
+        bildFlaeche.setStyle("""
+    -fx-background-color: #f8f5ef;
+    -fx-border-color: #8c9c94;
+    -fx-border-width: 1;
+""");
+
+        StackPane splashRoot = new StackPane(bildFlaeche);
         splashRoot.setAlignment(javafx.geometry.Pos.CENTER);
+        splashRoot.setPadding(new Insets(10));
         splashRoot.setStyle("""
-        -fx-background-color: #f8f5ef;
-    """);
+    -fx-background-color: #3a4842;
+""");
 
         Scene splashScene = new Scene(splashRoot, 700, 700);
 
@@ -496,10 +506,21 @@ public class PostverordnungenApp extends Application {
 
         menuSuche.getItems().add(mnuOcrTextSuchen);
 
-        MenuItem miOcrImport = new MenuItem("OCR aus Archiv herunterladen/importieren...");
+        MenuItem miOcrImport =
+                new MenuItem("OCR aus Archiv herunterladen/importieren...");
+
         miOcrImport.setOnAction(e -> oeffneOcrDownloadDialog());
 
-        menuOcr.getItems().add(miOcrImport);
+        MenuItem miOcrPruefen =
+                new MenuItem("OCR-Import prüfen...");
+
+        miOcrPruefen.setOnAction(e -> oeffneOcrPruefungDialog());
+
+        menuOcr.getItems().addAll(
+                miOcrImport,
+                new SeparatorMenuItem(),
+                miOcrPruefen
+        );
 
         Menu menuHilfe = new Menu("Hilfe");
 
@@ -1045,6 +1066,114 @@ public class PostverordnungenApp extends Application {
                 ownerStage,
                 bandId,
                 bandAnzeige
+        );
+    }
+
+    private void oeffneOcrPruefungDialog() {
+
+        if (grundmappingLaeuft) {
+            showAlert(
+                    "OCR-Prüfung",
+                    "Das Grundmapping läuft noch.\n\n"
+                            + "Bitte warten, bis das Seitenmapping abgeschlossen ist."
+            );
+            return;
+        }
+
+        if (aktuellesGebiet == null || aktuellesGebiet.isBlank()
+                || aktuellesBand == null || aktuellesBand.isBlank()) {
+
+            showAlert(
+                    "OCR-Prüfung",
+                    "Bitte zuerst ein Gebiet und ein Band auswählen."
+            );
+            return;
+        }
+
+        int bandId =
+                ermittleBandId(aktuellesGebiet, aktuellesBand);
+
+        if (bandId <= 0) {
+            showAlert(
+                    "OCR-Prüfung",
+                    "BandID konnte nicht ermittelt werden."
+            );
+            return;
+        }
+
+        Stage ownerStage = null;
+
+        if (gebietListView != null
+                && gebietListView.getScene() != null) {
+
+            ownerStage =
+                    (Stage) gebietListView
+                            .getScene()
+                            .getWindow();
+        }
+
+        String bandAnzeige =
+                aktuellesGebiet + " – " + aktuellesBand;
+
+        OcrPruefungDialog.show(
+                ownerStage,
+                bandId,
+                bandAnzeige,
+                this::springeZuOcrPruefungEintrag
+        );
+    }
+
+    private void springeZuOcrPruefungEintrag(
+            OcrPruefungEintrag eintrag
+    ) {
+        if (eintrag == null) {
+            return;
+        }
+
+        String dateiname = eintrag.getDateiname();
+
+        if (dateiname == null || dateiname.isBlank()) {
+            showAlert(
+                    "OCR-Prüfung",
+                    "Der Prüftreffer enthält keinen Dateinamen."
+            );
+            return;
+        }
+
+        Path bildPfad =
+                findeBildPfadInAktuellerListe(dateiname);
+
+        if (bildPfad == null) {
+            showAlert(
+                    "OCR-Prüfung",
+                    "Die Bilddatei wurde im ausgewählten Band nicht gefunden:\n"
+                            + dateiname
+            );
+            return;
+        }
+
+        int bildIndex =
+                aktuelleBildliste.indexOf(bildPfad);
+
+        if (bildIndex < 0) {
+            showAlert(
+                    "OCR-Prüfung",
+                    "Die Bilddatei konnte nicht in der Bildliste positioniert werden:\n"
+                            + dateiname
+            );
+            return;
+        }
+
+        wechsleAufBandEbeneFuerFreieNavigation();
+
+        aktuellerBildIndex = bildIndex;
+        ladeAktuellesBild();
+
+        zeigeStatusKurz(
+                "OCR-Auffälligkeit geöffnet: "
+                        + dateiname
+                        + " / logische Seite "
+                        + eintrag.getLogischeSeite()
         );
     }
 
