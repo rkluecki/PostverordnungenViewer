@@ -2715,7 +2715,11 @@ public class PostverordnungenApp extends Application {
 
         btnAbbrechen.setOnAction(e -> dialog.close());
 
-        HBox buttonLeiste = new HBox(8, btnSpeichern, btnAbbrechen);
+        HBox buttonLeiste = new HBox(
+                8,
+                btnSpeichern,
+                btnAbbrechen
+        );
         buttonLeiste.setAlignment(Pos.CENTER_RIGHT);
 
         VBox root = new VBox(10, textBereich, buttonLeiste);
