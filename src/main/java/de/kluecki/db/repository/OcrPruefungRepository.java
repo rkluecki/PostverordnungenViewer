@@ -11,48 +11,91 @@ import java.util.List;
 
 public class OcrPruefungRepository {
 
-    public List<OcrPruefungEintrag> pruefeBand(int bandID) {
+    public List<OcrPruefungEintrag> pruefeBand(
+            int bandID,
+            String ansicht
+    ) {
 
         String sql = """
-                SELECT
-                    sm.BandID,
-                    sm.BildIndex,
-                    sm.Dateiname,
-                    sm.LogischeSeite,
-                    so.SeitenOCRID,
-                    so.OCRQuelle,
-                    so.OCRFormat,
-                    CASE
-                        WHEN so.SeitenOCRID IS NULL
-                            THEN 'Kein OCR-Datensatz'
-                        WHEN so.OCRText IS NULL
-                             OR LTRIM(RTRIM(so.OCRText)) = ''
-                            THEN 'OCR leer'
-                        ELSE 'OCR vorhanden'
-                    END AS OCRStatus
-                FROM dbo.SeitenMapping sm
-                LEFT JOIN dbo.SeitenOCR so
-                    ON so.BandID = sm.BandID
-                   AND so.BildIndex = sm.BildIndex
-                WHERE sm.BandID = ?
-                  AND (
-                        so.SeitenOCRID IS NULL
-                        OR so.OCRText IS NULL
-                        OR LTRIM(RTRIM(so.OCRText)) = ''
-                      )
-                ORDER BY sm.BildIndex;
-                """;
+            SELECT
+                sm.BandID,
+                sm.BildIndex,
+                sm.Dateiname,
+                sm.LogischeSeite,
 
-        List<OcrPruefungEintrag> ergebnisse = new ArrayList<>();
+                so.SeitenOCRID,
+                so.OCRQuelle,
+                so.OCRFormat,
+
+                CASE
+                    WHEN so.SeitenOCRID IS NULL
+                        THEN 'Kein OCR-Datensatz'
+                    WHEN so.OCRText IS NULL
+                         OR LTRIM(RTRIM(so.OCRText)) = ''
+                        THEN 'OCR leer'
+                    ELSE 'OCR vorhanden'
+                END AS OCRStatus,
+
+                pe.Entscheidungsart,
+                pe.Bemerkung AS PruefBemerkung,
+                pe.GepruefteQuelle,
+                pe.IstErledigt
+
+            FROM dbo.SeitenMapping sm
+
+            LEFT JOIN dbo.SeitenOCR so
+                ON so.BandID = sm.BandID
+               AND so.BildIndex = sm.BildIndex
+
+            LEFT JOIN dbo.OcrPruefentscheidung pe
+                ON pe.BandID = sm.BandID
+               AND pe.BildIndex = sm.BildIndex
+
+            WHERE sm.BandID = ?
+
+              AND (
+                    so.SeitenOCRID IS NULL
+                    OR so.OCRText IS NULL
+                    OR LTRIM(RTRIM(so.OCRText)) = ''
+                  )
+
+              AND (
+                    ? = 'ALLE'
+
+                    OR (
+                        ? = 'OFFEN'
+                        AND (
+                            pe.OcrPruefentscheidungID IS NULL
+                            OR pe.IstErledigt = 0
+                        )
+                    )
+
+                    OR (
+                        ? = 'GEKLAERT'
+                        AND pe.IstErledigt = 1
+                    )
+                  )
+
+            ORDER BY sm.BildIndex;
+            """;
+
+        List<OcrPruefungEintrag> ergebnisse =
+                new ArrayList<>();
 
         try (
-                Connection connection = DatabaseConnection.getConnection();
+                Connection connection =
+                        DatabaseConnection.getConnection();
+
                 PreparedStatement statement =
                         connection.prepareStatement(sql)
         ) {
             statement.setInt(1, bandID);
+            statement.setString(2, ansicht);
+            statement.setString(3, ansicht);
+            statement.setString(4, ansicht);
 
-            try (ResultSet resultSet = statement.executeQuery()) {
+            try (ResultSet resultSet =
+                         statement.executeQuery()) {
 
                 while (resultSet.next()) {
 
@@ -95,6 +138,37 @@ public class OcrPruefungRepository {
                     eintrag.setOcrStatus(
                             resultSet.getString("OCRStatus")
                     );
+
+                    eintrag.setEntscheidungsart(
+                            resultSet.getString(
+                                    "Entscheidungsart"
+                            )
+                    );
+
+                    eintrag.setPruefBemerkung(
+                            resultSet.getString(
+                                    "PruefBemerkung"
+                            )
+                    );
+
+                    eintrag.setGepruefteQuelle(
+                            resultSet.getString(
+                                    "GepruefteQuelle"
+                            )
+                    );
+
+                    boolean istErledigt =
+                            resultSet.getBoolean(
+                                    "IstErledigt"
+                            );
+
+                    if (resultSet.wasNull()) {
+                        eintrag.setIstErledigt(null);
+                    } else {
+                        eintrag.setIstErledigt(
+                                istErledigt
+                        );
+                    }
 
                     ergebnisse.add(eintrag);
                 }

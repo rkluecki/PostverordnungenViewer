@@ -14,7 +14,9 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.scene.input.MouseButton;
 import java.util.function.Consumer;
-
+import de.kluecki.db.repository.OcrPruefentscheidungRepository;
+import javafx.application.Platform;
+import java.util.Optional;
 import java.util.List;
 
 public final class OcrPruefungDialog {
@@ -51,10 +53,34 @@ public final class OcrPruefungDialog {
 
         Label lblErgebnis = new Label("Prüfung wurde noch nicht gestartet.");
 
-        Button btnPruefen = new Button("Prüfung starten");
+        ComboBox<String> cmbAnsicht = new ComboBox<>();
+
+        cmbAnsicht.getItems().addAll(
+                "Offene Auffälligkeiten",
+                "Geklärte Auffälligkeiten",
+                "Alle Auffälligkeiten"
+        );
+
+        cmbAnsicht.getSelectionModel().selectFirst();
+        cmbAnsicht.setPrefWidth(190);
+
+        Button btnPruefen = new Button("Aktualisieren");
         Button btnSchliessen = new Button("Schließen");
 
+        Button btnEntscheidung =
+                new Button("Prüfentscheidung festhalten");
+
+        btnEntscheidung.setDisable(true);
+
         TableView<OcrPruefungEintrag> table = new TableView<>();
+
+        table.getSelectionModel()
+                .selectedItemProperty()
+                .addListener((obs, alterEintrag, neuerEintrag) ->
+                        btnEntscheidung.setDisable(
+                                neuerEintrag == null
+                        )
+                );
 
         table.setPlaceholder(
                 new Label("Keine Prüfergebnisse vorhanden")
@@ -153,13 +179,60 @@ public final class OcrPruefungDialog {
         colStatus.setPrefWidth(180);
         colStatus.setSortable(false);
 
+        TableColumn<OcrPruefungEintrag, String> colEntscheidung =
+                new TableColumn<>("Prüfentscheidung");
+
+        colEntscheidung.setCellValueFactory(cellData ->
+                new SimpleStringProperty(
+                        bezeichnungEntscheidungsart(
+                                cellData.getValue().getEntscheidungsart()
+                        )
+                )
+        );
+
+        colEntscheidung.setPrefWidth(190);
+        colEntscheidung.setSortable(false);
+
+
+        TableColumn<OcrPruefungEintrag, String> colPruefBemerkung =
+                new TableColumn<>("Bemerkung");
+
+        colPruefBemerkung.setCellValueFactory(cellData ->
+                new SimpleStringProperty(
+                        nullZuLeer(
+                                cellData.getValue().getPruefBemerkung()
+                        )
+                )
+        );
+
+        colPruefBemerkung.setPrefWidth(300);
+        colPruefBemerkung.setSortable(false);
+
+
+        TableColumn<OcrPruefungEintrag, String> colGepruefteQuelle =
+                new TableColumn<>("Geprüfte Quelle");
+
+        colGepruefteQuelle.setCellValueFactory(cellData ->
+                new SimpleStringProperty(
+                        nullZuLeer(
+                                cellData.getValue().getGepruefteQuelle()
+                        )
+                )
+        );
+
+        colGepruefteQuelle.setPrefWidth(220);
+        colGepruefteQuelle.setSortable(false);
+
         table.getColumns().addAll(
                 colBildIndex,
                 colDateiname,
                 colLogischeSeite,
                 colQuelle,
                 colFormat,
-                colStatus
+                colStatus,
+                colEntscheidung,
+                colPruefBemerkung,
+                colGepruefteQuelle
         );
 
         table.setRowFactory(tv -> new TableRow<>() {
@@ -237,21 +310,32 @@ public final class OcrPruefungDialog {
             }
         });
 
-        btnPruefen.setOnAction(e -> {
+        Runnable pruefungLaden = () -> {
 
             btnPruefen.setDisable(true);
+            cmbAnsicht.setDisable(true);
             lblErgebnis.setText("OCR-Prüfung läuft...");
 
             try {
                 OcrPruefungRepository repository =
                         new OcrPruefungRepository();
 
+                String ansicht =
+                        ermittleAnsichtCode(
+                                cmbAnsicht.getValue()
+                        );
+
                 List<OcrPruefungEintrag> ergebnisse =
-                        repository.pruefeBand(bandID);
+                        repository.pruefeBand(
+                                bandID,
+                                ansicht
+                        );
 
                 table.setItems(
                         FXCollections.observableArrayList(ergebnisse)
                 );
+
+                table.getSelectionModel().clearSelection();
 
                 if (ergebnisse.isEmpty()) {
                     lblErgebnis.setText(
@@ -275,6 +359,7 @@ public final class OcrPruefungDialog {
                         Alert.AlertType.ERROR
                 );
 
+                alert.initOwner(stage);
                 alert.setTitle("OCR-Prüfung");
                 alert.setHeaderText(
                         "Die OCR-Prüfung ist fehlgeschlagen."
@@ -294,6 +379,95 @@ public final class OcrPruefungDialog {
 
             } finally {
                 btnPruefen.setDisable(false);
+                cmbAnsicht.setDisable(false);
+            }
+        };
+
+        btnPruefen.setOnAction(e ->
+                pruefungLaden.run()
+        );
+
+        cmbAnsicht.setOnAction(e ->
+                pruefungLaden.run()
+        );
+
+        btnEntscheidung.setOnAction(e -> {
+
+            OcrPruefungEintrag eintrag =
+                    table.getSelectionModel().getSelectedItem();
+
+            if (eintrag == null) {
+                return;
+            }
+
+            Optional<OcrPruefentscheidungDialog.Ergebnis> ergebnis =
+                    OcrPruefentscheidungDialog.showAndWait(
+                            stage,
+                            eintrag.getDateiname(),
+                            eintrag.getOcrStatus(),
+                            eintrag.getEntscheidungsart(),
+                            eintrag.getPruefBemerkung(),
+                            eintrag.getGepruefteQuelle(),
+                            eintrag.getIstErledigt()
+                    );
+
+            if (ergebnis.isEmpty()) {
+                return;
+            }
+
+            OcrPruefentscheidungDialog.Ergebnis entscheidung =
+                    ergebnis.get();
+
+            try {
+                OcrPruefentscheidungRepository repository =
+                        new OcrPruefentscheidungRepository();
+
+                repository.speichernOderAktualisieren(
+                        eintrag.getBandID(),
+                        eintrag.getBildIndex(),
+                        entscheidung.entscheidungsart(),
+                        entscheidung.bemerkung(),
+                        entscheidung.gepruefteQuelle(),
+                        entscheidung.istErledigt()
+                );
+
+                Alert alert = new Alert(
+                        Alert.AlertType.INFORMATION
+                );
+
+                alert.initOwner(stage);
+                alert.setTitle("OCR-Prüfentscheidung");
+                alert.setHeaderText(
+                        "Die Prüfentscheidung wurde gespeichert."
+                );
+
+                alert.setContentText(
+                        eintrag.getDateiname()
+                );
+
+                alert.showAndWait();
+                pruefungLaden.run();
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+
+                Alert alert = new Alert(
+                        Alert.AlertType.ERROR
+                );
+
+                alert.initOwner(stage);
+                alert.setTitle("OCR-Prüfentscheidung");
+                alert.setHeaderText(
+                        "Die Prüfentscheidung konnte nicht gespeichert werden."
+                );
+
+                alert.setContentText(
+                        ex.getMessage() != null
+                                ? ex.getMessage()
+                                : "Unbekannter Fehler"
+                );
+
+                alert.showAndWait();
             }
         });
 
@@ -305,6 +479,7 @@ public final class OcrPruefungDialog {
         HBox buttonLeiste = new HBox(
                 10,
                 btnPruefen,
+                btnEntscheidung,
                 lblErgebnis,
                 spacer,
                 btnSchliessen
@@ -312,10 +487,19 @@ public final class OcrPruefungDialog {
 
         buttonLeiste.setAlignment(Pos.CENTER_LEFT);
 
+        HBox ansichtLeiste = new HBox(
+                8,
+                new Label("Ansicht:"),
+                cmbAnsicht
+        );
+
+        ansichtLeiste.setAlignment(Pos.CENTER_LEFT);
+
         VBox kopf = new VBox(
-                6,
+                8,
                 new Label("Ausgewählter Band:"),
-                lblBand
+                lblBand,
+                ansichtLeiste
         );
 
         kopf.setPadding(new Insets(0, 0, 10, 0));
@@ -340,9 +524,62 @@ public final class OcrPruefungDialog {
 
         stage.setScene(scene);
         stage.show();
+
+        Platform.runLater(
+                pruefungLaden
+        );
     }
 
     private static String nullZuLeer(String wert) {
         return wert != null ? wert : "";
+    }
+
+    private static String ermittleAnsichtCode(
+            String ansichtText
+    ) {
+        if ("Geklärte Auffälligkeiten".equals(ansichtText)) {
+            return "GEKLAERT";
+        }
+
+        if ("Alle Auffälligkeiten".equals(ansichtText)) {
+            return "ALLE";
+        }
+
+        return "OFFEN";
+    }
+
+    private static String bezeichnungEntscheidungsart(
+            String entscheidungsart
+    ) {
+        if (entscheidungsart == null
+                || entscheidungsart.isBlank()) {
+            return "";
+        }
+
+        return switch (entscheidungsart) {
+            case "QUELLE_OHNE_OCR" ->
+                    "Quelle liefert kein OCR";
+
+            case "LEERE_SEITE" ->
+                    "Leere Seite";
+
+            case "OCR_FEHLERHAFT" ->
+                    "OCR-Datei fehlerhaft";
+
+            case "ZUORDNUNG_UNKLAR" ->
+                    "OCR-Zuordnung unklar";
+
+            case "OCR_NICHT_ERFORDERLICH" ->
+                    "OCR nicht erforderlich";
+
+            case "MANUELLE_NACHARBEIT" ->
+                    "Manuelle Nachbearbeitung";
+
+            case "SONSTIGES" ->
+                    "Sonstiger Sonderfall";
+
+            default ->
+                    entscheidungsart;
+        };
     }
 }

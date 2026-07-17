@@ -10,6 +10,10 @@ public class OcrPruefungEintrag {
     private String ocrQuelle;
     private String ocrFormat;
     private String ocrStatus;
+    private String entscheidungsart;
+    private String pruefBemerkung;
+    private String gepruefteQuelle;
+    private Boolean istErledigt;
 
     public int getBandID() {
         return bandID;
@@ -61,6 +65,38 @@ public class OcrPruefungEintrag {
 
     public String getOcrFormat() {
         return ocrFormat;
+    }
+
+    public String getEntscheidungsart() {
+        return entscheidungsart;
+    }
+
+    public void setEntscheidungsart(String entscheidungsart) {
+        this.entscheidungsart = entscheidungsart;
+    }
+
+    public String getPruefBemerkung() {
+        return pruefBemerkung;
+    }
+
+    public void setPruefBemerkung(String pruefBemerkung) {
+        this.pruefBemerkung = pruefBemerkung;
+    }
+
+    public String getGepruefteQuelle() {
+        return gepruefteQuelle;
+    }
+
+    public void setGepruefteQuelle(String gepruefteQuelle) {
+        this.gepruefteQuelle = gepruefteQuelle;
+    }
+
+    public Boolean getIstErledigt() {
+        return istErledigt;
+    }
+
+    public void setIstErledigt(Boolean istErledigt) {
+        this.istErledigt = istErledigt;
     }
 
     public void setOcrFormat(String ocrFormat) {

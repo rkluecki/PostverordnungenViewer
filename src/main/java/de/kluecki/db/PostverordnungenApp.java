@@ -79,6 +79,7 @@ import javafx.stage.DirectoryChooser;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.util.Duration;
 import javafx.util.converter.DefaultStringConverter;
+import javafx.stage.FileChooser;
 
 
 public class PostverordnungenApp extends Application {
@@ -2377,6 +2378,121 @@ public class PostverordnungenApp extends Application {
         Button btnOcrKopieren = new Button("OCR kopieren");
         btnOcrKopieren.setTooltip(new Tooltip("OCR-Text der aktuellen Seite in die Zwischenablage kopieren"));
 
+        Button btnOcrImportieren = new Button("OCR importieren...");
+        btnOcrImportieren.setTooltip(
+                new Tooltip("Extern erzeugten OCR-Text aus einer TXT-Datei übernehmen")
+        );
+
+        btnOcrImportieren.setOnAction(e -> {
+
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("OCR-TXT-Datei auswählen");
+
+            File ocrOrdner =
+                    new File("D:\\Historische_PO_Daten\\OCR");
+
+            if (ocrOrdner.exists() && ocrOrdner.isDirectory()) {
+                fileChooser.setInitialDirectory(ocrOrdner);
+            }
+
+            fileChooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter(
+                            "Textdateien (*.txt)",
+                            "*.txt"
+                    )
+            );
+
+            Stage ownerStage =
+                    (Stage) btnOcrImportieren
+                            .getScene()
+                            .getWindow();
+
+            File ausgewaehlteDatei =
+                    fileChooser.showOpenDialog(ownerStage);
+
+            if (ausgewaehlteDatei == null) {
+                return;
+            }
+
+            try {
+                String ocrText = java.nio.file.Files.readString(
+                        ausgewaehlteDatei.toPath(),
+                        java.nio.charset.StandardCharsets.UTF_8
+                );
+
+                if (ocrText.isBlank()) {
+                    showAlert(
+                            "OCR-Import",
+                            "Die ausgewählte TXT-Datei enthält keinen Text."
+                    );
+                    return;
+                }
+
+                String dateiname = getAktuellerDateinameAusListe();
+
+                if (dateiname == null || dateiname.isBlank()) {
+                    showAlert(
+                            "OCR-Import",
+                            "Es ist keine Bildseite ausgewählt."
+                    );
+                    return;
+                }
+
+                if (aktuellesGebiet == null || aktuellesGebiet.isBlank()
+                        || aktuellesBand == null || aktuellesBand.isBlank()) {
+
+                    showAlert(
+                            "OCR-Import",
+                            "Bitte zuerst ein Gebiet und ein Band auswählen."
+                    );
+                    return;
+                }
+
+                int bandId = ermittleBandId(
+                        aktuellesGebiet,
+                        aktuellesBand
+                );
+
+                if (bandId <= 0) {
+                    showAlert(
+                            "OCR-Import",
+                            "Die BandID konnte nicht ermittelt werden."
+                    );
+                    return;
+                }
+
+                SeitenOCR neuesOcr = new SeitenOCR();
+
+                neuesOcr.setBandID(bandId);
+                neuesOcr.setBildIndex(aktuellerBildIndex);
+                neuesOcr.setDateiname(dateiname);
+                neuesOcr.setLogischeSeite(
+                        ermittleLogischeSeiteZumAktuellenDateinamen()
+                );
+                neuesOcr.setOcrText(ocrText);
+                neuesOcr.setOcrQuelle("Extern");
+                neuesOcr.setOcrFormat("TXT");
+
+                seitenOCRRepository.insertOrUpdate(neuesOcr);
+
+                aktualisiereOcrAnzeige();
+
+                zeigeStatusKurz(
+                        "Externes OCR wurde gespeichert: "
+                                + dateiname
+                );
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+
+                showAlert(
+                        "OCR-Import",
+                        "Die TXT-Datei konnte nicht gelesen werden.\n\n"
+                                + ex.getMessage()
+                );
+            }
+        });
+
         Button btnOcrKorrigieren = new Button("Korrigierte Fassung bearbeiten...");
         btnOcrKorrigieren.setTooltip(new Tooltip("Korrigierte OCR-Fassung der aktuellen Seite bearbeiten"));
 
@@ -2458,6 +2574,7 @@ public class PostverordnungenApp extends Application {
                 lblOcrTitel,
                 ocrHeaderFill,
                 btnOcrKopieren,
+                btnOcrImportieren,
                 btnOcrKorrigieren,
                 btnOcrTrefferZurueck,
                 btnOcrTrefferWeiter
