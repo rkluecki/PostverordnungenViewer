@@ -870,6 +870,39 @@ public class SeitenOCRRepository {
         }
     }
 
+    public void ersetzeOriginalOcr(SeitenOCR ocr) {
+
+        String sql = """
+            UPDATE dbo.SeitenOCR
+            SET
+                BildIndex = ?,
+                LogischeSeite = ?,
+                OCRText = ?,
+                OCRQuelle = ?,
+                OCRFormat = ?,
+                GeaendertAm = SYSUTCDATETIME()
+            WHERE BandID = ?
+              AND Dateiname = ?
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, ocr.getBildIndex());
+            stmt.setString(2, ocr.getLogischeSeite());
+            stmt.setString(3, ocr.getOcrText());
+            stmt.setString(4, ocr.getOcrQuelle());
+            stmt.setString(5, ocr.getOcrFormat());
+            stmt.setInt(6, ocr.getBandID());
+            stmt.setString(7, ocr.getDateiname());
+
+            stmt.executeUpdate();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void updateKorrigiertenText(int seitenOCRID, String korrigierterText) {
 
         String sql = """

@@ -2473,7 +2473,49 @@ public class PostverordnungenApp extends Application {
                 neuesOcr.setOcrQuelle("Extern");
                 neuesOcr.setOcrFormat("TXT");
 
-                seitenOCRRepository.insertOrUpdate(neuesOcr);
+                SeitenOCR vorhandenesOcr =
+                        seitenOCRRepository.findByBandIdAndDateiname(
+                                bandId,
+                                dateiname
+                        );
+
+                boolean originalOcrVorhanden =
+                        vorhandenesOcr != null
+                                && vorhandenesOcr.getOcrText() != null
+                                && !vorhandenesOcr.getOcrText().isBlank();
+
+                if (originalOcrVorhanden) {
+
+                    Alert bestaetigung =
+                            new Alert(Alert.AlertType.CONFIRMATION);
+
+                    bestaetigung.setTitle("OCR ersetzen");
+                    bestaetigung.setHeaderText(
+                            "Für diese Seite ist bereits OCR vorhanden."
+                    );
+                    bestaetigung.setContentText(
+                            "Soll das vorhandene Original-OCR wirklich "
+                                    + "durch die ausgewählte TXT-Datei ersetzt werden?"
+                    );
+
+                    Optional<ButtonType> ergebnis =
+                            bestaetigung.showAndWait();
+
+                    if (ergebnis.isEmpty()
+                            || ergebnis.get() != ButtonType.OK) {
+
+                        zeigeStatusKurz(
+                                "OCR-Import wurde abgebrochen."
+                        );
+                        return;
+                    }
+
+                    seitenOCRRepository.ersetzeOriginalOcr(neuesOcr);
+
+                } else {
+
+                    seitenOCRRepository.insertOrUpdate(neuesOcr);
+                }
 
                 aktualisiereOcrAnzeige();
 
