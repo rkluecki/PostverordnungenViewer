@@ -10,8 +10,11 @@ import javafx.scene.layout.*;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.DirectoryChooser;
-
 import java.io.File;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 /**
  * Dialog für den OCR-Download/-Import.
@@ -399,6 +402,68 @@ public class OcrDownloadDialog {
                     );
                     return;
                 }
+
+                String bandJahr = ermittleJahr(bandAnzeige);
+                String ordnerJahr = ermittleJahr(objectId);
+
+                if (bandJahr != null
+                        && ordnerJahr != null
+                        && !bandJahr.equals(ordnerJahr)) {
+
+                    Alert warnung = new Alert(
+                            Alert.AlertType.CONFIRMATION
+                    );
+
+                    warnung.initOwner(dialog);
+                    warnung.setTitle("Jahr stimmt nicht überein");
+                    warnung.setHeaderText(
+                            "Der ausgewählte Band und der ALTO-Ordner "
+                                    + "haben unterschiedliche Jahresangaben."
+                    );
+
+                    warnung.setContentText(
+                            "Ausgewählter Band: "
+                                    + bandAnzeige
+                                    + System.lineSeparator()
+                                    + "Erkanntes Bandjahr: "
+                                    + bandJahr
+                                    + System.lineSeparator()
+                                    + System.lineSeparator()
+                                    + "ALTO-Ordner: "
+                                    + objectId
+                                    + System.lineSeparator()
+                                    + "Erkanntes Ordnerjahr: "
+                                    + ordnerJahr
+                                    + System.lineSeparator()
+                                    + System.lineSeparator()
+                                    + "Soll der Import trotzdem gestartet werden?"
+                    );
+
+                    ButtonType btnTrotzdem =
+                            new ButtonType("Trotzdem importieren");
+
+                    ButtonType btnAbbrechen =
+                            new ButtonType(
+                                    "Abbrechen",
+                                    ButtonBar.ButtonData.CANCEL_CLOSE
+                            );
+
+                    warnung.getButtonTypes().setAll(
+                            btnTrotzdem,
+                            btnAbbrechen
+                    );
+
+                    Optional<ButtonType> ergebnis =
+                            warnung.showAndWait();
+
+                    if (ergebnis.isEmpty()
+                            || ergebnis.get() != btnTrotzdem) {
+                        txtStatus.setText(
+                                "Import wegen abweichender Jahresangaben abgebrochen."
+                        );
+                        return;
+                    }
+                }
             }
 
             if (blbBereichAktiv) {
@@ -701,5 +766,24 @@ public class OcrDownloadDialog {
         }
 
         return "z. B. Objekt- oder Manifest-ID";
+    }
+
+    private static String ermittleJahr(String text) {
+
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+
+        Pattern pattern = Pattern.compile(
+                "(?<!\\d)(18\\d{2}|19\\d{2}|20\\d{2})(?!\\d)"
+        );
+
+        Matcher matcher = pattern.matcher(text);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        return null;
     }
 }
