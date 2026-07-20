@@ -3,16 +3,23 @@ package de.kluecki.ocr;
 /**
  * Legt fest, aus welcher OCR-Quelle ein Import stammt.
  *
- * BSB_MDZ ist aktuell der funktionierende Online-Import über die BSB/MDZ-OCR-API.
- * BLB_KARLSRUHE ist als zweiter Archivtyp für die Digitalen Sammlungen
- * der Badischen Landesbibliothek vorbereitet.
+ * BSB_MDZ:
+ * Online-Import über die BSB/MDZ-OCR-API.
+ *
+ * BLB_KARLSRUHE:
+ * Online-Import über IIIF-Manifest und ALTO-Dateien
+ * der Badischen Landesbibliothek.
+ *
+ * LOKALE_ALTO_DATEIEN:
+ * Import bereits heruntergeladener ALTO-XML-Dateien
+ * aus einem lokalen Ordner.
  */
 public enum OcrArchivTyp {
 
     /**
      * Bayerische Staatsbibliothek / Münchener DigitalisierungsZentrum.
      *
-     * Aktuelle API-Logik:
+     * API:
      * https://api.digitale-sammlungen.de/ocr/{objectId}/{pageNum}
      */
     BSB_MDZ,
@@ -20,13 +27,18 @@ public enum OcrArchivTyp {
     /**
      * Badische Landesbibliothek Karlsruhe / Digitale Sammlungen.
      *
-     * Geplanter Einstieg:
-     * IIIF-Manifest laden, daraus Canvas-/Page-IDs ermitteln
-     * und anschließend die OCR-Daten je Seite abrufen.
-     *
-     * Beispiel:
-     * Manifest-ID: 7010966
-     * Page-ID: 6998715
+     * Ablauf:
+     * IIIF-Manifest laden, Canvas-/Page-IDs ermitteln
+     * und anschließend ALTO-Daten je Seite abrufen.
      */
-    BLB_KARLSRUHE
+    BLB_KARLSRUHE,
+
+    /**
+     * Bereits heruntergeladene ALTO-XML-Dateien
+     * aus einem lokalen Verzeichnis.
+     *
+     * Die Zuordnung zu dbo.SeitenMapping erfolgt
+     * anhand des Dateinamens ohne Dateiendung.
+     */
+    LOKALE_ALTO_DATEIEN
 }

@@ -9,6 +9,9 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.DirectoryChooser;
+
+import java.io.File;
 
 /**
  * Dialog für den OCR-Download/-Import.
@@ -59,7 +62,8 @@ public class OcrDownloadDialog {
         ComboBox<OcrArchivTyp> cmbArchivTyp = new ComboBox<>();
         cmbArchivTyp.getItems().addAll(
                 OcrArchivTyp.BSB_MDZ,
-                OcrArchivTyp.BLB_KARLSRUHE
+                OcrArchivTyp.BLB_KARLSRUHE,
+                OcrArchivTyp.LOKALE_ALTO_DATEIEN
         );
         cmbArchivTyp.setValue(startArchivTyp);
         cmbArchivTyp.setMaxWidth(Double.MAX_VALUE);
@@ -85,6 +89,22 @@ public class OcrDownloadDialog {
         txtObjectId.setPromptText(startIdPromptText);
         txtObjectId.setPrefColumnCount(22);
 
+        Button btnOrdnerAuswaehlen = new Button("Ordner auswählen");
+
+        btnOrdnerAuswaehlen.setVisible(false);
+        btnOrdnerAuswaehlen.setManaged(false);
+
+        btnOrdnerAuswaehlen.setOnAction(e -> {
+            DirectoryChooser chooser = new DirectoryChooser();
+            chooser.setTitle("Ordner mit ALTO-XML-Dateien auswählen");
+
+            File ausgewaehlterOrdner = chooser.showDialog(dialog);
+
+            if (ausgewaehlterOrdner != null) {
+                txtObjectId.setText(ausgewaehlterOrdner.getAbsolutePath());
+            }
+        });
+
         CheckBox chkBlbBereich = new CheckBox("BLB Manifest-ID-Bereich importieren");
 
         CheckBox chkVorhandeneOcrUeberspringen = new CheckBox("Vorhandene OCR-Seiten überspringen (empfohlen)");
@@ -100,6 +120,27 @@ public class OcrDownloadDialog {
 
         Label lblManifestBis = new Label("Manifest-ID bis:");
         TextField txtManifestBis = new TextField();
+
+        Label lblAltoSeiteVon = new Label("Bildseite von:");
+        TextField txtAltoSeiteVon = new TextField();
+        txtAltoSeiteVon.setPromptText("z. B. 6");
+        txtAltoSeiteVon.setPrefColumnCount(10);
+
+        Label lblAltoSeiteBis = new Label("Bildseite bis:");
+        TextField txtAltoSeiteBis = new TextField();
+        txtAltoSeiteBis.setPromptText("z. B. 1026");
+        txtAltoSeiteBis.setPrefColumnCount(10);
+
+        lblAltoSeiteVon.setVisible(false);
+        lblAltoSeiteVon.setManaged(false);
+        txtAltoSeiteVon.setVisible(false);
+        txtAltoSeiteVon.setManaged(false);
+
+        lblAltoSeiteBis.setVisible(false);
+        lblAltoSeiteBis.setManaged(false);
+        txtAltoSeiteBis.setVisible(false);
+        txtAltoSeiteBis.setManaged(false);
+
         txtManifestBis.setPromptText("z. B. 7010990");
         txtManifestBis.setPrefColumnCount(10);
 
@@ -140,16 +181,37 @@ public class OcrDownloadDialog {
         Button btnStart = new Button("Import starten");
         btnStart.setDisable(true);
 
-        txtObjectId.textProperty().addListener((obs, alt, neu) -> {
-            boolean leer = neu == null || neu.trim().isBlank();
-            btnStart.setDisable(leer);
-        });
-
         Runnable aktualisiereStartButton = () -> {
 
             OcrArchivTyp aktuellerTyp = cmbArchivTyp.getValue();
 
-            if (aktuellerTyp == OcrArchivTyp.BLB_KARLSRUHE && chkBlbBereich.isSelected()) {
+            if (aktuellerTyp == null) {
+                btnStart.setDisable(true);
+                return;
+            }
+
+            if (aktuellerTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN) {
+
+                boolean ordnerLeer = txtObjectId.getText() == null
+                        || txtObjectId.getText().trim().isBlank();
+
+                boolean seiteVonLeer = txtAltoSeiteVon.getText() == null
+                        || txtAltoSeiteVon.getText().trim().isBlank();
+
+                boolean seiteBisLeer = txtAltoSeiteBis.getText() == null
+                        || txtAltoSeiteBis.getText().trim().isBlank();
+
+                btnStart.setDisable(
+                        ordnerLeer
+                                || seiteVonLeer
+                                || seiteBisLeer
+                );
+
+                return;
+            }
+
+            if (aktuellerTyp == OcrArchivTyp.BLB_KARLSRUHE
+                    && chkBlbBereich.isSelected()) {
 
                 boolean vonLeer = txtManifestVon.getText() == null
                         || txtManifestVon.getText().trim().isBlank();
@@ -159,13 +221,13 @@ public class OcrDownloadDialog {
 
                 btnStart.setDisable(vonLeer || bisLeer);
 
-            } else {
-
-                boolean leer = txtObjectId.getText() == null
-                        || txtObjectId.getText().trim().isBlank();
-
-                btnStart.setDisable(leer);
+                return;
             }
+
+            boolean idLeer = txtObjectId.getText() == null
+                    || txtObjectId.getText().trim().isBlank();
+
+            btnStart.setDisable(idLeer);
         };
 
         chkBlbBereich.selectedProperty().addListener((obs, alt, neu) -> {
@@ -190,6 +252,18 @@ public class OcrDownloadDialog {
             aktualisiereStartButton.run();
         });
 
+        txtObjectId.textProperty().addListener(
+                (obs, alt, neu) -> aktualisiereStartButton.run()
+        );
+
+        txtAltoSeiteVon.textProperty().addListener(
+                (obs, alt, neu) -> aktualisiereStartButton.run()
+        );
+
+        txtAltoSeiteBis.textProperty().addListener(
+                (obs, alt, neu) -> aktualisiereStartButton.run()
+        );
+
         txtManifestVon.textProperty().addListener((obs, alt, neu) -> aktualisiereStartButton.run());
         txtManifestBis.textProperty().addListener((obs, alt, neu) -> aktualisiereStartButton.run());
 
@@ -210,6 +284,24 @@ public class OcrDownloadDialog {
 
             boolean istBlb = neuerTyp == OcrArchivTyp.BLB_KARLSRUHE;
             boolean istBsbMdz = neuerTyp == OcrArchivTyp.BSB_MDZ;
+
+            boolean istLokalesAlto =
+                    neuerTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN;
+
+            lblAltoSeiteVon.setVisible(istLokalesAlto);
+            lblAltoSeiteVon.setManaged(istLokalesAlto);
+            txtAltoSeiteVon.setVisible(istLokalesAlto);
+            txtAltoSeiteVon.setManaged(istLokalesAlto);
+
+            lblAltoSeiteBis.setVisible(istLokalesAlto);
+            lblAltoSeiteBis.setManaged(istLokalesAlto);
+            txtAltoSeiteBis.setVisible(istLokalesAlto);
+            txtAltoSeiteBis.setManaged(istLokalesAlto);
+
+            btnOrdnerAuswaehlen.setVisible(istLokalesAlto);
+            btnOrdnerAuswaehlen.setManaged(istLokalesAlto);
+
+            txtObjectId.setEditable(!istLokalesAlto);
 
             chkBlbBereich.setVisible(istBlb);
             chkBlbBereich.setManaged(istBlb);
@@ -246,6 +338,14 @@ public class OcrDownloadDialog {
                     ? txtManifestBis.getText().trim()
                     : "";
 
+            String altoSeiteVonText = txtAltoSeiteVon.getText() != null
+                    ? txtAltoSeiteVon.getText().trim()
+                    : "";
+
+            String altoSeiteBisText = txtAltoSeiteBis.getText() != null
+                    ? txtAltoSeiteBis.getText().trim()
+                    : "";
+
             OcrArchivTyp archivTyp = cmbArchivTyp.getValue();
 
             boolean blbBereichAktiv = archivTyp == OcrArchivTyp.BLB_KARLSRUHE
@@ -258,6 +358,48 @@ public class OcrDownloadDialog {
 
             String archivAnzeige = getArchivTypAnzeige(archivTyp);
             String idLabelText = getArchivTypIdLabel(archivTyp);
+
+            if (archivTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN) {
+
+                if (objectId.isBlank()) {
+                    txtStatus.setText("Bitte zuerst einen ALTO-Ordner auswählen.");
+                    return;
+                }
+
+                if (altoSeiteVonText.isBlank() || altoSeiteBisText.isBlank()) {
+                    txtStatus.setText(
+                            "Bitte Bildseite von und Bildseite bis eingeben."
+                    );
+                    return;
+                }
+
+                int altoSeiteVon;
+                int altoSeiteBis;
+
+                try {
+                    altoSeiteVon = Integer.parseInt(altoSeiteVonText);
+                    altoSeiteBis = Integer.parseInt(altoSeiteBisText);
+                } catch (NumberFormatException ex) {
+                    txtStatus.setText(
+                            "Bildseite von und Bildseite bis müssen ganze Zahlen sein."
+                    );
+                    return;
+                }
+
+                if (altoSeiteVon < 0 || altoSeiteBis < 0) {
+                    txtStatus.setText(
+                            "Die Bildseitennummern dürfen nicht negativ sein."
+                    );
+                    return;
+                }
+
+                if (altoSeiteVon > altoSeiteBis) {
+                    txtStatus.setText(
+                            "Bildseite von darf nicht größer als Bildseite bis sein."
+                    );
+                    return;
+                }
+            }
 
             if (blbBereichAktiv) {
 
@@ -293,11 +435,48 @@ public class OcrDownloadDialog {
 
             txtStatus.appendText("OCR-Quelle: " + archivAnzeige + System.lineSeparator());
 
-            if (blbBereichAktiv) {
-                txtStatus.appendText("BLB Manifest-ID von: " + manifestVonText + System.lineSeparator());
-                txtStatus.appendText("BLB Manifest-ID bis: " + manifestBisText + System.lineSeparator());
+            if (archivTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN) {
+
+                txtStatus.appendText(
+                        "ALTO-Ordner: "
+                                + objectId
+                                + System.lineSeparator()
+                );
+
+                txtStatus.appendText(
+                        "Bildseite von: "
+                                + altoSeiteVonText
+                                + System.lineSeparator()
+                );
+
+                txtStatus.appendText(
+                        "Bildseite bis: "
+                                + altoSeiteBisText
+                                + System.lineSeparator()
+                );
+
+            } else if (blbBereichAktiv) {
+
+                txtStatus.appendText(
+                        "BLB Manifest-ID von: "
+                                + manifestVonText
+                                + System.lineSeparator()
+                );
+
+                txtStatus.appendText(
+                        "BLB Manifest-ID bis: "
+                                + manifestBisText
+                                + System.lineSeparator()
+                );
+
             } else {
-                txtStatus.appendText(idLabelText + " " + objectId + System.lineSeparator());
+
+                txtStatus.appendText(
+                        idLabelText
+                                + " "
+                                + objectId
+                                + System.lineSeparator()
+                );
             }
 
             txtStatus.appendText("Import wird vorbereitet..." + System.lineSeparator());
@@ -307,6 +486,28 @@ public class OcrDownloadDialog {
             Task<OcrDownloadErgebnis> task = new Task<>() {
                 @Override
                 protected OcrDownloadErgebnis call() {
+
+                    if (archivTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN) {
+
+                        int altoSeiteVon = Integer.parseInt(altoSeiteVonText);
+                        int altoSeiteBis = Integer.parseInt(altoSeiteBisText);
+
+                        return service.importiereLokaleAltoDateien(
+                                bandId,
+                                objectId,
+                                altoSeiteVon,
+                                altoSeiteBis,
+                                meldung -> Platform.runLater(() -> {
+                                    txtStatus.appendText(
+                                            meldung + System.lineSeparator()
+                                    );
+
+                                    txtStatus.positionCaret(
+                                            txtStatus.getText().length()
+                                    );
+                                })
+                        );
+                    }
 
                     if (blbBereichAktiv) {
                         int manifestVon = Integer.parseInt(manifestVonText);
@@ -388,6 +589,9 @@ public class OcrDownloadDialog {
         Button btnAbbrechen = new Button("Schließen");
         btnAbbrechen.setOnAction(e -> dialog.close());
 
+        HBox objectIdBereich = new HBox(8, txtObjectId, btnOrdnerAuswaehlen);
+        HBox.setHgrow(txtObjectId, Priority.ALWAYS);
+
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(8);
@@ -402,7 +606,7 @@ public class OcrDownloadDialog {
         grid.add(cmbArchivTyp, 1, 2);
 
         grid.add(lblObjectId, 0, 3);
-        grid.add(txtObjectId, 1, 3);
+        grid.add(objectIdBereich, 1, 3);
 
         grid.add(chkVorhandeneOcrUeberspringen, 1, 4);
 
@@ -413,6 +617,12 @@ public class OcrDownloadDialog {
 
         grid.add(lblManifestBis, 0, 7);
         grid.add(txtManifestBis, 1, 7);
+
+        grid.add(lblAltoSeiteVon, 0, 8);
+        grid.add(txtAltoSeiteVon, 1, 8);
+
+        grid.add(lblAltoSeiteBis, 0, 9);
+        grid.add(txtAltoSeiteBis, 1, 9);
 
         ColumnConstraints col1 = new ColumnConstraints();
         col1.setMinWidth(130);
@@ -452,6 +662,10 @@ public class OcrDownloadDialog {
             return "BLB Karlsruhe Digitale Sammlungen";
         }
 
+        if (archivTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN) {
+            return "Lokale ALTO-Dateien";
+        }
+
         return "Unbekannte OCR-Quelle";
     }
 
@@ -465,6 +679,10 @@ public class OcrDownloadDialog {
             return "BLB Manifest-ID:";
         }
 
+        if (archivTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN) {
+            return "ALTO-Ordner:";
+        }
+
         return "OCR Objekt-/Manifest-ID:";
     }
 
@@ -476,6 +694,10 @@ public class OcrDownloadDialog {
 
         if (archivTyp == OcrArchivTyp.BLB_KARLSRUHE) {
             return "z. B. 7010966";
+        }
+
+        if (archivTyp == OcrArchivTyp.LOKALE_ALTO_DATEIEN) {
+            return "Lokalen Ordner mit ALTO-XML-Dateien auswählen";
         }
 
         return "z. B. Objekt- oder Manifest-ID";

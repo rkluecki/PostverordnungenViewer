@@ -17,6 +17,11 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.function.Consumer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.stream.Stream;
 
 /**
  * Service zum Herunterladen und Importieren von OCR-Daten.
@@ -741,6 +746,920 @@ public class OcrDownloadService {
         );
     }
 
+    public OcrDownloadErgebnis pruefeLokalenAltoOrdner(
+            int bandId,
+            String ordnerPfad,
+            int bildseiteVon,
+            int bildseiteBis,
+            Consumer<String> progressCallback
+    ) {
+
+        String bereinigterPfad = ordnerPfad != null
+                ? ordnerPfad.trim()
+                : "";
+
+        if (bereinigterPfad.isBlank()) {
+            String meldung = "Kein ALTO-Ordner ausgewählt.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    meldung
+            );
+        }
+
+        if (bildseiteVon < 0 || bildseiteBis < 0) {
+            String meldung = "Die Bildseitennummern dürfen nicht negativ sein.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        if (bildseiteVon > bildseiteBis) {
+            String meldung =
+                    "Bildseite von darf nicht größer als Bildseite bis sein.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        Path altoOrdner = Paths.get(bereinigterPfad);
+
+        if (!Files.isDirectory(altoOrdner)) {
+            String meldung =
+                    "Der ausgewählte ALTO-Ordner existiert nicht oder ist kein Ordner.";
+
+            meldeFortschritt(progressCallback, meldung);
+            meldeFortschritt(progressCallback, bereinigterPfad);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        List<SeitenMappingInfo> mappingSeiten =
+                ladeSeitenMappings(bandId);
+
+        if (mappingSeiten.isEmpty()) {
+            String meldung =
+                    "Kein SeitenMapping für BandID "
+                            + bandId
+                            + " vorhanden.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        int anzahlBildseiten =
+                bildseiteBis - bildseiteVon + 1;
+
+        int passendeZuordnungen = 0;
+        int fehlendeMappings = 0;
+        int fehlendeAltoDateien = 0;
+
+        meldeFortschritt(
+                progressCallback,
+                "Lokaler ALTO-Bereich wird geprüft."
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "ALTO-Ordner: " + bereinigterPfad
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "Bildseitenbereich: "
+                        + bildseiteVon
+                        + " bis "
+                        + bildseiteBis
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "Erwartete Seiten im Bereich: "
+                        + anzahlBildseiten
+        );
+
+        meldeFortschritt(progressCallback, "");
+
+        for (int bildseite = bildseiteVon;
+             bildseite <= bildseiteBis;
+             bildseite++) {
+
+            String erwarteterBildDateiname =
+                    String.format("seite-%03d.jpg", bildseite);
+
+            int altoNummer = bildseite - 1;
+
+            String erwarteterAltoDateiname =
+                    String.format("%08d.xml", altoNummer);
+
+            SeitenMappingInfo mappingInfo = null;
+
+            for (SeitenMappingInfo info : mappingSeiten) {
+                if (info.dateiname() != null
+                        && info.dateiname().equalsIgnoreCase(
+                        erwarteterBildDateiname
+                )) {
+                    mappingInfo = info;
+                    break;
+                }
+            }
+
+            if (mappingInfo == null) {
+                fehlendeMappings++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        "KEIN MAPPING: "
+                                + erwarteterBildDateiname
+                );
+
+                continue;
+            }
+
+            Path altoDatei =
+                    altoOrdner.resolve(erwarteterAltoDateiname);
+
+            if (!Files.isRegularFile(altoDatei)) {
+                fehlendeAltoDateien++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        "ALTO FEHLT: "
+                                + erwarteterAltoDateiname
+                                + " für "
+                                + erwarteterBildDateiname
+                );
+
+                continue;
+            }
+
+            passendeZuordnungen++;
+        }
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(
+                progressCallback,
+                "Passende Zuordnungen: "
+                        + passendeZuordnungen
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "Fehlende SeitenMapping-Einträge: "
+                        + fehlendeMappings
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "Fehlende ALTO-Dateien: "
+                        + fehlendeAltoDateien
+        );
+
+        boolean allesPassend =
+                passendeZuordnungen == anzahlBildseiten
+                        && fehlendeMappings == 0
+                        && fehlendeAltoDateien == 0;
+
+        String meldung;
+
+        if (allesPassend) {
+            meldung =
+                    "ALTO-Bereich vollständig und eindeutig zugeordnet.";
+        } else {
+            meldung =
+                    "ALTO-Bereich ist noch nicht vollständig zuordenbar.";
+        }
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(progressCallback, meldung);
+
+        return new OcrDownloadErgebnis(
+                bandId,
+                bereinigterPfad,
+                anzahlBildseiten,
+                0,
+                fehlendeAltoDateien,
+                fehlendeMappings,
+                allesPassend,
+                meldung
+        );
+    }
+
+    public OcrDownloadErgebnis importiereLokaleAltoDateien(
+            int bandId,
+            String ordnerPfad,
+            int bildseiteVon,
+            int bildseiteBis,
+            Consumer<String> progressCallback
+    ) {
+
+        String bereinigterPfad = ordnerPfad != null
+                ? ordnerPfad.trim()
+                : "";
+
+        if (bereinigterPfad.isBlank()) {
+            String meldung = "Kein ALTO-Ordner ausgewählt.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    meldung
+            );
+        }
+
+        if (bildseiteVon < 0 || bildseiteBis < 0) {
+            String meldung =
+                    "Die Bildseitennummern dürfen nicht negativ sein.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        if (bildseiteVon > bildseiteBis) {
+            String meldung =
+                    "Bildseite von darf nicht größer als Bildseite bis sein.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        Path altoOrdner = Paths.get(bereinigterPfad);
+
+        if (!Files.isDirectory(altoOrdner)) {
+            String meldung =
+                    "Der ausgewählte ALTO-Ordner existiert nicht oder ist kein Ordner.";
+
+            meldeFortschritt(progressCallback, meldung);
+            meldeFortschritt(progressCallback, bereinigterPfad);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        List<SeitenMappingInfo> mappingSeiten =
+                ladeSeitenMappings(bandId);
+
+        if (mappingSeiten.isEmpty()) {
+            String meldung =
+                    "Kein SeitenMapping für BandID "
+                            + bandId
+                            + " vorhanden.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        int anzahlBildseiten =
+                bildseiteBis - bildseiteVon + 1;
+
+        int erfolgreich = 0;
+        int ohneOcr = 0;
+        int fehler = 0;
+
+        int fehlendeMappings = 0;
+        int fehlendeAltoDateien = 0;
+
+        for (int bildseite = bildseiteVon;
+             bildseite <= bildseiteBis;
+             bildseite++) {
+
+            String erwarteterBildDateiname =
+                    String.format("seite-%03d.jpg", bildseite);
+
+            int altoNummer = bildseite - 1;
+
+            String erwarteterAltoDateiname =
+                    String.format("%08d.xml", altoNummer);
+
+            SeitenMappingInfo mappingInfo = null;
+
+            for (SeitenMappingInfo info : mappingSeiten) {
+                if (info.dateiname() != null
+                        && info.dateiname().equalsIgnoreCase(
+                        erwarteterBildDateiname
+                )) {
+                    mappingInfo = info;
+                    break;
+                }
+            }
+
+            if (mappingInfo == null) {
+                fehlendeMappings++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        "KEIN MAPPING: " + erwarteterBildDateiname
+                );
+
+                continue;
+            }
+
+            Path altoDatei =
+                    altoOrdner.resolve(erwarteterAltoDateiname);
+
+            if (!Files.isRegularFile(altoDatei)) {
+                fehlendeAltoDateien++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        "ALTO FEHLT: "
+                                + erwarteterAltoDateiname
+                                + " für "
+                                + erwarteterBildDateiname
+                );
+            }
+        }
+
+        if (fehlendeMappings > 0 || fehlendeAltoDateien > 0) {
+            String meldung =
+                    "Lokaler ALTO-Import wurde nicht gestartet. "
+                            + "Fehlende SeitenMapping-Einträge: "
+                            + fehlendeMappings
+                            + ", fehlende ALTO-Dateien: "
+                            + fehlendeAltoDateien
+                            + ".";
+
+            meldeFortschritt(progressCallback, "");
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    anzahlBildseiten,
+                    0,
+                    fehlendeAltoDateien,
+                    fehlendeMappings,
+                    false,
+                    meldung
+            );
+        }
+
+        meldeFortschritt(
+                progressCallback,
+                "Lokaler ALTO-Import wird vorbereitet."
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "ALTO-Ordner: " + bereinigterPfad
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "Bildseitenbereich: "
+                        + bildseiteVon
+                        + " bis "
+                        + bildseiteBis
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "Zu importierende Seiten: " + anzahlBildseiten
+        );
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(
+                progressCallback,
+                "Alle Zuordnungen wurden geprüft. "
+                        + "Die ALTO-Dateien werden jetzt importiert."
+        );
+        meldeFortschritt(progressCallback, "");
+
+        for (int bildseite = bildseiteVon;
+             bildseite <= bildseiteBis;
+             bildseite++) {
+
+            int aktuelleNummer =
+                    bildseite - bildseiteVon + 1;
+
+            String erwarteterBildDateiname =
+                    String.format("seite-%03d.jpg", bildseite);
+
+            int altoNummer = bildseite - 1;
+
+            String erwarteterAltoDateiname =
+                    String.format("%08d.xml", altoNummer);
+
+            SeitenMappingInfo mappingInfo = null;
+
+            for (SeitenMappingInfo info : mappingSeiten) {
+                if (info.dateiname() != null
+                        && info.dateiname().equalsIgnoreCase(
+                        erwarteterBildDateiname
+                )) {
+                    mappingInfo = info;
+                    break;
+                }
+            }
+
+            /*
+             * Diese Fälle wurden bereits vor dem Import vollständig geprüft.
+             * Die zusätzliche Kontrolle schützt trotzdem vor unerwarteten
+             * Änderungen während des laufenden Imports.
+             */
+            if (mappingInfo == null) {
+                fehler++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        aktuelleNummer + " / " + anzahlBildseiten
+                                + " FEHLER: SeitenMapping fehlt für "
+                                + erwarteterBildDateiname
+                );
+
+                continue;
+            }
+
+            Path altoDatei =
+                    altoOrdner.resolve(erwarteterAltoDateiname);
+
+            if (!Files.isRegularFile(altoDatei)) {
+                fehler++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        aktuelleNummer + " / " + anzahlBildseiten
+                                + " FEHLER: ALTO-Datei fehlt: "
+                                + erwarteterAltoDateiname
+                );
+
+                continue;
+            }
+
+            try {
+                String altoXml = Files.readString(altoDatei);
+
+                if (altoXml.isBlank()) {
+                    ohneOcr++;
+
+                    meldeFortschritt(
+                            progressCallback,
+                            aktuelleNummer + " / " + anzahlBildseiten
+                                    + " OCR nachholen (eigene OCR): "
+                                    + mappingInfo.dateiname()
+                                    + " | Grund: ALTO-Datei ist leer"
+                    );
+
+                    continue;
+                }
+
+                String text =
+                        extrahiereTextAusAlto(altoXml);
+
+                if (text == null || text.isBlank()) {
+                    ohneOcr++;
+
+                    meldeFortschritt(
+                            progressCallback,
+                            aktuelleNummer + " / " + anzahlBildseiten
+                                    + " OCR nachholen (eigene OCR): "
+                                    + mappingInfo.dateiname()
+                                    + " | Grund: ALTO enthält keinen erkennbaren Text"
+                    );
+
+                    continue;
+                }
+
+                SeitenOCR ocr = new SeitenOCR();
+                ocr.setBandID(bandId);
+                ocr.setBildIndex(mappingInfo.bildIndex());
+                ocr.setDateiname(mappingInfo.dateiname());
+                ocr.setLogischeSeite(mappingInfo.logischeSeite());
+                ocr.setOcrText(text);
+                ocr.setOcrQuelle(
+                        "Lokale ALTO-Dateien / Württemberg"
+                );
+                ocr.setOcrFormat("ALTO 2.0");
+
+                seitenOCRRepository.insertOrUpdate(ocr);
+
+                erfolgreich++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        aktuelleNummer + " / " + anzahlBildseiten
+                                + " gespeichert: "
+                                + mappingInfo.dateiname()
+                                + " | ALTO: "
+                                + erwarteterAltoDateiname
+                                + " | Zeichen: "
+                                + text.length()
+                );
+
+            } catch (Exception ex) {
+                fehler++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        aktuelleNummer + " / " + anzahlBildseiten
+                                + " FEHLER: "
+                                + erwarteterAltoDateiname
+                                + " / "
+                                + mappingInfo.dateiname()
+                                + " | "
+                                + ex.getMessage()
+                );
+
+                ex.printStackTrace();
+            }
+        }
+
+        String meldung =
+                "Lokaler ALTO-Import abgeschlossen. "
+                        + "Erfolgreich gespeichert: "
+                        + erfolgreich
+                        + ", OCR nachholen (eigene OCR): "
+                        + ohneOcr
+                        + ", Fehler: "
+                        + fehler
+                        + ".";
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(progressCallback, meldung);
+
+        return new OcrDownloadErgebnis(
+                bandId,
+                bereinigterPfad,
+                anzahlBildseiten,
+                erfolgreich,
+                ohneOcr,
+                fehler,
+                true,
+                meldung
+        );
+    }
+
+    public OcrDownloadErgebnis pruefeLokalenAltoOrdner(
+            int bandId,
+            String ordnerPfad,
+            Consumer<String> progressCallback
+    ) {
+
+        String bereinigterPfad = ordnerPfad != null
+                ? ordnerPfad.trim()
+                : "";
+
+        if (bereinigterPfad.isBlank()) {
+            String meldung = "Kein ALTO-Ordner ausgewählt.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    meldung
+            );
+        }
+
+        Path ordner = Paths.get(bereinigterPfad);
+
+        if (!Files.exists(ordner)) {
+            String meldung = "Der ausgewählte ALTO-Ordner existiert nicht.";
+
+            meldeFortschritt(progressCallback, meldung);
+            meldeFortschritt(progressCallback, bereinigterPfad);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        if (!Files.isDirectory(ordner)) {
+            String meldung = "Der ausgewählte Pfad ist kein Ordner.";
+
+            meldeFortschritt(progressCallback, meldung);
+            meldeFortschritt(progressCallback, bereinigterPfad);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        meldeFortschritt(progressCallback, "Lokaler ALTO-Ordner wird geprüft.");
+        meldeFortschritt(progressCallback, "Ordner: " + bereinigterPfad);
+        meldeFortschritt(progressCallback, "");
+
+        List<Path> altoDateien;
+
+        try (Stream<Path> stream = Files.list(ordner)) {
+
+            altoDateien = stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName()
+                            .toString()
+                            .toLowerCase()
+                            .endsWith(".xml"))
+                    .sorted(Comparator.comparing(
+                            path -> path.getFileName().toString()
+                    ))
+                    .toList();
+
+        } catch (Exception ex) {
+            String meldung = "Fehler beim Lesen des ALTO-Ordners: "
+                    + ex.getMessage();
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    0,
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        List<SeitenMappingInfo> mappingSeiten = ladeSeitenMappings(bandId);
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(progressCallback, "Beispiele aus dem SeitenMapping:");
+
+        for (int i = 0; i < Math.min(10, mappingSeiten.size()); i++) {
+            SeitenMappingInfo info = mappingSeiten.get(i);
+
+            meldeFortschritt(
+                    progressCallback,
+                    "Mapping " + (i + 1)
+                            + ": BildIndex=" + info.bildIndex()
+                            + " | Dateiname=" + info.dateiname()
+                            + " | Stamm=" + ermittleDateistamm(info.dateiname())
+            );
+        }
+
+        meldeFortschritt(progressCallback, "Letzte Einträge aus dem SeitenMapping:");
+
+        int mappingStart = Math.max(0, mappingSeiten.size() - 10);
+
+        for (int i = mappingStart; i < mappingSeiten.size(); i++) {
+            SeitenMappingInfo info = mappingSeiten.get(i);
+
+            meldeFortschritt(
+                    progressCallback,
+                    "Mapping " + (i + 1)
+                            + ": BildIndex=" + info.bildIndex()
+                            + " | Dateiname=" + info.dateiname()
+                            + " | Stamm=" + ermittleDateistamm(info.dateiname())
+            );
+        }
+
+        meldeFortschritt(progressCallback, "");
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(progressCallback, "Beispiele aus dem ALTO-Ordner:");
+
+        for (int i = 0; i < Math.min(10, altoDateien.size()); i++) {
+            Path datei = altoDateien.get(i);
+
+            meldeFortschritt(
+                    progressCallback,
+                    "ALTO " + (i + 1)
+                            + ": Dateiname=" + datei.getFileName()
+                            + " | Stamm=" + ermittleDateistamm(
+                            datei.getFileName().toString()
+                    )
+            );
+        }
+
+        meldeFortschritt(progressCallback, "Letzte Dateien aus dem ALTO-Ordner:");
+
+        int altoStart = Math.max(0, altoDateien.size() - 10);
+
+        for (int i = altoStart; i < altoDateien.size(); i++) {
+            Path datei = altoDateien.get(i);
+
+            meldeFortschritt(
+                    progressCallback,
+                    "ALTO " + (i + 1)
+                            + ": Dateiname=" + datei.getFileName()
+                            + " | Stamm=" + ermittleDateistamm(
+                            datei.getFileName().toString()
+                    )
+            );
+        }
+
+        meldeFortschritt(progressCallback, "");
+
+        meldeFortschritt(progressCallback, "");
+
+        meldeFortschritt(
+                progressCallback,
+                "SeitenMapping-Einträge: " + mappingSeiten.size()
+        );
+
+        if (mappingSeiten.isEmpty()) {
+            String meldung = "Kein SeitenMapping für BandID "
+                    + bandId
+                    + " vorhanden.";
+
+            meldeFortschritt(progressCallback, meldung);
+
+            return new OcrDownloadErgebnis(
+                    bandId,
+                    bereinigterPfad,
+                    altoDateien.size(),
+                    0,
+                    0,
+                    1,
+                    false,
+                    meldung
+            );
+        }
+
+        int passendeDateien = 0;
+        int fehlendeZuordnungen = 0;
+
+        for (Path altoDatei : altoDateien) {
+
+            String altoStamm = ermittleDateistamm(
+                    altoDatei.getFileName().toString()
+            );
+
+            SeitenMappingInfo gefundenesMapping = null;
+
+            for (SeitenMappingInfo mappingInfo : mappingSeiten) {
+
+                String mappingStamm = ermittleDateistamm(
+                        mappingInfo.dateiname()
+                );
+
+                if (altoStamm.equals(mappingStamm)) {
+                    gefundenesMapping = mappingInfo;
+                    break;
+                }
+            }
+
+            if (gefundenesMapping != null) {
+                passendeDateien++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        "ZUORDNUNG OK: "
+                                + altoDatei.getFileName()
+                                + " -> "
+                                + gefundenesMapping.dateiname()
+                );
+            } else {
+                fehlendeZuordnungen++;
+
+                meldeFortschritt(
+                        progressCallback,
+                        "KEIN MAPPING: " + altoDatei.getFileName()
+                );
+            }
+        }
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(
+                progressCallback,
+                "Passende ALTO-Dateien: " + passendeDateien
+        );
+        meldeFortschritt(
+                progressCallback,
+                "ALTO-Dateien ohne Mapping: " + fehlendeZuordnungen
+        );
+
+        meldeFortschritt(
+                progressCallback,
+                "Gefundene XML-Dateien: " + altoDateien.size()
+        );
+
+        String meldung;
+
+        if (altoDateien.isEmpty()) {
+            meldung = "Im ausgewählten Ordner wurden keine XML-Dateien gefunden.";
+        } else {
+            meldung = "ALTO-Ordner erfolgreich geprüft.";
+        }
+
+        meldeFortschritt(progressCallback, "");
+        meldeFortschritt(progressCallback, meldung);
+
+        return new OcrDownloadErgebnis(
+                bandId,
+                bereinigterPfad,
+                altoDateien.size(),
+                0,
+                0,
+                0,
+                !altoDateien.isEmpty(),
+                meldung
+        );
+    }
+
     private List<SeitenMappingInfo> ladeSeitenMappings(int bandId) {
 
         List<SeitenMappingInfo> result = new ArrayList<>();
@@ -946,6 +1865,23 @@ public class OcrDownloadService {
         if (progressCallback != null) {
             progressCallback.accept(nachricht);
         }
+    }
+
+    private String ermittleDateistamm(String dateiname) {
+
+        if (dateiname == null || dateiname.isBlank()) {
+            return "";
+        }
+
+        String name = dateiname.trim();
+
+        int punktIndex = name.indexOf('.');
+
+        if (punktIndex > 0) {
+            name = name.substring(0, punktIndex);
+        }
+
+        return name.toLowerCase();
     }
 
     private record SeitenMappingInfo(
