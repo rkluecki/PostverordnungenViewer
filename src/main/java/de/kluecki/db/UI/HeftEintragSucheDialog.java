@@ -146,6 +146,24 @@ public class HeftEintragSucheDialog {
                         data.getValue().getTitel() != null ? data.getValue().getTitel() : ""
                 ));
 
+        colTitel.setCellFactory(column -> new TableCell<>() {
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+
+                super.updateItem(item, empty);
+
+                if (empty || item == null || item.isBlank()) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+
+                setText(item);
+                setTooltip(new Tooltip(item));
+            }
+        });
+
         TableColumn<HeftEintrag, Number> colSeiteVon = new TableColumn<>("Seite von");
         colSeiteVon.setCellValueFactory(data ->
                 new SimpleIntegerProperty(data.getValue().getSeiteVon()));
@@ -167,8 +185,6 @@ public class HeftEintragSucheDialog {
                 if (event.getClickCount() == 2 && !row.isEmpty()) {
                     HeftEintrag ausgewaehlt = row.getItem();
 
-                    stage.close();
-
                     if (onSelect != null) {
                         Platform.runLater(() -> onSelect.accept(ausgewaehlt));
                     }
@@ -185,8 +201,6 @@ public class HeftEintragSucheDialog {
                         table.getSelectionModel().getSelectedItem();
 
                 if (ausgewaehlt != null) {
-
-                    stage.close();
 
                     if (onSelect != null) {
                         Platform.runLater(() ->

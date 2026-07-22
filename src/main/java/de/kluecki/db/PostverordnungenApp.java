@@ -86,7 +86,6 @@ public class PostverordnungenApp extends Application {
 
     // Navigation links
     private ListView<String> gebietListView;
-    private ListView<String> bandListView;
     private ListView<Heft> heftListView;
     private TreeView<BandNavigationEintrag> bandTreeView;
 
@@ -328,8 +327,6 @@ public class PostverordnungenApp extends Application {
 
         gebietListView = new ListView<>();
         gebietListView.getItems().addAll(loadGebiete());
-
-        bandListView = new ListView<>();
 
         TreeItem<BandNavigationEintrag> unsichtbareWurzel =
                 new TreeItem<>();
@@ -663,7 +660,11 @@ public class PostverordnungenApp extends Application {
                 return;
             }
 
-            boolean gewechselt = waehleGebietUndBandAus(zielGebiet, zielBand);
+            boolean gewechselt =
+                    waehleGebietUndBandAus(
+                            zielGebiet,
+                            treffer.getBandID()
+                    );
 
             if (!gewechselt) {
                 return;
@@ -1294,11 +1295,14 @@ public class PostverordnungenApp extends Application {
                     return;
                 }
 
-                List<String> baende = loadBaende(gebiet);
-                bandListView.getItems().setAll(baende);
-                updateStatusLabel(baende.size());
+                ladeBandBaum(gebiet);
 
-                bandListView.getSelectionModel().clearSelection();
+                updateStatusLabel(
+                        bandTreeView.getRoot().getChildren().size()
+                );
+
+                bandTreeView.getSelectionModel().clearSelection();
+                aktuellerBandNavigationEintrag = null;
 
                 heftListView.getItems().clear();
                 tblHeftEintraege.getItems().clear();
@@ -1396,7 +1400,12 @@ public class PostverordnungenApp extends Application {
 
             gebietListView.getItems().setAll(loadGebiete());
             gebietListView.getSelectionModel().clearSelection();
-            bandListView.getItems().clear();
+            if (bandTreeView.getRoot() != null) {
+                bandTreeView.getRoot().getChildren().clear();
+            }
+
+            bandTreeView.getSelectionModel().clearSelection();
+            aktuellerBandNavigationEintrag = null;
             heftListView.getItems().clear();
             tblHeftEintraege.getItems().clear();
             lstInhalteDetail.getItems().clear();
@@ -1702,6 +1711,25 @@ public class PostverordnungenApp extends Application {
                                 : ""
                 )
         );
+
+        colTitel.setCellFactory(column -> new TableCell<>() {
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+
+                super.updateItem(item, empty);
+
+                if (empty || item == null || item.isBlank()) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+
+                setText(item);
+                setTooltip(new Tooltip(item));
+            }
+        });
+
         colTitel.setPrefWidth(180);
 
         TableColumn<HeftEintrag, String> colDatum = new TableColumn<>("Datum");
@@ -1825,6 +1853,52 @@ public class PostverordnungenApp extends Application {
         }
     }
 
+    private boolean waehleBandImBaumNachQuelleId(int quelleId) {
+
+        if (bandTreeView == null || bandTreeView.getRoot() == null) {
+            return false;
+        }
+
+        for (TreeItem<BandNavigationEintrag> hauptKnoten
+                : bandTreeView.getRoot().getChildren()) {
+
+            BandNavigationEintrag hauptband = hauptKnoten.getValue();
+
+            if (hauptband != null
+                    && hauptband.getQuelleId() == quelleId) {
+
+                bandTreeView.getSelectionModel().select(hauptKnoten);
+                bandTreeView.scrollTo(
+                        bandTreeView.getRow(hauptKnoten)
+                );
+
+                return true;
+            }
+
+            for (TreeItem<BandNavigationEintrag> unterKnoten
+                    : hauptKnoten.getChildren()) {
+
+                BandNavigationEintrag unterband =
+                        unterKnoten.getValue();
+
+                if (unterband != null
+                        && unterband.getQuelleId() == quelleId) {
+
+                    hauptKnoten.setExpanded(true);
+
+                    bandTreeView.getSelectionModel().select(unterKnoten);
+                    bandTreeView.scrollTo(
+                            bandTreeView.getRow(unterKnoten)
+                    );
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private VBox createNavigationPane() {
         Label lblGebiete = new Label("Gebiete");
         lblGebiete.setStyle(STYLE_NAV_LABEL);
@@ -1895,13 +1969,11 @@ public class PostverordnungenApp extends Application {
         gebietListView.setPrefHeight(130);
 
         bandTreeView.setPrefHeight(210);
-        bandListView.setPrefHeight(100);
 
         heftListView.setPrefHeight(100);
 
         gebietListView.setStyle(STYLE_NAV_LIST);
         bandTreeView.setStyle(STYLE_NAV_LIST);
-        bandListView.setStyle(STYLE_NAV_LIST);
         heftListView.setStyle(STYLE_NAV_LIST);
         tblHeftEintraege.setStyle(STYLE_NAV_LIST);
         lstInhalteDetail.setStyle(STYLE_NAV_LIST);
@@ -1999,16 +2071,27 @@ public class PostverordnungenApp extends Application {
         }
 
         String zielGebiet = heftEintrag.getGebietAnzeige();
-        String zielBand = heftEintrag.getBandJahrAnzeige();
+        int zielBandId = heftEintrag.getBandID();
 
         if (zielGebiet != null && !zielGebiet.isBlank()) {
             gebietListView.getSelectionModel().select(zielGebiet);
             gebietListView.scrollTo(zielGebiet);
         }
 
-        if (zielBand != null && !zielBand.isBlank()) {
-            bandListView.getSelectionModel().select(zielBand);
-            bandListView.scrollTo(zielBand);
+        if (zielBandId > 0) {
+
+            boolean bandGefunden =
+                    waehleBandImBaumNachQuelleId(zielBandId);
+
+            if (!bandGefunden) {
+                showAlert(
+                        "HeftEintrag-Suche",
+                        "Der zugehörige Band wurde in der Navigation nicht gefunden.\n\n"
+                                + "BandID: "
+                                + zielBandId
+                );
+                return;
+            }
         }
 
         Platform.runLater(() -> {
@@ -2020,31 +2103,46 @@ public class PostverordnungenApp extends Application {
         });
     }
 
-    private boolean waehleGebietUndBandAus(String zielGebiet, String zielBand) {
+    private boolean waehleGebietUndBandAus(
+            String zielGebiet,
+            int zielBandId) {
 
         if (zielGebiet == null || zielGebiet.isBlank()) {
             return false;
         }
 
-        if (zielBand == null || zielBand.isBlank()) {
+        if (zielBandId <= 0) {
             return false;
         }
 
         if (!gebietListView.getItems().contains(zielGebiet)) {
-            showAlert("OCR-Suche", "Das Gebiet wurde in der Navigation nicht gefunden:\n" + zielGebiet);
+
+            showAlert(
+                    "OCR-Suche",
+                    "Das Gebiet wurde in der Navigation nicht gefunden:\n"
+                            + zielGebiet
+            );
+
             return false;
         }
 
         gebietListView.getSelectionModel().select(zielGebiet);
         gebietListView.scrollTo(zielGebiet);
 
-        if (!bandListView.getItems().contains(zielBand)) {
-            showAlert("OCR-Suche", "Der Band wurde im Gebiet nicht gefunden:\n" + zielBand);
+        boolean bandGefunden =
+                waehleBandImBaumNachQuelleId(zielBandId);
+
+        if (!bandGefunden) {
+
+            showAlert(
+                    "OCR-Suche",
+                    "Der Band wurde in der Navigation nicht gefunden.\n\n"
+                            + "BandID: "
+                            + zielBandId
+            );
+
             return false;
         }
-
-        bandListView.getSelectionModel().select(zielBand);
-        bandListView.scrollTo(zielBand);
 
         return true;
     }
@@ -2818,7 +2916,6 @@ public class PostverordnungenApp extends Application {
 
         gebietListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
 
-            bandListView.getSelectionModel().clearSelection();
             bandTreeView.getSelectionModel().clearSelection();
             aktuellerBandNavigationEintrag = null;
 
@@ -2827,7 +2924,6 @@ public class PostverordnungenApp extends Application {
             tblHeftEintraege.getSelectionModel().clearSelection();
             lstInhalteDetail.getSelectionModel().clearSelection();
 
-            bandListView.getItems().clear();
             heftListView.getItems().clear();
             tblHeftEintraege.getItems().clear();
             lstInhalteDetail.getItems().clear();
@@ -2846,14 +2942,21 @@ public class PostverordnungenApp extends Application {
 
             ladeBandBaum(newValue);
 
-            List<String> baende = loadBaende(newValue);
-            bandListView.getItems().setAll(baende);
+            TreeItem<BandNavigationEintrag> ersterBand =
+                    bandTreeView.getRoot().getChildren().isEmpty()
+                            ? null
+                            : bandTreeView.getRoot().getChildren().getFirst();
 
-            updateStatusLabel(baende.size());
-
-            if (!baende.isEmpty()) {
-                bandListView.scrollTo(0);
+            if (ersterBand != null) {
+                bandTreeView.getSelectionModel().select(ersterBand);
+                bandTreeView.scrollTo(
+                        bandTreeView.getRow(ersterBand)
+                );
             }
+
+            updateStatusLabel(
+                    bandTreeView.getRoot().getChildren().size()
+            );
         });
 
         bandTreeView.getSelectionModel()
@@ -2865,8 +2968,6 @@ public class PostverordnungenApp extends Application {
                     }
 
                     BandNavigationEintrag eintrag = neuerKnoten.getValue();
-
-                    bandListView.getSelectionModel().clearSelection();
 
                     aktuellerBandNavigationEintrag = eintrag;
                     aktuellesBand = eintrag.getAnzeigeText();
@@ -2991,184 +3092,6 @@ public class PostverordnungenApp extends Application {
                         );
                     }
                 });
-
-        bandListView.setOnMouseClicked(e -> {
-
-            String band = bandListView.getSelectionModel().getSelectedItem();
-
-            if (band == null) {
-                return;
-            }
-
-            // Wenn ein Band angeklickt wird, soll wieder freie Bandnavigation gelten.
-            heftListView.getSelectionModel().clearSelection();
-            tblHeftEintraege.getSelectionModel().clearSelection();
-            lstInhalteDetail.getSelectionModel().clearSelection();
-
-            tblHeftEintraege.getItems().clear();
-            lstInhalteDetail.getItems().clear();
-
-            lblForschungsnotiz.setText("");
-            lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
-
-            aktuellesLevel = NavigationLevel.HEFT;
-            updateOutputButtons();
-            updateNavigationState();
-        });
-
-        bandListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
-            if (newValue == null) return;
-
-            bandTreeView.getSelectionModel().clearSelection();
-            aktuellerBandNavigationEintrag = null;
-
-            if (Objects.equals(oldValue, newValue)) {
-                return;
-            }
-
-            String gebiet = gebietListView.getSelectionModel().getSelectedItem();
-            String band = newValue;
-
-            aktuellesGebiet = gebiet;
-            aktuellesBand = band;
-
-            System.out.println("========== BANDWECHSEL ==========");
-            System.out.println("Gebiet: " + gebiet);
-            System.out.println("Band: " + band);
-            System.out.println("Alt: " + oldValue);
-            System.out.println("Neu: " + newValue);
-
-            zeigeStatusKurz("Band/Jahr wird geladen: " + gebiet + " – " + band);
-
-            // Beim Wechsel/Anklicken eines Bandes wieder freie Bandnavigation aktivieren
-            heftListView.getSelectionModel().clearSelection();
-            tblHeftEintraege.getSelectionModel().clearSelection();
-            lstInhalteDetail.getSelectionModel().clearSelection();
-
-            tblHeftEintraege.getItems().clear();
-            lstInhalteDetail.getItems().clear();
-
-            lblForschungsnotiz.setText("");
-            lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
-
-            aktuellesLevel = NavigationLevel.HEFT;
-            updateOutputButtons();
-
-            lblBandTitel.setText(gebiet + " – " + band);
-            resetSeitenmarkierung();
-            updateInhaltListe();
-
-            heftListView.getItems().clear();
-            tblHeftEintraege.getItems().clear();
-            lstInhalteDetail.getItems().clear();
-
-            long tBandId = logZeitStart("BandID ermitteln");
-            int bandId = ermittleBandId(gebiet, band);
-            logZeitEnde("BandID ermitteln", tBandId);
-
-            if (bandId > 0) {
-                long tHefte = logZeitStart("Hefte laden");
-                List<Heft> hefte = heftRepository.findByBand(bandId);
-                logZeitEnde("Hefte laden", tHefte);
-
-                heftListView.setCellFactory(param -> new ListCell<>() {
-                    @Override
-                    protected void updateItem(Heft heft, boolean empty) {
-                        super.updateItem(heft, empty);
-
-                        if (empty || heft == null) {
-                            setText(null);
-                        } else {
-
-                            int nummer = getIndex() + 1;
-                            String text = nummer + ". Heft " + heft.getHeftNummer();
-
-                            if (heft.getSeiteVon() > 0) {
-
-                                if (heft.getSeiteBis() > 0 &&
-                                        heft.getSeiteVon() != heft.getSeiteBis()) {
-
-                                    text += " (" + heft.getSeiteVon() +
-                                            "–" + heft.getSeiteBis() + ")";
-
-                                } else {
-
-                                    text += " (" + heft.getSeiteVon() + ")";
-                                }
-                            }
-
-                            setText(text);
-                        }
-                    }
-                });
-
-                heftListView.getItems().setAll(hefte);
-            }
-
-            long tBilder = logZeitStart("Bilder laden");
-            List<File> bilder = loadBilder(gebiet, band);
-            logZeitEnde("Bilder laden", tBilder);
-
-            aktuelleBildliste.clear();
-            aktuellerBildIndex = -1;
-
-            if (!bilder.isEmpty()) {
-                for (File bild : bilder) {
-                    aktuelleBildliste.add(bild.toPath());
-                }
-
-                long tMappingStatus = logZeitStart("Mappingstatus prüfen");
-                MappingStatus status = pruefeMappingStatusFuerAktuellesBand();
-                logZeitEnde("Mappingstatus prüfen", tMappingStatus);
-
-                if (status == MappingStatus.UNVOLLSTAENDIG) {
-
-                    List<String> dateinamen = aktuelleBildliste.stream()
-                            .map(path -> path.getFileName().toString())
-                            .toList();
-
-                    long tMappingErweitern = logZeitStart("Mapping erweitern");
-
-                    int anzahlNeu = seitenMappingRepository.erweitereMappingFuerBandFallsNoetig(
-                            bandId,
-                            dateinamen
-                    );
-
-                    logZeitEnde("Mapping erweitern", tMappingErweitern);
-
-                    if (anzahlNeu > 0) {
-                        if (statusLabel != null) {
-                            if (anzahlNeu == 1) {
-                                zeigeStatusKurz("1 neue Seite automatisch ergänzt");
-                            } else {
-                                zeigeStatusKurz(anzahlNeu + " neue Seiten automatisch ergänzt");
-                            }
-                        }
-                    }
-
-                    // danach Status neu prüfen
-                    long tMappingStatusNachErweiterung = logZeitStart("Mappingstatus nach Erweiterung prüfen");
-                    status = pruefeMappingStatusFuerAktuellesBand();
-                    logZeitEnde("Mappingstatus nach Erweiterung prüfen", tMappingStatusNachErweiterung);
-                }
-
-                if (status == MappingStatus.NICHT_VORHANDEN) {
-                    starteInitialMappingImHintergrund(bandId, () -> {
-                        aktuellerBildIndex = 0;
-                        ladeAktuellesBild();
-                    });
-                    return;
-                }
-
-                aktuellerBildIndex = 0;
-                ladeAktuellesBild();
-
-            } else {
-                currentImage = null;
-                imageView.setImage(null);
-                updateNavigationState();
-            }
-        });
 
         heftListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
 
@@ -4240,7 +4163,6 @@ public class PostverordnungenApp extends Application {
 
             zeigeStatusKurz("Grundmapping wurde automatisch erstellt.");
 
-           // updateStatusLabel(bandListView.getItems().size());
         });
 
         task.setOnFailed(event -> {
@@ -5005,7 +4927,11 @@ public class PostverordnungenApp extends Application {
         statusLabel.setText(text);
 
         PauseTransition pause = new PauseTransition(Duration.seconds(3));
-        pause.setOnFinished(e -> updateStatusLabel(bandListView.getItems().size()));
+        pause.setOnFinished(e ->
+                updateStatusLabel(
+                        bandTreeView.getRoot().getChildren().size()
+                )
+        );
         pause.play();
     }
 
@@ -5974,13 +5900,22 @@ public class PostverordnungenApp extends Application {
             // Bandliste neu laden
             gebietListView.getSelectionModel().select(gebiet);
 
-            List<String> baende = loadBaende(gebiet);
-            bandListView.getItems().setAll(baende);
-            updateStatusLabel(baende.size());
+            ladeBandBaum(gebiet);
 
-            bandListView.getSelectionModel().select(String.valueOf(jahrInt));
-            bandListView.scrollTo(String.valueOf(jahrInt));
-            bandListView.requestFocus();
+            updateStatusLabel(
+                    bandTreeView.getRoot().getChildren().size()
+            );
+
+            int neueBandId =
+                    quelleRepository.findBandId(
+                            gebiet,
+                            String.valueOf(jahrInt)
+                    );
+
+            if (neueBandId > 0) {
+                waehleBandImBaumNachQuelleId(neueBandId);
+                bandTreeView.requestFocus();
+            }
 
             showAlert("Erfolg", "Band/Jahr wurde angelegt.");
 
@@ -6059,7 +5994,12 @@ public class PostverordnungenApp extends Application {
 
                 gebieteCache = null;
                 gebietListView.getItems().setAll(loadGebiete());
-                bandListView.getItems().clear();
+                if (bandTreeView.getRoot() != null) {
+                    bandTreeView.getRoot().getChildren().clear();
+                }
+
+                bandTreeView.getSelectionModel().clearSelection();
+                aktuellerBandNavigationEintrag = null;
                 heftListView.getItems().clear();
                 aktuelleBildliste.clear();
 

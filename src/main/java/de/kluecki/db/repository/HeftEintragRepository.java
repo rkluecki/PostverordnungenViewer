@@ -33,26 +33,26 @@ public class HeftEintragRepository {
         List<HeftEintrag> liste = new ArrayList<>();
 
         String sql = """
-    SELECT he.HeftEintragID,
-           he.HeftID,
-           he.HeftEintragTypID,
-           het.Bezeichnung AS TypBezeichnung,
-           he.Nro,
-           he.Titel,
-           he.Datum,
-           he.SeiteVon,
-           he.SeiteBis,
-           he.Sortierung,
-           he.Bemerkung,
-           he.Forschungsnotiz,
-           he.IstAktiv
-    FROM dbo.HeftEintrag he
-    LEFT JOIN dbo.HeftEintragTyp het
-           ON he.HeftEintragTypID = het.HeftEintragTypID
-    WHERE he.HeftID = ?
-    ORDER BY het.Sortierung,
-             he.SeiteVon
-    """;
+            SELECT he.HeftEintragID,
+                   he.HeftID,
+                   he.HeftEintragTypID,
+                   het.Bezeichnung AS TypBezeichnung,
+                   he.Nro,
+                   he.Titel,
+                   he.Datum,
+                   he.SeiteVon,
+                   he.SeiteBis,
+                   he.Sortierung,
+                   he.Bemerkung,
+                   he.Forschungsnotiz,
+                   he.IstAktiv
+            FROM dbo.HeftEintrag he
+            LEFT JOIN dbo.HeftEintragTyp het
+                   ON he.HeftEintragTypID = het.HeftEintragTypID
+            WHERE he.HeftID = ?
+            ORDER BY het.Sortierung,
+                     he.SeiteVon
+            """;
 
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
 
@@ -107,10 +107,10 @@ public class HeftEintragRepository {
     public void insert(HeftEintrag eintrag) throws Exception {
 
         String sql = """
-INSERT INTO HeftEintrag
-(HeftID, HeftEintragTypID, Nro, Titel, Datum, SeiteVon, SeiteBis, Forschungsnotiz)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-""";
+            INSERT INTO HeftEintrag
+            (HeftID, HeftEintragTypID, Nro, Titel, Datum, SeiteVon, SeiteBis, Forschungsnotiz)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, eintrag.getHeftID());
@@ -135,17 +135,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     public void update(HeftEintrag eintrag) {
 
         String sql = """
-    UPDATE dbo.HeftEintrag
-    SET HeftID = ?,
-        HeftEintragTypID = ?,
-        Nro = ?,
-        Titel = ?,
-        Datum = ?,
-        SeiteVon = ?,
-        SeiteBis = ?,
-        Forschungsnotiz = ?
-    WHERE HeftEintragID = ?
-    """;
+            UPDATE dbo.HeftEintrag
+            SET HeftID = ?,
+                HeftEintragTypID = ?,
+                Nro = ?,
+                Titel = ?,
+                Datum = ?,
+                SeiteVon = ?,
+                SeiteBis = ?,
+                Forschungsnotiz = ?
+            WHERE HeftEintragID = ?
+            """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 
@@ -200,42 +200,43 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         List<HeftEintrag> liste = new ArrayList<>();
 
         String sql = """
-SELECT he.HeftEintragID,
-       he.HeftID,
-       he.HeftEintragTypID,
-       he.Nro,
-       he.Titel,
-       he.Datum,
-       he.SeiteVon,
-       he.SeiteBis,
-       he.Sortierung,
-       he.Bemerkung,
-       he.Forschungsnotiz,
-       he.IstAktiv,
-       q.Jahr AS BandJahr,
-       q.Land AS GebietAnzeige,
-       h.HeftNummer
-FROM dbo.HeftEintrag he
-INNER JOIN dbo.Heft h
-    ON he.HeftID = h.HeftID
-INNER JOIN dbo.Quelle q
-    ON h.BandID = q.QuelleID
-WHERE (
-    LOWER(he.Titel) LIKE LOWER(?)
-    OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
-)
-ORDER BY
-CASE
-WHEN LOWER(ISNULL(he.Nro,'')) = LOWER(?) THEN 0
-WHEN LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?) THEN 1
-ELSE 2
-END,
-   q.Land,
-   q.Jahr,
-   h.Sortierung,
-   he.Sortierung,
-   he.SeiteVon
-""";
+            SELECT he.HeftEintragID,
+                   he.HeftID,
+                   h.BandID,
+                   he.HeftEintragTypID,
+                   he.Nro,
+                   he.Titel,
+                   he.Datum,
+                   he.SeiteVon,
+                   he.SeiteBis,
+                   he.Sortierung,
+                   he.Bemerkung,
+                   he.Forschungsnotiz,
+                   he.IstAktiv,
+                   q.Jahr AS BandJahr,
+                   q.Land AS GebietAnzeige,
+                   h.HeftNummer
+            FROM dbo.HeftEintrag he
+            INNER JOIN dbo.Heft h
+                ON he.HeftID = h.HeftID
+            INNER JOIN dbo.Quelle q
+                ON h.BandID = q.QuelleID
+            WHERE (
+                LOWER(he.Titel) LIKE LOWER(?)
+                OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
+            )
+            ORDER BY
+            CASE
+            WHEN LOWER(ISNULL(he.Nro,'')) = LOWER(?) THEN 0
+            WHEN LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?) THEN 1
+            ELSE 2
+            END,
+               q.Land,
+               q.Jahr,
+               h.Sortierung,
+               he.Sortierung,
+               he.SeiteVon
+            """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
@@ -249,6 +250,7 @@ END,
 
                     eintrag.setHeftEintragID(rs.getInt("HeftEintragID"));
                     eintrag.setHeftID(rs.getInt("HeftID"));
+                    eintrag.setBandID(rs.getInt("BandID"));
                     eintrag.setHeftEintragTypID(rs.getInt("HeftEintragTypID"));
                     eintrag.setNro(rs.getString("Nro"));
                     eintrag.setTitel(rs.getString("Titel"));
@@ -283,32 +285,33 @@ END,
         List<HeftEintrag> liste = new ArrayList<>();
 
         String sql = """
-SELECT he.HeftEintragID,
-       he.HeftID,
-       he.HeftEintragTypID,
-       he.Nro,
-       he.Titel,
-       he.Datum,
-       he.SeiteVon,
-       he.SeiteBis,
-       he.Sortierung,
-       he.Bemerkung,
-       he.IstAktiv,
-       q.Jahr AS BandJahr,
-       q.Land AS GebietAnzeige,
-       h.HeftNummer
-FROM dbo.HeftEintrag he
-INNER JOIN dbo.Heft h
-    ON he.HeftID = h.HeftID
-INNER JOIN dbo.Quelle q
-    ON h.BandID = q.QuelleID
-WHERE (
-    LOWER(he.Titel) LIKE LOWER(?)
-    OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
-)
-    AND q.QuelleID = ?
-ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
-""";
+            SELECT he.HeftEintragID,
+                   he.HeftID,
+                   h.BandID,
+                   he.HeftEintragTypID,
+                   he.Nro,
+                   he.Titel,
+                   he.Datum,
+                   he.SeiteVon,
+                   he.SeiteBis,
+                   he.Sortierung,
+                   he.Bemerkung,
+                   he.IstAktiv,
+                   q.Jahr AS BandJahr,
+                   q.Land AS GebietAnzeige,
+                   h.HeftNummer
+            FROM dbo.HeftEintrag he
+            INNER JOIN dbo.Heft h
+                ON he.HeftID = h.HeftID
+            INNER JOIN dbo.Quelle q
+                ON h.BandID = q.QuelleID
+            WHERE (
+                LOWER(he.Titel) LIKE LOWER(?)
+                OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
+            )
+                AND q.QuelleID = ?
+            ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
+            """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
@@ -321,6 +324,7 @@ ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
 
                     eintrag.setHeftEintragID(rs.getInt("HeftEintragID"));
                     eintrag.setHeftID(rs.getInt("HeftID"));
+                    eintrag.setBandID(rs.getInt("BandID"));
                     eintrag.setHeftEintragTypID(rs.getInt("HeftEintragTypID"));
                     eintrag.setNro(rs.getString("Nro"));
                     eintrag.setTitel(rs.getString("Titel"));
@@ -355,33 +359,34 @@ ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
         List<HeftEintrag> liste = new ArrayList<>();
 
         String sql = """
-    SELECT he.HeftEintragID,
-           he.HeftID,
-           he.HeftEintragTypID,
-           he.Nro,
-           he.Titel,
-           he.Datum,
-           he.SeiteVon,
-           he.SeiteBis,
-           he.Sortierung,
-           he.Bemerkung,
-           he.IstAktiv,
-           q.Jahr AS BandJahr,
-           q.Land AS GebietAnzeige,
-           h.HeftNummer        
-    FROM dbo.HeftEintrag he
-    INNER JOIN dbo.Heft h
-        ON he.HeftID = h.HeftID
-    INNER JOIN dbo.Quelle q
-        ON h.BandID = q.QuelleID
-    WHERE (
-        LOWER(he.Titel) LIKE LOWER(?)
-        OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
-    )
-    AND q.EbeneTyp = 'BAND'
-    AND q.Land = ?
-    ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
-    """;
+            SELECT he.HeftEintragID,
+                   he.HeftID,
+                   h.BandID,
+                   he.HeftEintragTypID,
+                   he.Nro,
+                   he.Titel,
+                   he.Datum,
+                   he.SeiteVon,
+                   he.SeiteBis,
+                   he.Sortierung,
+                   he.Bemerkung,
+                   he.IstAktiv,
+                   q.Jahr AS BandJahr,
+                   q.Land AS GebietAnzeige,
+                   h.HeftNummer        
+            FROM dbo.HeftEintrag he
+            INNER JOIN dbo.Heft h
+                ON he.HeftID = h.HeftID
+            INNER JOIN dbo.Quelle q
+                ON h.BandID = q.QuelleID
+            WHERE (
+                LOWER(he.Titel) LIKE LOWER(?)
+                OR LOWER(ISNULL(he.Nro,'')) LIKE LOWER(?)
+            )
+            AND q.EbeneTyp = 'BAND'
+            AND q.Land = ?
+            ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
+            """;
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, "%" + suchtext + "%");
@@ -394,6 +399,7 @@ ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
 
                     eintrag.setHeftEintragID(rs.getInt("HeftEintragID"));
                     eintrag.setHeftID(rs.getInt("HeftID"));
+                    eintrag.setBandID(rs.getInt("BandID"));
                     eintrag.setHeftEintragTypID(rs.getInt("HeftEintragTypID"));
                     eintrag.setNro(rs.getString("Nro"));
                     eintrag.setTitel(rs.getString("Titel"));
@@ -435,12 +441,12 @@ ORDER BY q.Jahr, h.Sortierung, he.Sortierung, he.SeiteVon
         List<HeftEintragTyp> liste = new ArrayList<>();
 
         String sql = """
-        SELECT HeftEintragTypID,
-               Bezeichnung
-        FROM HeftEintragTyp
-        WHERE IstAktiv = 1
-        ORDER BY Sortierung
-    """;
+            SELECT HeftEintragTypID,
+                   Bezeichnung
+            FROM HeftEintragTyp
+            WHERE IstAktiv = 1
+            ORDER BY Sortierung
+        """;
 
         try(PreparedStatement stmt = connection.prepareStatement(sql);
             ResultSet rs = stmt.executeQuery()){

@@ -20,6 +20,7 @@ public class HeftEintrag {
 
     private int heftEintragID;
     private int heftID;
+    private int bandID;
     private int heftEintragTypID;
     private String nro;
     private String titel;
@@ -52,6 +53,14 @@ public class HeftEintrag {
 
     public void setHeftID(int heftID) {
         this.heftID = heftID;
+    }
+
+    public int getBandID() {
+        return bandID;
+    }
+
+    public void setBandID(int bandID) {
+        this.bandID = bandID;
     }
 
     public int getHeftEintragTypID() {
