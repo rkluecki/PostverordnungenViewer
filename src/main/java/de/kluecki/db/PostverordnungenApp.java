@@ -88,6 +88,7 @@ public class PostverordnungenApp extends Application {
     private ListView<String> gebietListView;
     private ListView<String> bandListView;
     private ListView<Heft> heftListView;
+    private TreeView<BandNavigationEintrag> bandTreeView;
 
     // Dokumentanzeige / Bild
     private ImageView imageView;
@@ -135,6 +136,7 @@ public class PostverordnungenApp extends Application {
     // Aktuelle fachliche Auswahl (Navigation)
     private String aktuellesGebiet;
     private String aktuellesBand;
+    private BandNavigationEintrag aktuellerBandNavigationEintrag;
     private Integer markierteStartSeite = null;
     private Integer markierteEndeSeite = null;
 
@@ -328,6 +330,13 @@ public class PostverordnungenApp extends Application {
         gebietListView.getItems().addAll(loadGebiete());
 
         bandListView = new ListView<>();
+
+        TreeItem<BandNavigationEintrag> unsichtbareWurzel =
+                new TreeItem<>();
+
+        bandTreeView = new TreeView<>(unsichtbareWurzel);
+        bandTreeView.setShowRoot(false);
+
         heftListView = new ListView<>();
 
         VBox imageToolbar = createImageToolbar();
@@ -1753,6 +1762,69 @@ public class PostverordnungenApp extends Application {
         return table;
     }
 
+    private void ladeBandBaum(String gebiet) {
+
+        if (bandTreeView == null) {
+            return;
+        }
+
+        TreeItem<BandNavigationEintrag> wurzel =
+                bandTreeView.getRoot();
+
+        if (wurzel == null) {
+            return;
+        }
+
+        wurzel.getChildren().clear();
+
+        if (gebiet == null || gebiet.isBlank()) {
+            return;
+        }
+
+        List<BandNavigationEintrag> alleBaende =
+                quelleRepository.findBandNavigationByGebiet(gebiet);
+
+        Map<Integer, TreeItem<BandNavigationEintrag>> knotenNachQuelleId =
+                new LinkedHashMap<>();
+
+        for (BandNavigationEintrag eintrag : alleBaende) {
+
+            TreeItem<BandNavigationEintrag> knoten =
+                    new TreeItem<>(eintrag);
+
+            knotenNachQuelleId.put(
+                    eintrag.getQuelleId(),
+                    knoten
+            );
+        }
+
+        for (BandNavigationEintrag eintrag : alleBaende) {
+
+            TreeItem<BandNavigationEintrag> knoten =
+                    knotenNachQuelleId.get(
+                            eintrag.getQuelleId()
+                    );
+
+            Integer parentQuelleId =
+                    eintrag.getParentQuelleId();
+
+            if (parentQuelleId == null) {
+
+                knoten.setExpanded(true);
+                wurzel.getChildren().add(knoten);
+
+            } else {
+
+                TreeItem<BandNavigationEintrag> parentKnoten =
+                        knotenNachQuelleId.get(parentQuelleId);
+
+                if (parentKnoten != null) {
+                    parentKnoten.getChildren().add(knoten);
+                }
+            }
+        }
+    }
+
     private VBox createNavigationPane() {
         Label lblGebiete = new Label("Gebiete");
         lblGebiete.setStyle(STYLE_NAV_LABEL);
@@ -1799,11 +1871,12 @@ public class PostverordnungenApp extends Application {
                 ladeAktuellesBild();
             });
         });
+
         VBox navigation = new VBox(8,
                 lblGebiete,
                 gebietListView,
                 lblBaende,
-                bandListView,
+                bandTreeView,
                 lblHefte,
                 heftListView,
                 lblHeftEintraege,
@@ -1820,10 +1893,14 @@ public class PostverordnungenApp extends Application {
         navigation.setStyle(STYLE_NAVIGATION);
 
         gebietListView.setPrefHeight(130);
-        bandListView.setPrefHeight(210);
+
+        bandTreeView.setPrefHeight(210);
+        bandListView.setPrefHeight(100);
+
         heftListView.setPrefHeight(100);
 
         gebietListView.setStyle(STYLE_NAV_LIST);
+        bandTreeView.setStyle(STYLE_NAV_LIST);
         bandListView.setStyle(STYLE_NAV_LIST);
         heftListView.setStyle(STYLE_NAV_LIST);
         tblHeftEintraege.setStyle(STYLE_NAV_LIST);
@@ -2742,7 +2819,11 @@ public class PostverordnungenApp extends Application {
         gebietListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
 
             bandListView.getSelectionModel().clearSelection();
+            bandTreeView.getSelectionModel().clearSelection();
+            aktuellerBandNavigationEintrag = null;
+
             heftListView.getSelectionModel().clearSelection();
+
             tblHeftEintraege.getSelectionModel().clearSelection();
             lstInhalteDetail.getSelectionModel().clearSelection();
 
@@ -2763,14 +2844,153 @@ public class PostverordnungenApp extends Application {
                 return;
             }
 
+            ladeBandBaum(newValue);
+
             List<String> baende = loadBaende(newValue);
             bandListView.getItems().setAll(baende);
+
             updateStatusLabel(baende.size());
 
             if (!baende.isEmpty()) {
                 bandListView.scrollTo(0);
             }
         });
+
+        bandTreeView.getSelectionModel()
+                .selectedItemProperty()
+                .addListener((obs, alterKnoten, neuerKnoten) -> {
+
+                    if (neuerKnoten == null || neuerKnoten.getValue() == null) {
+                        return;
+                    }
+
+                    BandNavigationEintrag eintrag = neuerKnoten.getValue();
+
+                    bandListView.getSelectionModel().clearSelection();
+
+                    aktuellerBandNavigationEintrag = eintrag;
+                    aktuellesBand = eintrag.getAnzeigeText();
+
+                    System.out.println("========== BAND-BAUM-AUSWAHL ==========");
+                    System.out.println("QuelleID: " + eintrag.getQuelleId());
+                    System.out.println("ParentQuelleID: " + eintrag.getParentQuelleId());
+                    System.out.println("Jahr: " + eintrag.getJahr());
+                    System.out.println("Titel: " + eintrag.getTitel());
+                    System.out.println("BandOrdner: " + eintrag.getBandOrdner());
+                    System.out.println("Unterband: " + eintrag.istUnterband());
+
+                    String anzeige;
+
+                    if (eintrag.istUnterband()) {
+                        anzeige = aktuellesGebiet
+                                + " – "
+                                + eintrag.getJahr()
+                                + " – "
+                                + eintrag.getTitel();
+                    } else {
+                        anzeige = aktuellesGebiet
+                                + " – "
+                                + eintrag.getJahr();
+                    }
+
+                    lblBandTitel.setText(anzeige);
+                    zeigeStatusKurz("Ausgewählt: " + anzeige);
+
+                    heftListView.getSelectionModel().clearSelection();
+                    tblHeftEintraege.getSelectionModel().clearSelection();
+                    lstInhalteDetail.getSelectionModel().clearSelection();
+
+                    heftListView.getItems().clear();
+                    tblHeftEintraege.getItems().clear();
+                    lstInhalteDetail.getItems().clear();
+
+                    lblForschungsnotiz.setText("");
+                    lblAktuellerInhalt.setText("Kein HeftEintrag ausgewählt");
+
+                    aktuellesLevel = NavigationLevel.HEFT;
+                    updateOutputButtons();
+
+                    int bandId = eintrag.getQuelleId();
+
+                    List<Heft> hefte =
+                            heftRepository.findByBand(bandId);
+
+                    heftListView.setCellFactory(param -> new ListCell<>() {
+
+                        @Override
+                        protected void updateItem(Heft heft, boolean empty) {
+
+                            super.updateItem(heft, empty);
+
+                            if (empty || heft == null) {
+                                setText(null);
+                                return;
+                            }
+
+                            int nummer = getIndex() + 1;
+                            String text =
+                                    nummer + ". Heft " + heft.getHeftNummer();
+
+                            if (heft.getSeiteVon() > 0) {
+
+                                if (heft.getSeiteBis() > 0
+                                        && heft.getSeiteVon() != heft.getSeiteBis()) {
+
+                                    text += " ("
+                                            + heft.getSeiteVon()
+                                            + "–"
+                                            + heft.getSeiteBis()
+                                            + ")";
+
+                                } else {
+
+                                    text += " ("
+                                            + heft.getSeiteVon()
+                                            + ")";
+                                }
+                            }
+
+                            setText(text);
+                        }
+                    });
+
+                    heftListView.getItems().setAll(hefte);
+
+                    List<File> bilder = loadBilder(
+                            aktuellesGebiet,
+                            eintrag
+                    );
+
+                    aktuelleBildliste.clear();
+                    aktuellerBildIndex = -1;
+
+                    if (!bilder.isEmpty()) {
+
+                        for (File bild : bilder) {
+                            aktuelleBildliste.add(bild.toPath());
+                        }
+
+                        aktuellerBildIndex = 0;
+                        ladeAktuellesBild();
+
+                        zeigeStatusKurz(
+                                bilder.size()
+                                        + " Bilder geladen: "
+                                        + anzeige
+                        );
+
+                    } else {
+
+                        currentImage = null;
+                        imageView.setImage(null);
+                        updateNavigationState();
+
+                        zeigeStatusKurz(
+                                "Keine Bilder gefunden: "
+                                        + anzeige
+                        );
+                    }
+                });
 
         bandListView.setOnMouseClicked(e -> {
 
@@ -2798,6 +3018,9 @@ public class PostverordnungenApp extends Application {
 
         bandListView.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> {
             if (newValue == null) return;
+
+            bandTreeView.getSelectionModel().clearSelection();
+            aktuellerBandNavigationEintrag = null;
 
             if (Objects.equals(oldValue, newValue)) {
                 return;
@@ -3063,6 +3286,14 @@ public class PostverordnungenApp extends Application {
     }
 
     private int ermittleBandId(String gebiet, String band) {
+
+        if (aktuellerBandNavigationEintrag != null
+                && aktuellesGebiet != null
+                && Objects.equals(aktuellesGebiet, gebiet)) {
+
+            return aktuellerBandNavigationEintrag.getQuelleId();
+        }
+
         return quelleRepository.findBandId(gebiet, band);
     }
 
@@ -3625,6 +3856,64 @@ public class PostverordnungenApp extends Application {
         return List.of();
     }
 
+    private List<File> loadBilder(
+            String gebiet,
+            BandNavigationEintrag eintrag) {
+
+        if (gebiet == null || gebiet.isBlank() || eintrag == null) {
+            return List.of();
+        }
+
+        File gebietDir =
+                new File(Config.getImageRootPath(), gebiet);
+
+        if (!gebietDir.exists() || !gebietDir.isDirectory()) {
+            return List.of();
+        }
+
+        File bandDir;
+
+        if (eintrag.istUnterband()) {
+
+            File jahresOrdner =
+                    new File(gebietDir, String.valueOf(eintrag.getJahr()));
+
+            String bandOrdner = eintrag.getBandOrdner();
+
+            if (bandOrdner == null || bandOrdner.isBlank()) {
+                return List.of();
+            }
+
+            bandDir = new File(jahresOrdner, bandOrdner);
+
+        } else {
+
+            bandDir =
+                    new File(gebietDir, String.valueOf(eintrag.getJahr()));
+        }
+
+        if (!bandDir.exists() || !bandDir.isDirectory()) {
+            return List.of();
+        }
+
+        File[] files = bandDir.listFiles(file ->
+                file.isFile() && (
+                        file.getName().toLowerCase().endsWith(".jpg")
+                                || file.getName().toLowerCase().endsWith(".jpeg")
+                                || file.getName().toLowerCase().endsWith(".png")
+                                || file.getName().toLowerCase().endsWith(".gif")
+                )
+        );
+
+        if (files == null || files.length == 0) {
+            return List.of();
+        }
+
+        return Arrays.stream(files)
+                .sorted(Comparator.comparing(File::getName))
+                .toList();
+    }
+
     private Image loadImageForPage(String gebiet, String bandJahr, int seite) {
 
         List<File> bilder = loadBilder(gebiet, bandJahr);
@@ -4037,7 +4326,22 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
-        List<File> bilderNeuGeladen = loadBilder(aktuellesGebiet, aktuellesBand);
+        List<File> bilderNeuGeladen;
+
+        if (aktuellerBandNavigationEintrag != null) {
+
+            bilderNeuGeladen = loadBilder(
+                    aktuellesGebiet,
+                    aktuellerBandNavigationEintrag
+            );
+
+        } else {
+
+            bilderNeuGeladen = loadBilder(
+                    aktuellesGebiet,
+                    aktuellesBand
+            );
+        }
 
         List<String> dateinamen = bilderNeuGeladen.stream()
                 .map(File::getName)

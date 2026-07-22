@@ -6,6 +6,7 @@ import java.util.List;
 
 import de.kluecki.db.DatabaseConnection;
 import de.kluecki.db.Quelle;
+import de.kluecki.db.model.BandNavigationEintrag;
 
 public class QuelleRepository {
 
@@ -106,13 +107,14 @@ public class QuelleRepository {
         List<String> liste = new ArrayList<>();
 
         String sql = """
-    SELECT Jahr, JahrVon, JahrBis
-    FROM Quelle
-    WHERE EbeneTyp = 'BAND'
-      AND Land = ?
-      AND Jahr IS NOT NULL
-    ORDER BY Jahr
-    """;
+            SELECT Jahr, JahrVon, JahrBis
+            FROM Quelle
+            WHERE EbeneTyp = 'BAND'
+              AND ParentQuelleID IS NULL
+              AND Land = ?
+              AND Jahr IS NOT NULL
+            ORDER BY Jahr
+            """;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -135,6 +137,205 @@ public class QuelleRepository {
                     }
 
                     liste.add(anzeige);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return liste;
+    }
+
+    public List<BandNavigationEintrag> findBandNavigationByGebiet(
+            String gebiet) {
+
+        List<BandNavigationEintrag> liste = new ArrayList<>();
+
+        String sql = """
+        SELECT
+            QuelleID,
+            ParentQuelleID,
+            Jahr,
+            Titel,
+            BandOrdner
+        FROM Quelle
+        WHERE EbeneTyp = 'BAND'
+          AND Land = ?
+          AND Jahr IS NOT NULL
+        ORDER BY
+            Jahr,
+            CASE
+                WHEN ParentQuelleID IS NULL THEN 0
+                ELSE 1
+            END,
+            Titel,
+            QuelleID
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, gebiet);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+
+                    int quelleId = rs.getInt("QuelleID");
+
+                    Integer parentQuelleId =
+                            (Integer) rs.getObject("ParentQuelleID");
+
+                    int jahr = rs.getInt("Jahr");
+                    String titel = rs.getString("Titel");
+                    String bandOrdner = rs.getString("BandOrdner");
+
+                    BandNavigationEintrag eintrag =
+                            new BandNavigationEintrag(
+                                    quelleId,
+                                    parentQuelleId,
+                                    jahr,
+                                    titel,
+                                    bandOrdner
+                            );
+
+                    liste.add(eintrag);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return liste;
+    }
+
+    public List<BandNavigationEintrag> findHauptbaendeByGebiet(String gebiet) {
+
+        List<BandNavigationEintrag> liste = new ArrayList<>();
+
+        String sql = """
+            SELECT
+                QuelleID,
+                ParentQuelleID,
+                Jahr,
+                Titel,
+                BandOrdner
+            FROM Quelle
+            WHERE EbeneTyp = 'BAND'
+              AND ParentQuelleID IS NULL
+              AND Land = ?
+              AND Jahr IS NOT NULL
+            ORDER BY Jahr, QuelleID
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, gebiet);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+
+                    int quelleId = rs.getInt("QuelleID");
+                    Integer parentQuelleId =
+                            (Integer) rs.getObject("ParentQuelleID");
+                    int jahr = rs.getInt("Jahr");
+                    String titel = rs.getString("Titel");
+                    String bandOrdner = rs.getString("BandOrdner");
+
+                    BandNavigationEintrag eintrag =
+                            new BandNavigationEintrag(
+                                    quelleId,
+                                    parentQuelleId,
+                                    jahr,
+                                    titel,
+                                    bandOrdner
+                            );
+
+                    liste.add(eintrag);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return liste;
+    }
+
+    public List<BandNavigationEintrag> findUnterbaendeByParentId(int parentQuelleId) {
+
+        List<BandNavigationEintrag> liste = new ArrayList<>();
+
+        String sql = """
+        SELECT
+            QuelleID,
+            ParentQuelleID,
+            Jahr,
+            Titel,
+            BandOrdner
+        FROM Quelle
+        WHERE EbeneTyp = 'BAND'
+          AND ParentQuelleID = ?
+        ORDER BY Titel, QuelleID
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, parentQuelleId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+
+                    int quelleId = rs.getInt("QuelleID");
+                    Integer parentQuelleIdWert =
+                            (Integer) rs.getObject("ParentQuelleID");
+                    int jahr = rs.getInt("Jahr");
+                    String titel = rs.getString("Titel");
+                    String bandOrdner = rs.getString("BandOrdner");
+
+                    BandNavigationEintrag eintrag =
+                            new BandNavigationEintrag(
+                                    quelleId,
+                                    parentQuelleIdWert,
+                                    jahr,
+                                    titel,
+                                    bandOrdner
+                            );
+
+                    liste.add(eintrag);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return liste;
+    }
+
+    public List<String> findUnterbandTitelByParentId(int parentQuelleId) {
+
+        List<String> liste = new ArrayList<>();
+
+        String sql = """
+            SELECT Titel
+            FROM Quelle
+            WHERE EbeneTyp = 'BAND'
+              AND ParentQuelleID = ?
+            ORDER BY Titel
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, parentQuelleId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    liste.add(rs.getString("Titel"));
                 }
             }
 
