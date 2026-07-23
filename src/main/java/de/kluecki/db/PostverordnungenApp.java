@@ -5892,18 +5892,26 @@ public class PostverordnungenApp extends Application {
     }
 
     private void oeffneBandJahrDialog() {
+
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Band/Jahr anlegen");
         dialog.setHeaderText("Neue Stammdaten für Band/Jahr erfassen");
 
         ButtonType speichernButtonType =
-                new ButtonType("Speichern", ButtonBar.ButtonData.OK_DONE);
-        ButtonType abbrechenButtonType =
-                new ButtonType("Abbrechen", ButtonBar.ButtonData.CANCEL_CLOSE);
+                new ButtonType(
+                        "Speichern & weiter",
+                        ButtonBar.ButtonData.OK_DONE
+                );
+
+        ButtonType schliessenButtonType =
+                new ButtonType(
+                        "Schließen",
+                        ButtonBar.ButtonData.CANCEL_CLOSE
+                );
 
         dialog.getDialogPane().getButtonTypes().addAll(
                 speichernButtonType,
-                abbrechenButtonType
+                schliessenButtonType
         );
 
         GridPane grid = new GridPane();
@@ -5927,7 +5935,10 @@ public class PostverordnungenApp extends Application {
         txtJahr.setPromptText("z. B. 1846");
 
         txtJahr.setTextFormatter(new TextFormatter<>(change ->
-                change.getControlNewText().matches("\\d*") ? change : null));
+                change.getControlNewText().matches("\\d*")
+                        ? change
+                        : null
+        ));
 
         ComboBox<String> cmbHauptband = new ComboBox<>();
         cmbHauptband.setPrefWidth(220);
@@ -5935,7 +5946,9 @@ public class PostverordnungenApp extends Application {
         cmbHauptband.setPromptText("Hauptband auswählen");
 
         TextField txtUnterbandTitel = new TextField();
-        txtUnterbandTitel.setPromptText("z. B. Beiheft_02 oder Register");
+        txtUnterbandTitel.setPromptText(
+                "z. B. Beiheft_02 oder Register"
+        );
         txtUnterbandTitel.setDisable(true);
         txtUnterbandTitel.setPrefWidth(220);
 
@@ -5948,23 +5961,31 @@ public class PostverordnungenApp extends Application {
         grid.add(new Label("Jahr/Band:"), 0, 2);
         grid.add(txtJahr, 1, 2);
 
-        grid.add(new Label("Übergeordneter Hauptband:"), 0, 3);
+        grid.add(
+                new Label("Übergeordneter Hauptband:"),
+                0,
+                3
+        );
         grid.add(cmbHauptband, 1, 3);
 
         grid.add(new Label("Unterbandtitel:"), 0, 4);
         grid.add(txtUnterbandTitel, 1, 4);
 
         cmbGebiet.setOnAction(e -> {
+
             String gebiet = cmbGebiet.getValue();
 
             cmbHauptband.getItems().clear();
 
             if (gebiet != null && !gebiet.isBlank()) {
-                cmbHauptband.getItems().addAll(loadBaende(gebiet));
+                cmbHauptband.getItems().addAll(
+                        loadBaende(gebiet)
+                );
             }
         });
 
         cmbBandart.setOnAction(e -> {
+
             boolean istUnterband =
                     "Unterband".equals(cmbBandart.getValue());
 
@@ -5972,7 +5993,9 @@ public class PostverordnungenApp extends Application {
             txtUnterbandTitel.setDisable(!istUnterband);
 
             if (!istUnterband) {
-                cmbHauptband.getSelectionModel().clearSelection();
+                cmbHauptband.getSelectionModel()
+                        .clearSelection();
+
                 txtUnterbandTitel.clear();
             }
         });
@@ -5980,301 +6003,396 @@ public class PostverordnungenApp extends Application {
         dialog.getDialogPane().setContent(grid);
 
         Button btnSpeichern =
-                (Button) dialog.getDialogPane().lookupButton(speichernButtonType);
+                (Button) dialog.getDialogPane()
+                        .lookupButton(speichernButtonType);
 
-        btnSpeichern.addEventFilter(ActionEvent.ACTION, event -> {
+        btnSpeichern.setDefaultButton(true);
 
-            String bandart = cmbBandart.getValue();
-            String gebiet = cmbGebiet.getValue();
-            String jahr = txtJahr.getText().trim();
+        btnSpeichern.addEventFilter(
+                ActionEvent.ACTION,
+                event -> {
 
-            if (gebiet == null || gebiet.isBlank()) {
-                showAlert("Fehler", "Bitte ein Gebiet auswählen.");
-                event.consume();
-                return;
-            }
-
-            if (jahr.isBlank()) {
-                showAlert("Fehler", "Bitte ein Jahr/Band eingeben.");
-                event.consume();
-                return;
-            }
-
-            int jahrInt = Integer.parseInt(jahr);
-
-            if ("Hauptband".equals(bandart)) {
-
-                if (quelleRepository.bandExistiert(gebiet, jahrInt)) {
-                    showAlert(
-                            "Fehler",
-                            "Dieses Band/Jahr existiert bereits."
-                    );
+                    /*
+                     * Wichtig:
+                     * Der Klick wird grundsätzlich verbraucht.
+                     * Dadurch bleibt der Dialog geöffnet.
+                     */
                     event.consume();
-                }
 
-                return;
-            }
+                    String bandart = cmbBandart.getValue();
+                    String gebiet = cmbGebiet.getValue();
 
-            String hauptband = cmbHauptband.getValue();
-            String unterbandTitel =
-                    txtUnterbandTitel.getText().trim();
+                    String jahr =
+                            txtJahr.getText() != null
+                                    ? txtJahr.getText().trim()
+                                    : "";
 
-            if (hauptband == null || hauptband.isBlank()) {
-                showAlert(
-                        "Fehler",
-                        "Bitte den übergeordneten Hauptband auswählen."
-                );
-                event.consume();
-                return;
-            }
+                    if (gebiet == null || gebiet.isBlank()) {
+                        showAlert(
+                                "Fehler",
+                                "Bitte ein Gebiet auswählen."
+                        );
+                        return;
+                    }
 
-            if (unterbandTitel.isBlank()) {
-                showAlert(
-                        "Fehler",
-                        "Bitte einen Unterbandtitel eingeben."
-                );
-                event.consume();
-                return;
-            }
+                    if (jahr.isBlank()) {
+                        showAlert(
+                                "Fehler",
+                                "Bitte ein Jahr/Band eingeben."
+                        );
+                        txtJahr.requestFocus();
+                        return;
+                    }
 
-            if (unterbandTitel.matches(".*[\\\\/:*?\"<>|].*")) {
-                showAlert(
-                        "Fehler",
-                        "Der Unterbandtitel enthält ungültige Zeichen für einen Ordnernamen."
-                );
-                event.consume();
-                return;
-            }
+                    int jahrInt;
 
-            int parentQuelleId =
-                    quelleRepository.findHauptbandId(
-                            gebiet,
-                            hauptband
-                    );
+                    try {
+                        jahrInt = Integer.parseInt(jahr);
+                    } catch (NumberFormatException ex) {
+                        showAlert(
+                                "Fehler",
+                                "Das Jahr muss eine Zahl sein."
+                        );
+                        txtJahr.requestFocus();
+                        txtJahr.selectAll();
+                        return;
+                    }
 
-            if (parentQuelleId <= 0) {
-                showAlert(
-                        "Fehler",
-                        "Der übergeordnete Hauptband konnte nicht ermittelt werden."
-                );
-                event.consume();
-                return;
-            }
+                    if ("Unterband".equals(bandart)) {
 
-            if (quelleRepository.unterbandExistiert(
-                    parentQuelleId,
-                    unterbandTitel)) {
+                        String hauptband =
+                                cmbHauptband.getValue();
 
-                showAlert(
-                        "Fehler",
-                        "Unter diesem Hauptband existiert bereits ein Unterband mit diesem Titel."
-                );
-                event.consume();
-            }
-        });
+                        String unterbandTitel =
+                                txtUnterbandTitel.getText() != null
+                                        ? txtUnterbandTitel
+                                        .getText()
+                                        .trim()
+                                        : "";
 
-        Optional<ButtonType> result = dialog.showAndWait();
+                        if (hauptband == null
+                                || hauptband.isBlank()) {
 
-        if (result.isEmpty() || result.get() != speichernButtonType) {
-            return;
-        }
+                            showAlert(
+                                    "Fehler",
+                                    "Bitte den übergeordneten Hauptband auswählen."
+                            );
+                            return;
+                        }
 
-        if ("Unterband".equals(cmbBandart.getValue())) {
+                        if (unterbandTitel.isBlank()) {
+                            showAlert(
+                                    "Fehler",
+                                    "Bitte einen Unterbandtitel eingeben."
+                            );
+                            txtUnterbandTitel.requestFocus();
+                            return;
+                        }
 
-            String gebiet = cmbGebiet.getValue();
-            String jahr = txtJahr.getText().trim();
-            String hauptband = cmbHauptband.getValue();
-            String unterbandTitel =
-                    txtUnterbandTitel.getText().trim();
+                        if (unterbandTitel.matches(
+                                ".*[\\\\/:*?\"<>|].*")) {
 
-            int jahrInt = Integer.parseInt(jahr);
+                            showAlert(
+                                    "Fehler",
+                                    "Der Unterbandtitel enthält ungültige Zeichen für einen Ordnernamen."
+                            );
+                            return;
+                        }
 
-            int parentQuelleId =
-                    quelleRepository.findHauptbandId(
-                            gebiet,
-                            hauptband
-                    );
+                        int parentQuelleId =
+                                quelleRepository.findHauptbandId(
+                                        gebiet,
+                                        hauptband
+                                );
 
-            if (parentQuelleId <= 0) {
-                showAlert(
-                        "Fehler",
-                        "Der übergeordnete Hauptband konnte nicht ermittelt werden."
-                );
-                return;
-            }
+                        if (parentQuelleId <= 0) {
+                            showAlert(
+                                    "Fehler",
+                                    "Der übergeordnete Hauptband konnte nicht ermittelt werden."
+                            );
+                            return;
+                        }
 
-            File rootDir =
-                    new File(Config.getImageRootPath());
-
-            File gebietDir =
-                    new File(rootDir, gebiet);
-
-            File hauptbandDir =
-                    new File(gebietDir, hauptband);
-
-            File unterbandDir =
-                    new File(hauptbandDir, unterbandTitel);
-
-            if (!hauptbandDir.exists() || !hauptbandDir.isDirectory()) {
-                showAlert(
-                        "Fehler",
-                        "Der Ordner des übergeordneten Hauptbandes existiert nicht:\n"
-                                + hauptbandDir.getAbsolutePath()
-                );
-                return;
-            }
-
-            if (unterbandDir.exists()) {
-                showAlert(
-                        "Fehler",
-                        "Der Unterordner existiert bereits:\n"
-                                + unterbandDir.getAbsolutePath()
-                );
-                return;
-            }
-
-            int neueUnterbandId = 0;
-
-            try {
-                neueUnterbandId =
-                        quelleRepository.insertUnterband(
+                        if (quelleRepository.unterbandExistiert(
                                 parentQuelleId,
+                                unterbandTitel)) {
+
+                            showAlert(
+                                    "Fehler",
+                                    "Unter diesem Hauptband existiert bereits ein Unterband mit diesem Titel."
+                            );
+                            return;
+                        }
+
+                        File rootDir =
+                                new File(Config.getImageRootPath());
+
+                        File gebietDir =
+                                new File(rootDir, gebiet);
+
+                        File hauptbandDir =
+                                new File(gebietDir, hauptband);
+
+                        File unterbandDir =
+                                new File(
+                                        hauptbandDir,
+                                        unterbandTitel
+                                );
+
+                        if (!hauptbandDir.exists()
+                                || !hauptbandDir.isDirectory()) {
+
+                            showAlert(
+                                    "Fehler",
+                                    "Der Ordner des übergeordneten Hauptbandes existiert nicht:\n"
+                                            + hauptbandDir
+                                            .getAbsolutePath()
+                            );
+                            return;
+                        }
+
+                        if (unterbandDir.exists()) {
+                            showAlert(
+                                    "Fehler",
+                                    "Der Unterordner existiert bereits:\n"
+                                            + unterbandDir
+                                            .getAbsolutePath()
+                            );
+                            return;
+                        }
+
+                        int neueUnterbandId = 0;
+
+                        try {
+                            neueUnterbandId =
+                                    quelleRepository.insertUnterband(
+                                            parentQuelleId,
+                                            gebiet,
+                                            jahrInt,
+                                            unterbandTitel,
+                                            unterbandTitel
+                                    );
+
+                            if (neueUnterbandId <= 0) {
+                                showAlert(
+                                        "Fehler",
+                                        "Der Unterband wurde nicht gespeichert."
+                                );
+                                return;
+                            }
+
+                            if (!unterbandDir.mkdir()) {
+
+                                try {
+                                    quelleRepository.deleteBand(
+                                            neueUnterbandId
+                                    );
+                                } catch (Exception ex) {
+                                    ex.printStackTrace();
+                                }
+
+                                showAlert(
+                                        "Fehler",
+                                        "Der Unterbandordner konnte nicht angelegt werden."
+                                );
+                                return;
+                            }
+
+                            invalidateGebieteCache();
+
+                            gebietListView
+                                    .getSelectionModel()
+                                    .select(gebiet);
+
+                            ladeBandBaum(gebiet);
+
+                            updateStatusLabel(
+                                    bandTreeView
+                                            .getRoot()
+                                            .getChildren()
+                                            .size()
+                            );
+
+                            waehleBandImBaumNachQuelleId(
+                                    neueUnterbandId
+                            );
+
+                            bandTreeView.requestFocus();
+
+                            zeigeStatusKurz(
+                                    "Unterband wurde angelegt: "
+                                            + unterbandTitel
+                            );
+
+                            txtUnterbandTitel.clear();
+                            txtUnterbandTitel.requestFocus();
+
+                        } catch (Exception ex) {
+
+                            ex.printStackTrace();
+
+                            if (neueUnterbandId > 0
+                                    && !unterbandDir.exists()) {
+
+                                try {
+                                    quelleRepository.deleteBand(
+                                            neueUnterbandId
+                                    );
+                                } catch (Exception ruecknahmeFehler) {
+                                    ruecknahmeFehler.printStackTrace();
+                                }
+                            }
+
+                            showAlert(
+                                    "Fehler",
+                                    "Unterband konnte nicht angelegt werden."
+                            );
+                        }
+
+                        return;
+                    }
+
+                    /*
+                     * Hauptband
+                     */
+                    if (quelleRepository.bandExistiert(
+                            gebiet,
+                            jahrInt)) {
+
+                        showAlert(
+                                "Fehler",
+                                "Dieses Band/Jahr existiert bereits."
+                        );
+                        txtJahr.requestFocus();
+                        txtJahr.selectAll();
+                        return;
+                    }
+
+                    int neueBandId = 0;
+
+                    File rootDir =
+                            new File(Config.getImageRootPath());
+
+                    File gebietDir =
+                            new File(rootDir, gebiet);
+
+                    File bandDir =
+                            new File(
+                                    gebietDir,
+                                    String.valueOf(jahrInt)
+                            );
+
+                    try {
+                        quelleRepository.insertBand(
                                 gebiet,
-                                jahrInt,
-                                unterbandTitel,
-                                unterbandTitel
+                                jahrInt
                         );
 
-                if (neueUnterbandId <= 0) {
-                    showAlert(
-                            "Fehler",
-                            "Der Unterband wurde nicht gespeichert."
-                    );
-                    return;
-                }
+                        neueBandId =
+                                quelleRepository.findBandId(
+                                        gebiet,
+                                        String.valueOf(jahrInt)
+                                );
 
-                if (!unterbandDir.mkdir()) {
+                        if (!gebietDir.exists()) {
 
-                    try {
-                        quelleRepository.deleteBand(neueUnterbandId);
+                            if (neueBandId > 0) {
+                                quelleRepository.deleteBand(
+                                        neueBandId
+                                );
+                            }
+
+                            showAlert(
+                                    "Fehler",
+                                    "Gebietsordner existiert nicht."
+                            );
+                            return;
+                        }
+
+                        if (!bandDir.exists()
+                                && !bandDir.mkdir()) {
+
+                            if (neueBandId > 0) {
+                                quelleRepository.deleteBand(
+                                        neueBandId
+                                );
+                            }
+
+                            showAlert(
+                                    "Fehler",
+                                    "Band/Jahr-Ordner konnte nicht angelegt werden."
+                            );
+                            return;
+                        }
+
+                        invalidateGebieteCache();
+
+                        gebietListView
+                                .getSelectionModel()
+                                .select(gebiet);
+
+                        ladeBandBaum(gebiet);
+
+                        updateStatusLabel(
+                                bandTreeView
+                                        .getRoot()
+                                        .getChildren()
+                                        .size()
+                        );
+
+                        if (neueBandId > 0) {
+                            waehleBandImBaumNachQuelleId(
+                                    neueBandId
+                            );
+                        }
+
+                        zeigeStatusKurz(
+                                "Band/Jahr wurde angelegt: "
+                                        + jahrInt
+                        );
+
+                        txtJahr.setText(
+                                String.valueOf(jahrInt + 1)
+                        );
+
+                        txtJahr.requestFocus();
+                        txtJahr.selectAll();
+
                     } catch (Exception ex) {
+
                         ex.printStackTrace();
-                    }
 
-                    showAlert(
-                            "Fehler",
-                            "Der Unterbandordner konnte nicht angelegt werden."
-                    );
-                    return;
-                }
-
-                invalidateGebieteCache();
-
-                gebietListView.getSelectionModel().select(gebiet);
-
-                ladeBandBaum(gebiet);
-
-                updateStatusLabel(
-                        bandTreeView.getRoot().getChildren().size()
-                );
-
-                waehleBandImBaumNachQuelleId(neueUnterbandId);
-                bandTreeView.requestFocus();
-
-                showAlert(
-                        "Erfolg",
-                        "Unterband wurde angelegt."
-                );
-
-            } catch (Exception ex) {
-                ex.printStackTrace();
-
-                if (neueUnterbandId > 0 && !unterbandDir.exists()) {
-                    try {
-                        quelleRepository.deleteBand(neueUnterbandId);
-                    } catch (Exception ruecknahmeFehler) {
-                        ruecknahmeFehler.printStackTrace();
+                        showAlert(
+                                "Fehler",
+                                "Band/Jahr konnte nicht angelegt werden."
+                        );
                     }
                 }
+        );
 
-                showAlert(
-                        "Fehler",
-                        "Unterband konnte nicht angelegt werden."
+        Platform.runLater(() -> {
+
+            String aktuellesGebietAusNavigation =
+                    gebietListView
+                            .getSelectionModel()
+                            .getSelectedItem();
+
+            if (aktuellesGebietAusNavigation != null
+                    && cmbGebiet.getItems().contains(
+                    aktuellesGebietAusNavigation)) {
+
+                cmbGebiet.getSelectionModel()
+                        .select(aktuellesGebietAusNavigation);
+
+                cmbGebiet.fireEvent(
+                        new ActionEvent()
                 );
             }
 
-            return;
-        }
+            txtJahr.requestFocus();
+        });
 
-        String gebiet = cmbGebiet.getValue();
-        String jahr = txtJahr.getText().trim();
-
-        try {
-            int jahrInt = Integer.parseInt(jahr);
-
-            if (quelleRepository.bandExistiert(gebiet, jahrInt)) {
-                showAlert("Fehler", "Dieses Band/Jahr existiert bereits.");
-                return;
-            }
-
-            quelleRepository.insertBand(gebiet, jahrInt);
-
-            int bandId = ermittleBandId(gebiet, String.valueOf(jahrInt));
-
-            File rootDir = new File(Config.getImageRootPath());
-            File gebietDir = new File(rootDir, gebiet);
-            File bandDir = new File(gebietDir, String.valueOf(jahrInt));
-
-            if (!gebietDir.exists()) {
-                try {
-                    quelleRepository.deleteBand(bandId);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-
-                showAlert("Fehler", "Gebietsordner existiert nicht.");
-                return;
-            }
-
-            if (!bandDir.exists() && !bandDir.mkdir()) {
-                try {
-                    quelleRepository.deleteBand(bandId);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-
-                showAlert("Fehler", "Band/Jahr-Ordner konnte nicht angelegt werden.");
-                return;
-            }
-
-            invalidateGebieteCache();
-
-            // Bandliste neu laden
-            gebietListView.getSelectionModel().select(gebiet);
-
-            ladeBandBaum(gebiet);
-
-            updateStatusLabel(
-                    bandTreeView.getRoot().getChildren().size()
-            );
-
-            int neueBandId =
-                    quelleRepository.findBandId(
-                            gebiet,
-                            String.valueOf(jahrInt)
-                    );
-
-            if (neueBandId > 0) {
-                waehleBandImBaumNachQuelleId(neueBandId);
-                bandTreeView.requestFocus();
-            }
-
-            showAlert("Erfolg", "Band/Jahr wurde angelegt.");
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            showAlert("Fehler", "Band/Jahr konnte nicht angelegt werden.");
-        }
+        dialog.showAndWait();
     }
 
     private void oeffneEinstellungenDialog() {
