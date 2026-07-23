@@ -1227,14 +1227,75 @@ public class PostverordnungenApp extends Application {
         cmbGebiet.getItems().addAll(loadGebiete());
         cmbGebiet.setPrefWidth(220);
 
-        ComboBox<String> cmbBand = new ComboBox<>();
+        ComboBox<BandNavigationEintrag> cmbBand = new ComboBox<>();
         cmbBand.setPrefWidth(220);
+
+        cmbBand.setCellFactory(listView ->
+                new ListCell<BandNavigationEintrag>() {
+
+                    @Override
+                    protected void updateItem(
+                            BandNavigationEintrag eintrag,
+                            boolean empty) {
+
+                        super.updateItem(eintrag, empty);
+
+                        if (empty || eintrag == null) {
+                            setText(null);
+                            return;
+                        }
+
+                        if (eintrag.istUnterband()) {
+                            setText(
+                                    "    "
+                                            + eintrag.getJahr()
+                                            + " → "
+                                            + eintrag.getTitel()
+                            );
+                        } else {
+                            setText(String.valueOf(eintrag.getJahr()));
+                        }
+                    }
+                }
+        );
+
+        cmbBand.setButtonCell(
+                new ListCell<BandNavigationEintrag>() {
+
+                    @Override
+                    protected void updateItem(
+                            BandNavigationEintrag eintrag,
+                            boolean empty) {
+
+                        super.updateItem(eintrag, empty);
+
+                        if (empty || eintrag == null) {
+                            setText(null);
+                            return;
+                        }
+
+                        if (eintrag.istUnterband()) {
+                            setText(
+                                    eintrag.getJahr()
+                                            + " → "
+                                            + eintrag.getTitel()
+                            );
+                        } else {
+                            setText(String.valueOf(eintrag.getJahr()));
+                        }
+                    }
+                }
+        );
 
         cmbGebiet.setOnAction(e -> {
             String gebiet = cmbGebiet.getValue();
 
-            if (gebiet != null) {
-                cmbBand.getItems().setAll(loadBaende(gebiet));
+            cmbBand.getItems().clear();
+
+            if (gebiet != null && !gebiet.isBlank()) {
+                cmbBand.getItems().setAll(
+                        quelleRepository.findBandNavigationByGebiet(gebiet)
+                );
             }
         });
 
@@ -1252,7 +1313,7 @@ public class PostverordnungenApp extends Application {
         btnLoeschen.addEventFilter(ActionEvent.ACTION, event -> {
 
             String gebiet = cmbGebiet.getValue();
-            String band = cmbBand.getValue();
+            BandNavigationEintrag bandEintrag = cmbBand.getValue();
 
             if (gebiet == null) {
                 showAlert("Fehler", "Bitte ein Gebiet auswählen.");
@@ -1260,13 +1321,29 @@ public class PostverordnungenApp extends Application {
                 return;
             }
 
-            if (band == null) {
+            if (bandEintrag == null) {
                 showAlert("Fehler", "Bitte ein Band/Jahr auswählen.");
                 event.consume();
                 return;
             }
 
-            int bandId = ermittleBandId(gebiet, band);
+            int bandId = bandEintrag.getQuelleId();
+
+            String band = bandEintrag.istUnterband()
+                    ? bandEintrag.getTitel()
+                    : String.valueOf(bandEintrag.getJahr());
+
+            if (!bandEintrag.istUnterband()
+                    && quelleRepository.hatUnterbaende(bandId)) {
+
+                showAlert(
+                        "Fehler",
+                        "Der Hauptband kann nicht gelöscht werden, solange noch Unterbände vorhanden sind."
+                );
+
+                event.consume();
+                return;
+            }
 
             if (heftRepository.hatHefteZuBand(bandId)) {
                 showAlert("Fehler", "Band kann nicht gelöscht werden, solange noch Hefte existieren.");
@@ -1276,7 +1353,38 @@ public class PostverordnungenApp extends Application {
 
             File rootDir = new File(Config.getImageRootPath());
             File gebietDir = new File(rootDir, gebiet);
-            File bandDir = new File(gebietDir, band);
+
+            File bandDir;
+
+            if (bandEintrag.istUnterband()) {
+
+                String bandOrdner = bandEintrag.getBandOrdner();
+
+                if (bandOrdner == null || bandOrdner.isBlank()) {
+                    showAlert(
+                            "Fehler",
+                            "Für den Unterband ist kein Bandordner eingetragen."
+                    );
+                    event.consume();
+                    return;
+                }
+
+                File hauptbandDir =
+                        new File(
+                                gebietDir,
+                                String.valueOf(bandEintrag.getJahr())
+                        );
+
+                bandDir = new File(hauptbandDir, bandOrdner);
+
+            } else {
+
+                bandDir =
+                        new File(
+                                gebietDir,
+                                String.valueOf(bandEintrag.getJahr())
+                        );
+            }
 
             File[] inhalt = bandDir.listFiles();
 

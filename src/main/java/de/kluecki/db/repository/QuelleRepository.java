@@ -402,6 +402,38 @@ public class QuelleRepository {
         return liste;
     }
 
+    public boolean hatUnterbaende(int parentQuelleId) {
+
+        String sql = """
+            SELECT COUNT(*)
+            FROM Quelle
+            WHERE EbeneTyp = 'BAND'
+              AND ParentQuelleID = ?
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, parentQuelleId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            throw new RuntimeException(
+                    "Unterbände konnten nicht geprüft werden.",
+                    e
+            );
+        }
+
+        return false;
+    }
+
     public boolean unterbandExistiert(
             int parentQuelleId,
             String titel) {
