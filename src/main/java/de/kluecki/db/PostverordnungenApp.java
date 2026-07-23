@@ -5807,17 +5807,67 @@ public class PostverordnungenApp extends Application {
         cmbGebiet.getItems().addAll(loadGebiete());
         cmbGebiet.setPrefWidth(220);
 
+        ComboBox<String> cmbBandart = new ComboBox<>();
+        cmbBandart.getItems().addAll(
+                "Hauptband",
+                "Unterband"
+        );
+        cmbBandart.getSelectionModel().selectFirst();
+        cmbBandart.setPrefWidth(220);
+
         TextField txtJahr = new TextField();
         txtJahr.setPromptText("z. B. 1846");
 
         txtJahr.setTextFormatter(new TextFormatter<>(change ->
                 change.getControlNewText().matches("\\d*") ? change : null));
 
-        grid.add(new Label("Gebiet:"), 0, 0);
-        grid.add(cmbGebiet, 1, 0);
+        ComboBox<String> cmbHauptband = new ComboBox<>();
+        cmbHauptband.setPrefWidth(220);
+        cmbHauptband.setDisable(true);
+        cmbHauptband.setPromptText("Hauptband auswählen");
 
-        grid.add(new Label("Jahr/Band:"), 0, 1);
-        grid.add(txtJahr, 1, 1);
+        TextField txtUnterbandTitel = new TextField();
+        txtUnterbandTitel.setPromptText("z. B. Beiheft_02 oder Register");
+        txtUnterbandTitel.setDisable(true);
+        txtUnterbandTitel.setPrefWidth(220);
+
+        grid.add(new Label("Bandart:"), 0, 0);
+        grid.add(cmbBandart, 1, 0);
+
+        grid.add(new Label("Gebiet:"), 0, 1);
+        grid.add(cmbGebiet, 1, 1);
+
+        grid.add(new Label("Jahr/Band:"), 0, 2);
+        grid.add(txtJahr, 1, 2);
+
+        grid.add(new Label("Übergeordneter Hauptband:"), 0, 3);
+        grid.add(cmbHauptband, 1, 3);
+
+        grid.add(new Label("Unterbandtitel:"), 0, 4);
+        grid.add(txtUnterbandTitel, 1, 4);
+
+        cmbGebiet.setOnAction(e -> {
+            String gebiet = cmbGebiet.getValue();
+
+            cmbHauptband.getItems().clear();
+
+            if (gebiet != null && !gebiet.isBlank()) {
+                cmbHauptband.getItems().addAll(loadBaende(gebiet));
+            }
+        });
+
+        cmbBandart.setOnAction(e -> {
+            boolean istUnterband =
+                    "Unterband".equals(cmbBandart.getValue());
+
+            cmbHauptband.setDisable(!istUnterband);
+            txtUnterbandTitel.setDisable(!istUnterband);
+
+            if (!istUnterband) {
+                cmbHauptband.getSelectionModel().clearSelection();
+                txtUnterbandTitel.clear();
+            }
+        });
 
         dialog.getDialogPane().setContent(grid);
 
@@ -5825,6 +5875,8 @@ public class PostverordnungenApp extends Application {
                 (Button) dialog.getDialogPane().lookupButton(speichernButtonType);
 
         btnSpeichern.addEventFilter(ActionEvent.ACTION, event -> {
+
+            String bandart = cmbBandart.getValue();
             String gebiet = cmbGebiet.getValue();
             String jahr = txtJahr.getText().trim();
 
@@ -5842,8 +5894,73 @@ public class PostverordnungenApp extends Application {
 
             int jahrInt = Integer.parseInt(jahr);
 
-            if (quelleRepository.bandExistiert(gebiet, jahrInt)) {
-                showAlert("Fehler", "Dieses Band/Jahr existiert bereits.");
+            if ("Hauptband".equals(bandart)) {
+
+                if (quelleRepository.bandExistiert(gebiet, jahrInt)) {
+                    showAlert(
+                            "Fehler",
+                            "Dieses Band/Jahr existiert bereits."
+                    );
+                    event.consume();
+                }
+
+                return;
+            }
+
+            String hauptband = cmbHauptband.getValue();
+            String unterbandTitel =
+                    txtUnterbandTitel.getText().trim();
+
+            if (hauptband == null || hauptband.isBlank()) {
+                showAlert(
+                        "Fehler",
+                        "Bitte den übergeordneten Hauptband auswählen."
+                );
+                event.consume();
+                return;
+            }
+
+            if (unterbandTitel.isBlank()) {
+                showAlert(
+                        "Fehler",
+                        "Bitte einen Unterbandtitel eingeben."
+                );
+                event.consume();
+                return;
+            }
+
+            if (unterbandTitel.matches(".*[\\\\/:*?\"<>|].*")) {
+                showAlert(
+                        "Fehler",
+                        "Der Unterbandtitel enthält ungültige Zeichen für einen Ordnernamen."
+                );
+                event.consume();
+                return;
+            }
+
+            int parentQuelleId =
+                    quelleRepository.findHauptbandId(
+                            gebiet,
+                            hauptband
+                    );
+
+            if (parentQuelleId <= 0) {
+                showAlert(
+                        "Fehler",
+                        "Der übergeordnete Hauptband konnte nicht ermittelt werden."
+                );
+                event.consume();
+                return;
+            }
+
+            if (quelleRepository.unterbandExistiert(
+                    parentQuelleId,
+                    unterbandTitel)) {
+
+                showAlert(
+                        "Fehler",
+                        "Unter diesem Hauptband existiert bereits ein Unterband mit diesem Titel."
+                );
                 event.consume();
             }
         });
@@ -5851,6 +5968,133 @@ public class PostverordnungenApp extends Application {
         Optional<ButtonType> result = dialog.showAndWait();
 
         if (result.isEmpty() || result.get() != speichernButtonType) {
+            return;
+        }
+
+        if ("Unterband".equals(cmbBandart.getValue())) {
+
+            String gebiet = cmbGebiet.getValue();
+            String jahr = txtJahr.getText().trim();
+            String hauptband = cmbHauptband.getValue();
+            String unterbandTitel =
+                    txtUnterbandTitel.getText().trim();
+
+            int jahrInt = Integer.parseInt(jahr);
+
+            int parentQuelleId =
+                    quelleRepository.findHauptbandId(
+                            gebiet,
+                            hauptband
+                    );
+
+            if (parentQuelleId <= 0) {
+                showAlert(
+                        "Fehler",
+                        "Der übergeordnete Hauptband konnte nicht ermittelt werden."
+                );
+                return;
+            }
+
+            File rootDir =
+                    new File(Config.getImageRootPath());
+
+            File gebietDir =
+                    new File(rootDir, gebiet);
+
+            File hauptbandDir =
+                    new File(gebietDir, hauptband);
+
+            File unterbandDir =
+                    new File(hauptbandDir, unterbandTitel);
+
+            if (!hauptbandDir.exists() || !hauptbandDir.isDirectory()) {
+                showAlert(
+                        "Fehler",
+                        "Der Ordner des übergeordneten Hauptbandes existiert nicht:\n"
+                                + hauptbandDir.getAbsolutePath()
+                );
+                return;
+            }
+
+            if (unterbandDir.exists()) {
+                showAlert(
+                        "Fehler",
+                        "Der Unterordner existiert bereits:\n"
+                                + unterbandDir.getAbsolutePath()
+                );
+                return;
+            }
+
+            int neueUnterbandId = 0;
+
+            try {
+                neueUnterbandId =
+                        quelleRepository.insertUnterband(
+                                parentQuelleId,
+                                gebiet,
+                                jahrInt,
+                                unterbandTitel,
+                                unterbandTitel
+                        );
+
+                if (neueUnterbandId <= 0) {
+                    showAlert(
+                            "Fehler",
+                            "Der Unterband wurde nicht gespeichert."
+                    );
+                    return;
+                }
+
+                if (!unterbandDir.mkdir()) {
+
+                    try {
+                        quelleRepository.deleteBand(neueUnterbandId);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+
+                    showAlert(
+                            "Fehler",
+                            "Der Unterbandordner konnte nicht angelegt werden."
+                    );
+                    return;
+                }
+
+                invalidateGebieteCache();
+
+                gebietListView.getSelectionModel().select(gebiet);
+
+                ladeBandBaum(gebiet);
+
+                updateStatusLabel(
+                        bandTreeView.getRoot().getChildren().size()
+                );
+
+                waehleBandImBaumNachQuelleId(neueUnterbandId);
+                bandTreeView.requestFocus();
+
+                showAlert(
+                        "Erfolg",
+                        "Unterband wurde angelegt."
+                );
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+
+                if (neueUnterbandId > 0 && !unterbandDir.exists()) {
+                    try {
+                        quelleRepository.deleteBand(neueUnterbandId);
+                    } catch (Exception ruecknahmeFehler) {
+                        ruecknahmeFehler.printStackTrace();
+                    }
+                }
+
+                showAlert(
+                        "Fehler",
+                        "Unterband konnte nicht angelegt werden."
+                );
+            }
+
             return;
         }
 

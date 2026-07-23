@@ -103,6 +103,62 @@ public class QuelleRepository {
         return 0;
     }
 
+    public int findHauptbandId(String gebiet, String band) {
+
+        String sql;
+        boolean istZeitraum =
+                band != null && band.matches("\\d{4}-\\d{4}");
+
+        if (istZeitraum) {
+            sql = """
+            SELECT TOP 1 QuelleID
+            FROM Quelle
+            WHERE EbeneTyp = 'BAND'
+              AND ParentQuelleID IS NULL
+              AND Land = ?
+              AND JahrVon = ?
+              AND JahrBis = ?
+            ORDER BY QuelleID
+            """;
+        } else {
+            sql = """
+            SELECT TOP 1 QuelleID
+            FROM Quelle
+            WHERE EbeneTyp = 'BAND'
+              AND ParentQuelleID IS NULL
+              AND Land = ?
+              AND Jahr = ?
+            ORDER BY QuelleID
+            """;
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, gebiet);
+
+            if (istZeitraum) {
+                String[] teile = band.split("-");
+
+                ps.setInt(2, Integer.parseInt(teile[0]));
+                ps.setInt(3, Integer.parseInt(teile[1]));
+            } else {
+                ps.setInt(2, Integer.parseInt(band));
+            }
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("QuelleID");
+                }
+            }
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        return 0;
+    }
+
     public List<String> findBandTitelByGebiet(String gebiet) {
         List<String> liste = new ArrayList<>();
 
@@ -346,11 +402,47 @@ public class QuelleRepository {
         return liste;
     }
 
+    public boolean unterbandExistiert(
+            int parentQuelleId,
+            String titel) {
+
+        String sql = """
+        SELECT COUNT(*)
+        FROM Quelle
+        WHERE EbeneTyp = 'BAND'
+          AND ParentQuelleID = ?
+          AND LOWER(Titel) = LOWER(?)
+        """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, parentQuelleId);
+            stmt.setString(2, titel);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            throw new RuntimeException(
+                    "Unterband konnte nicht auf Dubletten geprüft werden.",
+                    e
+            );
+        }
+
+        return false;
+    }
+
     public void insertBand(String gebiet, int jahr) {
         String sql = """
-        INSERT INTO Quelle (QuelleTypID, StatusID, EbeneTyp, Jahr, Titel, Land)
-        VALUES (1, 1, 'BAND', ?, ?, ?)
-        """;
+            INSERT INTO Quelle (QuelleTypID, StatusID, EbeneTyp, Jahr, Titel, Land)
+            VALUES (1, 1, 'BAND', ?, ?, ?)
+            """;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -367,15 +459,75 @@ public class QuelleRepository {
         }
     }
 
+    public int insertUnterband(
+            int parentQuelleId,
+            String gebiet,
+            int jahr,
+            String titel,
+            String bandOrdner) {
+
+        String sql = """
+            INSERT INTO Quelle
+            (
+                ParentQuelleID,
+                QuelleTypID,
+                StatusID,
+                EbeneTyp,
+                Jahr,
+                Titel,
+                Land,
+                BandOrdner
+            )
+            OUTPUT INSERTED.QuelleID
+            VALUES
+            (
+                ?,
+                1,
+                1,
+                'BAND',
+                ?,
+                ?,
+                ?,
+                ?
+            )
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, parentQuelleId);
+            stmt.setInt(2, jahr);
+            stmt.setString(3, titel);
+            stmt.setString(4, gebiet);
+            stmt.setString(5, bandOrdner);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("QuelleID");
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            throw new RuntimeException(
+                    "Unterband konnte nicht gespeichert werden.",
+                    e
+            );
+        }
+
+        return 0;
+    }
+
     public boolean bandExistiert(String gebiet, int jahr) {
 
         String sql = """
-        SELECT COUNT(*)
-        FROM Quelle
-        WHERE EbeneTyp = 'BAND'
-        AND Land = ?
-        AND Jahr = ?
-        """;
+            SELECT COUNT(*)
+            FROM Quelle
+            WHERE EbeneTyp = 'BAND'
+            AND Land = ?
+            AND Jahr = ?
+            """;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
