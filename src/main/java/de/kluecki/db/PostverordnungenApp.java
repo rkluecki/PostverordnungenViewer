@@ -3182,11 +3182,32 @@ public class PostverordnungenApp extends Application {
                         aktuellerBildIndex = 0;
                         ladeAktuellesBild();
 
-                        zeigeStatusKurz(
-                                bilder.size()
-                                        + " Bilder geladen: "
-                                        + anzeige
-                        );
+                        MappingStatus mappingStatus =
+                                pruefeMappingStatusFuerAktuellesBand();
+
+                        if (mappingStatus == MappingStatus.NICHT_VORHANDEN) {
+
+                            starteInitialMappingImHintergrund(
+                                    bandId,
+                                    () -> {
+                                        ladeAktuellesBild();
+
+                                        zeigeStatusKurz(
+                                                bilder.size()
+                                                        + " Bilder geladen und Grundmapping erstellt: "
+                                                        + anzeige
+                                        );
+                                    }
+                            );
+
+                        } else {
+
+                            zeigeStatusKurz(
+                                    bilder.size()
+                                            + " Bilder geladen: "
+                                            + anzeige
+                            );
+                        }
 
                     } else {
 
