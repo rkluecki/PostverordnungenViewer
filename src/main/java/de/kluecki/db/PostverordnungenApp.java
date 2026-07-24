@@ -4398,10 +4398,11 @@ public class PostverordnungenApp extends Application {
                 .map(File::getName)
                 .toList();
 
-        seitenMappingRepository.erweitereMappingFuerBandFallsNoetig(
-                bandId,
-                dateinamen
-        );
+        int anzahlErgaenzt =
+                seitenMappingRepository.synchronisiereMappingMitDateiliste(
+                        bandId,
+                        dateinamen
+                );
 
         final List<String> verwaisteDateinamen = new ArrayList<>(
                 seitenMappingRepository.findeVerwaisteDateinamenZuBand(

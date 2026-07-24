@@ -380,6 +380,67 @@ public class SeitenMappingRepository {
         return verwaisteDateinamen;
     }
 
+    public List<String> findeNichtGemappteDateinamenZuBand(
+            int bandId,
+            List<String> dateinamenImOrdner) {
+
+        List<String> nichtGemappteDateinamen = new ArrayList<>();
+
+        if (bandId <= 0
+                || dateinamenImOrdner == null
+                || dateinamenImOrdner.isEmpty()) {
+            return nichtGemappteDateinamen;
+        }
+
+        Set<String> gemappteDateinamen = new HashSet<>();
+
+        String sql = """
+            SELECT Dateiname
+            FROM dbo.SeitenMapping
+            WHERE BandID = ?
+            """;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, bandId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+
+                    String dateiname = rs.getString("Dateiname");
+
+                    if (dateiname != null && !dateiname.isBlank()) {
+                        gemappteDateinamen.add(
+                                dateiname.trim().toLowerCase()
+                        );
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Gemappte Dateinamen konnten nicht ermittelt werden.",
+                    e
+            );
+        }
+
+        for (String dateiname : dateinamenImOrdner) {
+
+            if (dateiname == null || dateiname.isBlank()) {
+                continue;
+            }
+
+            String key = dateiname.trim().toLowerCase();
+
+            if (!gemappteDateinamen.contains(key)) {
+                nichtGemappteDateinamen.add(dateiname);
+            }
+        }
+
+        return nichtGemappteDateinamen;
+    }
+
     public void deleteByBandIdAndDateiname(int bandId, String dateiname) {
 
         if (bandId <= 0) {
@@ -452,6 +513,204 @@ public class SeitenMappingRepository {
         }
 
         return anzahlUpdates;
+    }
+
+    public int synchronisiereMappingMitDateiliste(
+            int bandId,
+            List<String> dateinamen) {
+
+        if (bandId <= 0
+                || dateinamen == null
+                || dateinamen.isEmpty()) {
+            return 0;
+        }
+
+        String sqlVorhanden = """
+        SELECT Dateiname
+        FROM dbo.SeitenMapping
+        WHERE BandID = ?
+        """;
+
+        String sqlMaxBildIndex = """
+        SELECT COALESCE(MAX(BildIndex), 0)
+        FROM dbo.SeitenMapping
+        WHERE BandID = ?
+        """;
+
+        String sqlIndizesVerschieben = """
+        UPDATE dbo.SeitenMapping
+        SET BildIndex = BildIndex + ?
+        WHERE BandID = ?
+        """;
+
+        String sqlInsert = """
+        INSERT INTO dbo.SeitenMapping
+            (BandID, BildIndex, Dateiname, LogischeSeite)
+        VALUES (?, ?, ?, ?)
+        """;
+
+        String sqlIndexNachDateiname = """
+        UPDATE dbo.SeitenMapping
+        SET BildIndex = ?
+        WHERE BandID = ?
+          AND LOWER(LTRIM(RTRIM(Dateiname))) = ?
+        """;
+
+        Set<String> vorhandeneDateinamen = new HashSet<>();
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+
+            boolean alterAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+
+            try {
+                try (PreparedStatement psVorhanden =
+                             conn.prepareStatement(sqlVorhanden)) {
+
+                    psVorhanden.setInt(1, bandId);
+
+                    try (ResultSet rs = psVorhanden.executeQuery()) {
+                        while (rs.next()) {
+
+                            String dateiname =
+                                    rs.getString("Dateiname");
+
+                            if (dateiname != null
+                                    && !dateiname.isBlank()) {
+
+                                vorhandeneDateinamen.add(
+                                        dateiname
+                                                .trim()
+                                                .toLowerCase()
+                                );
+                            }
+                        }
+                    }
+                }
+
+                int maximalerBildIndex = 0;
+
+                try (PreparedStatement psMax =
+                             conn.prepareStatement(sqlMaxBildIndex)) {
+
+                    psMax.setInt(1, bandId);
+
+                    try (ResultSet rs = psMax.executeQuery()) {
+                        if (rs.next()) {
+                            maximalerBildIndex = rs.getInt(1);
+                        }
+                    }
+                }
+
+                /*
+                 * Alle vorhandenen Indizes zunächst in einen freien,
+                 * hohen Bereich verschieben. Dadurch entstehen beim
+                 * späteren Neusortieren keine Indexkollisionen.
+                 */
+                int verschiebung =
+                        maximalerBildIndex
+                                + dateinamen.size()
+                                + 1000;
+
+                try (PreparedStatement psVerschieben =
+                             conn.prepareStatement(
+                                     sqlIndizesVerschieben)) {
+
+                    psVerschieben.setInt(1, verschiebung);
+                    psVerschieben.setInt(2, bandId);
+                    psVerschieben.executeUpdate();
+                }
+
+                int anzahlErgaenzt = 0;
+
+                /*
+                 * Noch nicht gemappte Dateien einfügen.
+                 */
+                try (PreparedStatement psInsert =
+                             conn.prepareStatement(sqlInsert)) {
+
+                    for (int i = 0; i < dateinamen.size(); i++) {
+
+                        String dateiname = dateinamen.get(i);
+
+                        if (dateiname == null
+                                || dateiname.isBlank()) {
+                            continue;
+                        }
+
+                        String key =
+                                dateiname.trim().toLowerCase();
+
+                        if (vorhandeneDateinamen.contains(key)) {
+                            continue;
+                        }
+
+                        int bildIndex = i + 1;
+
+                        psInsert.setInt(1, bandId);
+                        psInsert.setInt(2, bildIndex);
+                        psInsert.setString(3, dateiname);
+                        psInsert.setString(
+                                4,
+                                String.valueOf(bildIndex)
+                        );
+
+                        psInsert.addBatch();
+                        anzahlErgaenzt++;
+                    }
+
+                    psInsert.executeBatch();
+                }
+
+                /*
+                 * Alle vorhandenen und neuen Mapping-Einträge nach
+                 * der tatsächlichen Dateireihenfolge positionieren.
+                 */
+                try (PreparedStatement psIndex =
+                             conn.prepareStatement(
+                                     sqlIndexNachDateiname)) {
+
+                    for (int i = 0; i < dateinamen.size(); i++) {
+
+                        String dateiname = dateinamen.get(i);
+
+                        if (dateiname == null
+                                || dateiname.isBlank()) {
+                            continue;
+                        }
+
+                        psIndex.setInt(1, i + 1);
+                        psIndex.setInt(2, bandId);
+                        psIndex.setString(
+                                3,
+                                dateiname.trim().toLowerCase()
+                        );
+
+                        psIndex.addBatch();
+                    }
+
+                    psIndex.executeBatch();
+                }
+
+                conn.commit();
+                conn.setAutoCommit(alterAutoCommit);
+
+                return anzahlErgaenzt;
+
+            } catch (Exception ex) {
+
+                conn.rollback();
+                conn.setAutoCommit(alterAutoCommit);
+
+                throw ex;
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Seitenmapping konnte nicht mit der Dateiliste synchronisiert werden.",
+                    e
+            );
+        }
     }
 
 }
