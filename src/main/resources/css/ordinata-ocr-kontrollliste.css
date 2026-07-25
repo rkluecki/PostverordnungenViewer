@@ -1,0 +1,95 @@
+#ocrKontrolllisteTable {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #b8d3ca;
+    -fx-border-width: 1;
+    -fx-table-cell-border-color: #d9e6e1;
+
+    -fx-selection-bar: #dcefe8;
+    -fx-selection-bar-text: #243b35;
+    -fx-selection-bar-non-focused: #e6f2ee;
+}
+
+/* Gesamter Tabellenkopf */
+#ocrKontrolllisteTable .column-header-background {
+    -fx-background-color: #83bda7;
+}
+
+/* Einzelne Spaltenköpfe und Restfläche rechts */
+#ocrKontrolllisteTable .column-header,
+#ocrKontrolllisteTable .filler {
+    -fx-background-color: #83bda7;
+
+    -fx-border-color:
+            transparent
+            #b7d4ca
+            transparent
+            transparent;
+
+    -fx-border-width: 0 1 0 0;
+    -fx-size: 38px;
+}
+
+/* Beschriftung der Spaltenköpfe */
+#ocrKontrolllisteTable .column-header .label {
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-alignment: center;
+    -fx-padding: 0 6 0 6;
+}
+
+/* Tabellenzeilen */
+#ocrKontrolllisteTable .table-row-cell {
+    -fx-background-color: #ffffff;
+
+    -fx-border-color:
+            transparent
+            transparent
+            #dbe7e3
+            transparent;
+
+    -fx-border-width: 0 0 1 0;
+    -fx-cell-size: 42px;
+}
+
+/* Dezente abwechselnde Zeilenfarbe */
+#ocrKontrolllisteTable .table-row-cell:odd {
+    -fx-background-color: #f4f9f7;
+}
+
+/* Markierte Zeile */
+#ocrKontrolllisteTable .table-row-cell:selected {
+    -fx-background-color: #dcefe8;
+}
+
+/* Einzelne Tabellenzellen */
+#ocrKontrolllisteTable .table-cell {
+    -fx-text-fill: #24332f;
+    -fx-font-size: 12px;
+
+    -fx-border-color:
+            transparent
+            #dbe7e3
+            transparent
+            transparent;
+
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 0 8 0 8;
+    -fx-alignment: center-left;
+}
+
+/* Textfarbe bei Auswahl beibehalten */
+#ocrKontrolllisteTable .table-row-cell:selected .table-cell {
+    -fx-text-fill: #24332f;
+}
+
+/* Leere Tabellenfläche */
+#ocrKontrolllisteTable .virtual-flow .clipped-container .sheet {
+    -fx-background-color: #ffffff;
+}
+
+/* Platzhalter bei leerer Tabelle */
+#ocrKontrolllisteTable .placeholder .label {
+    -fx-text-fill: #61716c;
+    -fx-font-size: 13px;
+}

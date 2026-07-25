@@ -1,0 +1,1049 @@
+package de.kluecki.db.UI;
+
+import de.kluecki.db.DatabaseConnection;
+import de.kluecki.db.model.OrdinataOcrKontrolle;
+import de.kluecki.db.repository.OrdinataOcrKontrolleRepository;
+import javafx.application.Platform;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.scene.shape.Circle;
+import javafx.scene.Node;
+
+import java.sql.Connection;
+import java.util.List;
+
+public class OrdinataOcrKontrolleDialog {
+
+    public static void show(Stage ownerStage) {
+
+        Stage stage = new Stage();
+
+        stage.setTitle("OCR-Kontrollliste");
+        stage.initModality(Modality.APPLICATION_MODAL);
+
+        if (ownerStage != null) {
+            stage.initOwner(ownerStage);
+        }
+
+        Label lblTitel = new Label("OCR-Kontrollliste");
+        lblTitel.setStyle("""
+            -fx-font-size: 25px;
+            -fx-font-weight: bold;
+            -fx-text-fill: #2f5f57;
+            """);
+
+        Label lblUntertitel = new Label(
+                "Übersicht über Archivquellen, OCR-Status, Import und offene Arbeitsschritte"
+        );
+        lblUntertitel.setStyle("""
+            -fx-font-size: 13px;
+            -fx-text-fill: #5f6f6b;
+            """);
+
+        VBox titelBox = new VBox(4, lblTitel, lblUntertitel);
+
+        Label lblGesamtWert = erstelleKartenWert("0");
+        Label lblOffenWert = erstelleKartenWert("0");
+        Label lblErledigtWert = erstelleKartenWert("0");
+
+        VBox karteGesamt = erstelleKennzahlenKarte(
+                "Gesamt",
+                lblGesamtWert
+        );
+
+        VBox karteOffen = erstelleKennzahlenKarte(
+                "Offen",
+                lblOffenWert
+        );
+
+        VBox karteErledigt = erstelleKennzahlenKarte(
+                "Abgeschlossen",
+                lblErledigtWert
+        );
+
+        HBox kartenBox = new HBox(
+                12,
+                karteGesamt,
+                karteOffen,
+                karteErledigt
+        );
+
+        kartenBox.setAlignment(Pos.CENTER_RIGHT);
+
+        Region kopfAbstand = new Region();
+        HBox.setHgrow(kopfAbstand, Priority.ALWAYS);
+
+        HBox kopfBox = new HBox(
+                20,
+                titelBox,
+                kopfAbstand,
+                kartenBox
+        );
+
+        kopfBox.setAlignment(Pos.CENTER_LEFT);
+
+        TableView<OrdinataOcrKontrolle> table =
+                new TableView<>();
+
+        table.setId("ocrKontrolllisteTable");
+
+        TableColumn<OrdinataOcrKontrolle, String> colGebiet =
+                new TableColumn<>("Gebiet");
+
+        colGebiet.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        textOderLeer(
+                                data.getValue()
+                                        .getGebietBezeichnung()
+                        )
+                )
+        );
+
+        colGebiet.setCellFactory(column ->
+                new TableCell<>() {
+
+                    private final Label text = new Label();
+                    private final HBox inhalt =
+                            new HBox(7);
+
+                    {
+                        inhalt.setAlignment(Pos.CENTER_LEFT);
+                    }
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty
+                                || item == null
+                                || item.isBlank()) {
+
+                            setText(null);
+                            setGraphic(null);
+                            return;
+                        }
+
+                        text.setText(item);
+
+                        Node wappen =
+                                OrdinataGebietsWappenFactory.erstelle(item);
+
+                        if (wappen != null) {
+                            inhalt.getChildren().setAll(
+                                    wappen,
+                                    text
+                            );
+                        } else {
+                            inhalt.getChildren().setAll(text);
+                        }
+
+                        setText(null);
+                        setGraphic(inhalt);
+                    }
+                });
+
+        colGebiet.setPrefWidth(150);
+
+        TableColumn<OrdinataOcrKontrolle, String> colBand =
+                new TableColumn<>("Band/Jahr");
+
+        colBand.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        textOderLeer(
+                                data.getValue()
+                                        .getBandJahrAnzeige()
+                        )
+                )
+        );
+
+        colBand.setPrefWidth(90);
+
+        TableColumn<OrdinataOcrKontrolle, String> colUnterband =
+                new TableColumn<>("Unterband");
+
+        colUnterband.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        textOderLeer(
+                                data.getValue()
+                                        .getUnterbandTitel()
+                        )
+                )
+        );
+
+        colUnterband.setPrefWidth(120);
+
+        TableColumn<OrdinataOcrKontrolle, String> colArchiv =
+                new TableColumn<>("Archiv / Quelle");
+
+        colArchiv.setCellValueFactory(data -> {
+
+            OrdinataOcrKontrolle eintrag = data.getValue();
+
+            String archiv = textOderLeer(
+                    eintrag.getArchivName()
+            );
+
+            String quelle = textOderLeer(
+                    eintrag.getQuellenTitel()
+            );
+
+            if (!archiv.isBlank() && !quelle.isBlank()) {
+                return new SimpleStringProperty(
+                        archiv + " – " + quelle
+                );
+            }
+
+            if (!archiv.isBlank()) {
+                return new SimpleStringProperty(archiv);
+            }
+
+            return new SimpleStringProperty(quelle);
+        });
+
+        colArchiv.setPrefWidth(210);
+        aktiviereTooltip(colArchiv);
+
+        TableColumn<OrdinataOcrKontrolle, String> colQuellenStatus =
+                new TableColumn<>("Quellenstatus");
+
+        colQuellenStatus.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        formatiereStatus(
+                                data.getValue()
+                                        .getQuellenStatus()
+                        )
+                )
+        );
+
+        colQuellenStatus.setCellFactory(column ->
+                new TableCell<>() {
+
+                    private final Circle punkt = new Circle(5);
+                    private final Label text = new Label();
+                    private final HBox inhalt =
+                            new HBox(7, punkt, text);
+
+                    {
+                        inhalt.setAlignment(Pos.CENTER_LEFT);
+                    }
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty
+                                || item == null
+                                || item.isBlank()) {
+
+                            setGraphic(null);
+                            setText(null);
+                            return;
+                        }
+
+                        text.setText(item);
+
+                        OrdinataOcrKontrolle eintrag =
+                                getTableRow() != null
+                                        ? getTableRow().getItem()
+                                        : null;
+
+                        String quellenStatus =
+                                eintrag != null
+                                        ? eintrag.getQuellenStatus()
+                                        : null;
+
+                        punkt.setFill(
+                                switch (quellenStatus != null
+                                        ? quellenStatus
+                                        : "") {
+
+                                    case "QUELLE_GEFUNDEN" ->
+                                            Color.web("#4cad72");
+
+                                    case "QUELLE_TEILWEISE" ->
+                                            Color.web("#f4bd32");
+
+                                    case "QUELLE_FEHLT" ->
+                                            Color.web("#e53945");
+
+                                    case "NUR_EINZELFUNDE" ->
+                                            Color.web("#7e69b2");
+
+                                    case "NICHT_DIGITAL" ->
+                                            Color.web("#6f7f7a");
+
+                                    default ->
+                                            Color.web("#a9b4b0");
+                                }
+                        );
+
+                        punkt.setStroke(
+                                Color.rgb(70, 85, 80, 0.35)
+                        );
+
+                        punkt.setStrokeWidth(0.8);
+
+                        setText(null);
+                        setGraphic(inhalt);
+                    }
+                });
+
+        colQuellenStatus.setPrefWidth(180);
+
+        TableColumn<OrdinataOcrKontrolle, String> colOcrStatus =
+                new TableColumn<>("OCR-Status");
+
+        colOcrStatus.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        formatiereStatus(
+                                data.getValue()
+                                        .getOcrStatus()
+                        )
+                )
+        );
+
+        colOcrStatus.setCellFactory(column ->
+                new TableCell<>() {
+
+                    private final Circle punkt = new Circle(5);
+                    private final Label text = new Label();
+                    private final HBox inhalt =
+                            new HBox(7, punkt, text);
+
+                    {
+                        inhalt.setAlignment(Pos.CENTER_LEFT);
+                        inhalt.setMaxHeight(Region.USE_PREF_SIZE);
+
+                        inhalt.setStyle("""
+                    -fx-background-color: #edf5f2;
+                    -fx-border-color: #c7ddd7;
+                    -fx-border-radius: 5;
+                    -fx-background-radius: 5;
+                    -fx-padding: 2 6 2 6;
+                    """);
+                    }
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty
+                                || item == null
+                                || item.isBlank()) {
+
+                            setGraphic(null);
+                            setText(null);
+                            return;
+                        }
+
+                        text.setText(item);
+
+                        OrdinataOcrKontrolle eintrag =
+                                getTableRow() != null
+                                        ? getTableRow().getItem()
+                                        : null;
+
+                        String ocrStatus =
+                                eintrag != null
+                                        ? eintrag.getOcrStatus()
+                                        : null;
+
+                        punkt.setFill(
+                                switch (ocrStatus != null
+                                        ? ocrStatus
+                                        : "") {
+
+                                    case "OCR_VOLLSTAENDIG" ->
+                                            Color.web("#4cad72");
+
+                                    case "OCR_TEILWEISE" ->
+                                            Color.web("#f2c300");
+
+                                    case "OCR_FEHLT" ->
+                                            Color.web("#e53945");
+
+                                    case "OCR_FEHLERHAFT" ->
+                                            Color.web("#f47b20");
+
+                                    case "EIGENE_OCR_NOETIG" ->
+                                            Color.web("#3f8edb");
+
+                                    case "MAGISTER_VORGESEHEN" ->
+                                            Color.web("#7e69b2");
+
+                                    default ->
+                                            Color.web("#a9b4b0");
+                                }
+                        );
+
+                        punkt.setStroke(
+                                Color.rgb(70, 85, 80, 0.35)
+                        );
+
+                        punkt.setStrokeWidth(0.8);
+
+                        setText(null);
+                        setGraphic(inhalt);
+                    }
+                });
+
+        colOcrStatus.setPrefWidth(175);
+
+        colOcrStatus.setPrefWidth(125);
+
+        TableColumn<OrdinataOcrKontrolle, String> colImportStatus =
+                new TableColumn<>("Importstatus");
+
+        colImportStatus.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        formatiereStatus(
+                                data.getValue()
+                                        .getImportStatus()
+                        )
+                )
+        );
+
+        colImportStatus.setPrefWidth(145);
+
+        TableColumn<OrdinataOcrKontrolle, String> colPruefStatus =
+                new TableColumn<>("Prüfstatus");
+
+        colPruefStatus.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        formatiereStatus(
+                                data.getValue()
+                                        .getPruefStatus()
+                        )
+                )
+        );
+
+        colPruefStatus.setPrefWidth(135);
+
+        TableColumn<OrdinataOcrKontrolle, String> colErschliessbarkeit =
+                new TableColumn<>("Erschließbarkeit");
+
+        colErschliessbarkeit.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        formatiereStatus(
+                                data.getValue()
+                                        .getErschliessbarkeit()
+                        )
+                )
+        );
+
+        colErschliessbarkeit.setCellFactory(column ->
+                new TableCell<>() {
+
+                    private final Circle punkt = new Circle(5);
+                    private final Label text = new Label();
+                    private final HBox inhalt =
+                            new HBox(7, punkt, text);
+
+                    {
+                        inhalt.setAlignment(Pos.CENTER_LEFT);
+                    }
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty
+                                || item == null
+                                || item.isBlank()) {
+
+                            setGraphic(null);
+                            setText(null);
+                            return;
+                        }
+
+                        text.setText(item);
+
+                        OrdinataOcrKontrolle eintrag =
+                                getTableRow() != null
+                                        ? getTableRow().getItem()
+                                        : null;
+
+                        String erschliessbarkeit =
+                                eintrag != null
+                                        ? eintrag.getErschliessbarkeit()
+                                        : null;
+
+                        punkt.setFill(
+                                switch (erschliessbarkeit != null
+                                        ? erschliessbarkeit
+                                        : "") {
+
+                                    case "GUT" ->
+                                            Color.web("#4cad72");
+
+                                    case "TEILWEISE" ->
+                                            Color.web("#f4bd32");
+
+                                    case "SCHWIERIG" ->
+                                            Color.web("#f47b20");
+
+                                    case "NUR_EINZELFUNDE" ->
+                                            Color.web("#7e69b2");
+
+                                    case "QUELLE_VORHANDEN_OCR_FEHLT" ->
+                                            Color.web("#3f8edb");
+
+                                    case "DERZEIT_NICHT_ERSCHLIESSBAR" ->
+                                            Color.web("#e53945");
+
+                                    default ->
+                                            Color.web("#a9b4b0");
+                                }
+                        );
+
+                        punkt.setStroke(
+                                Color.rgb(70, 85, 80, 0.35)
+                        );
+
+                        punkt.setStrokeWidth(0.8);
+
+                        setText(null);
+                        setGraphic(inhalt);
+                    }
+                });
+
+        colErschliessbarkeit.setPrefWidth(220);
+
+        TableColumn<OrdinataOcrKontrolle, String> colPrioritaet =
+                new TableColumn<>("Priorität");
+
+        colPrioritaet.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        formatiereStatus(
+                                data.getValue()
+                                        .getPrioritaet()
+                        )
+                )
+        );
+
+        colPrioritaet.setCellFactory(column ->
+                new TableCell<>() {
+
+                    private final Circle punkt = new Circle(5);
+                    private final Label text = new Label();
+                    private final HBox inhalt =
+                            new HBox(7, punkt, text);
+
+                    {
+                        inhalt.setAlignment(Pos.CENTER_LEFT);
+                    }
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty
+                                || item == null
+                                || item.isBlank()) {
+
+                            setGraphic(null);
+                            setText(null);
+                            return;
+                        }
+
+                        text.setText(item);
+
+                        OrdinataOcrKontrolle eintrag =
+                                getTableRow() != null
+                                        ? getTableRow().getItem()
+                                        : null;
+
+                        String prioritaet =
+                                eintrag != null
+                                        ? eintrag.getPrioritaet()
+                                        : null;
+
+                        punkt.setFill(
+                                switch (prioritaet != null
+                                        ? prioritaet
+                                        : "") {
+
+                                    case "SEHR_HOCH" ->
+                                            Color.web("#e53945");
+
+                                    case "HOCH" ->
+                                            Color.web("#f47b20");
+
+                                    case "MITTEL" ->
+                                            Color.web("#f4bd32");
+
+                                    case "NIEDRIG" ->
+                                            Color.web("#4cad72");
+
+                                    default ->
+                                            Color.web("#a9b4b0");
+                                }
+                        );
+
+                        punkt.setStroke(
+                                Color.rgb(70, 85, 80, 0.35)
+                        );
+
+                        punkt.setStrokeWidth(0.8);
+
+                        setText(null);
+                        setGraphic(inhalt);
+                    }
+                });
+
+        colPrioritaet.setPrefWidth(105);
+
+        TableColumn<OrdinataOcrKontrolle, String> colNaechsterSchritt =
+                new TableColumn<>("Nächster Schritt");
+
+        colNaechsterSchritt.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        textOderLeer(
+                                data.getValue()
+                                        .getNaechsterSchritt()
+                        )
+                )
+        );
+
+        colNaechsterSchritt.setCellFactory(column ->
+                new TableCell<>() {
+
+                    private final Label symbol = new Label();
+                    private final Label text = new Label();
+                    private final HBox inhalt =
+                            new HBox(7, symbol, text);
+
+                    {
+                        inhalt.setAlignment(Pos.CENTER_LEFT);
+                    }
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty
+                                || item == null
+                                || item.isBlank()) {
+
+                            setGraphic(null);
+                            setText(null);
+                            setTooltip(null);
+                            return;
+                        }
+
+                        OrdinataOcrKontrolle eintrag =
+                                getTableRow() != null
+                                        ? getTableRow().getItem()
+                                        : null;
+
+                        boolean istErledigt =
+                                eintrag != null
+                                        && eintrag.isIstErledigt();
+
+                        if (istErledigt) {
+
+                            symbol.setText("✓");
+                            symbol.setStyle("""
+                        -fx-font-size: 15px;
+                        -fx-font-weight: bold;
+                        -fx-text-fill: #3f9b65;
+                        """);
+
+                        } else {
+
+                            symbol.setText("→");
+                            symbol.setStyle("""
+                        -fx-font-size: 15px;
+                        -fx-font-weight: bold;
+                        -fx-text-fill: #4f8077;
+                        """);
+                        }
+
+                        text.setText(item);
+
+                        setText(null);
+                        setGraphic(inhalt);
+                        setTooltip(new Tooltip(item));
+                    }
+                });
+
+        colNaechsterSchritt.setPrefWidth(210);
+
+        TableColumn<OrdinataOcrKontrolle, String> colBemerkung =
+                new TableColumn<>("Bemerkung");
+
+        colBemerkung.setCellValueFactory(data ->
+                new SimpleStringProperty(
+                        textOderLeer(
+                                data.getValue()
+                                        .getBemerkung()
+                        )
+                )
+        );
+
+        colBemerkung.setPrefWidth(220);
+        aktiviereTooltip(colBemerkung);
+
+        table.getColumns().addAll(
+                colGebiet,
+                colBand,
+                colUnterband,
+                colArchiv,
+                colQuellenStatus,
+                colOcrStatus,
+                colImportStatus,
+                colPruefStatus,
+                colErschliessbarkeit,
+                colPrioritaet,
+                colNaechsterSchritt,
+                colBemerkung
+        );
+
+        table.setColumnResizePolicy(
+                TableView.UNCONSTRAINED_RESIZE_POLICY
+        );
+
+        table.setPlaceholder(
+                new Label(
+                        "Noch keine Einträge in der OCR-Kontrollliste vorhanden."
+                )
+        );
+
+        Label lblStatus = new Label(
+                "OCR-Kontrollliste wird geladen …"
+        );
+
+        lblStatus.setStyle("""
+            -fx-text-fill: #64736f;
+            -fx-font-size: 12px;
+            """);
+
+        Button btnSchliessen = new Button("Schließen");
+        btnSchliessen.setPrefWidth(110);
+
+        btnSchliessen.setStyle("""
+            -fx-background-color: #e6efec;
+            -fx-border-color: #9bbab2;
+            -fx-border-radius: 4;
+            -fx-background-radius: 4;
+            -fx-padding: 7 16 7 16;
+            """);
+
+        btnSchliessen.setOnAction(event -> stage.close());
+
+        Region untererAbstand = new Region();
+        HBox.setHgrow(untererAbstand, Priority.ALWAYS);
+
+        HBox untereLeiste = new HBox(
+                15,
+                lblStatus,
+                untererAbstand,
+                btnSchliessen
+        );
+
+        untereLeiste.setAlignment(Pos.CENTER_LEFT);
+
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        VBox root = new VBox(
+                18,
+                kopfBox,
+                table,
+                untereLeiste
+        );
+
+        root.setPadding(new Insets(22));
+
+        root.setStyle("""
+            -fx-background-color: #f3f0e8;
+            -fx-border-color: #89afa5;
+            -fx-border-width: 1;
+            """);
+
+        root.setEffect(
+                new DropShadow(
+                        18,
+                        0,
+                        0,
+                        Color.rgb(0, 0, 0, 0.22)
+                )
+        );
+
+        Scene scene = new Scene(root, 1550, 850);
+
+        var cssUrl =
+                OrdinataOcrKontrolleDialog.class.getResource(
+                        "/css/ordinata-ocr-kontrollliste.css"
+                );
+
+        if (cssUrl != null) {
+            scene.getStylesheets().add(
+                    cssUrl.toExternalForm()
+            );
+        } else {
+            System.err.println(
+                    "CSS-Datei für die OCR-Kontrollliste wurde nicht gefunden."
+            );
+        }
+
+        scene.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ESCAPE) {
+                stage.close();
+                event.consume();
+            }
+        });
+
+        stage.setMinWidth(1250);
+        stage.setMinHeight(700);
+        stage.setScene(scene);
+
+        stage.setOnShown(event -> Platform.runLater(() -> {
+
+            if (ownerStage != null) {
+                stage.setX(
+                        ownerStage.getX()
+                                + Math.max(
+                                20,
+                                (ownerStage.getWidth()
+                                        - stage.getWidth()) / 2
+                        )
+                );
+
+                stage.setY(
+                        ownerStage.getY()
+                                + Math.max(
+                                20,
+                                (ownerStage.getHeight()
+                                        - stage.getHeight()) / 2
+                        )
+                );
+            } else {
+                stage.centerOnScreen();
+            }
+
+            ladeDaten(
+                    table,
+                    lblGesamtWert,
+                    lblOffenWert,
+                    lblErledigtWert,
+                    lblStatus
+            );
+        }));
+
+        stage.showAndWait();
+    }
+
+    private static void ladeDaten(
+            TableView<OrdinataOcrKontrolle> table,
+            Label lblGesamtWert,
+            Label lblOffenWert,
+            Label lblErledigtWert,
+            Label lblStatus) {
+
+        try (Connection connection =
+                     DatabaseConnection.getConnection()) {
+
+            OrdinataOcrKontrolleRepository repository =
+                    new OrdinataOcrKontrolleRepository(
+                            connection
+                    );
+
+            List<OrdinataOcrKontrolle> eintraege =
+                    repository.findAll();
+
+            table.getItems().setAll(eintraege);
+
+            long erledigt = eintraege.stream()
+                    .filter(
+                            OrdinataOcrKontrolle::isIstErledigt
+                    )
+                    .count();
+
+            long offen = eintraege.size() - erledigt;
+
+            lblGesamtWert.setText(
+                    String.valueOf(eintraege.size())
+            );
+
+            lblOffenWert.setText(
+                    String.valueOf(offen)
+            );
+
+            lblErledigtWert.setText(
+                    String.valueOf(erledigt)
+            );
+
+            lblStatus.setText(
+                    eintraege.size()
+                            + " Kontrolllisteneinträge geladen"
+            );
+
+        } catch (Exception e) {
+
+            lblStatus.setText(
+                    "OCR-Kontrollliste konnte nicht geladen werden."
+            );
+
+            Alert alert = new Alert(
+                    Alert.AlertType.ERROR
+            );
+
+            alert.setTitle("Datenbankfehler");
+            alert.setHeaderText(null);
+            alert.setContentText(
+                    "Die OCR-Kontrollliste konnte nicht geladen werden."
+            );
+
+            alert.showAndWait();
+
+            e.printStackTrace();
+        }
+    }
+
+    private static VBox erstelleKennzahlenKarte(
+            String titel,
+            Label wertLabel) {
+
+        Label titelLabel = new Label(titel);
+
+        titelLabel.setStyle("""
+            -fx-font-size: 11px;
+            -fx-text-fill: #60716c;
+            """);
+
+        VBox karte = new VBox(
+                3,
+                titelLabel,
+                wertLabel
+        );
+
+        karte.setAlignment(Pos.CENTER_LEFT);
+        karte.setPrefWidth(125);
+        karte.setPadding(
+                new Insets(9, 13, 9, 13)
+        );
+
+        karte.setStyle("""
+            -fx-background-color: #e2efeb;
+            -fx-border-color: #a9c5bd;
+            -fx-border-radius: 5;
+            -fx-background-radius: 5;
+            """);
+
+        return karte;
+    }
+
+    private static Label erstelleKartenWert(
+            String wert) {
+
+        Label label = new Label(wert);
+
+        label.setStyle("""
+            -fx-font-size: 19px;
+            -fx-font-weight: bold;
+            -fx-text-fill: #315f57;
+            """);
+
+        return label;
+    }
+
+    private static String textOderLeer(
+            String wert) {
+
+        return wert != null ? wert : "";
+    }
+
+    private static String formatiereStatus(
+            String status) {
+
+        if (status == null || status.isBlank()) {
+            return "";
+        }
+
+        String text = status
+                .toLowerCase()
+                .replace('_', ' ');
+
+        StringBuilder ergebnis =
+                new StringBuilder();
+
+        boolean wortanfang = true;
+
+        for (char zeichen : text.toCharArray()) {
+
+            if (wortanfang
+                    && Character.isLetter(zeichen)) {
+
+                ergebnis.append(
+                        Character.toUpperCase(zeichen)
+                );
+
+                wortanfang = false;
+
+            } else {
+
+                ergebnis.append(zeichen);
+
+                wortanfang = zeichen == ' ';
+            }
+        }
+
+        return ergebnis.toString();
+    }
+
+    private static void aktiviereTooltip(
+            TableColumn<OrdinataOcrKontrolle, String> spalte) {
+
+        spalte.setCellFactory(column ->
+                new TableCell<>() {
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty
+                                || item == null
+                                || item.isBlank()) {
+
+                            setText(null);
+                            setTooltip(null);
+                            return;
+                        }
+
+                        setText(item);
+                        setTooltip(new Tooltip(item));
+                    }
+                });
+    }
+
+}

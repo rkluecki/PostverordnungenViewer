@@ -33,6 +33,7 @@ import de.kluecki.db.UI.DocumentViewerWindow;
 import de.kluecki.db.UI.HilfeDialog;
 import de.kluecki.db.UI.HilfeEditorDialog;
 import de.kluecki.db.UI.InhaltseinheitenWindow;
+import de.kluecki.db.UI.OrdinataOcrKontrolleDialog;
 import de.kluecki.db.model.*;
 import de.kluecki.db.print.PrintPdfService;
 import de.kluecki.db.repository.*;
@@ -523,10 +524,23 @@ public class PostverordnungenApp extends Application {
 
         miOcrPruefen.setOnAction(e -> oeffneOcrPruefungDialog());
 
+        MenuItem miOcrKontrollliste =
+                new MenuItem("OCR-Kontrollliste...");
+
+        miOcrKontrollliste.setOnAction(e -> {
+
+            Stage ownerStage =
+                    (Stage) menuBar.getScene().getWindow();
+
+            OrdinataOcrKontrolleDialog.show(ownerStage);
+        });
+
         menuOcr.getItems().addAll(
                 miOcrImport,
                 new SeparatorMenuItem(),
-                miOcrPruefen
+                miOcrPruefen,
+                new SeparatorMenuItem(),
+                miOcrKontrollliste
         );
 
         Menu menuHilfe = new Menu("Hilfe");
