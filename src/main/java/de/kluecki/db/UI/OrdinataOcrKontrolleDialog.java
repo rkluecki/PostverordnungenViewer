@@ -13,22 +13,23 @@ import javafx.scene.effect.DropShadow;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.scene.shape.Circle;
 import javafx.scene.Node;
+import java.util.function.Consumer;
 
 import java.sql.Connection;
 import java.util.List;
 
 public class OrdinataOcrKontrolleDialog {
 
-    public static void show(Stage ownerStage) {
+    public static void show(
+            Stage ownerStage,
+            Consumer<OrdinataOcrKontrolle> beiDoppelklick) {
 
         Stage stage = new Stage();
 
         stage.setTitle("OCR-Kontrollliste");
-        stage.initModality(Modality.APPLICATION_MODAL);
 
         if (ownerStage != null) {
             stage.initOwner(ownerStage);
@@ -95,6 +96,32 @@ public class OrdinataOcrKontrolleDialog {
                 new TableView<>();
 
         table.setId("ocrKontrolllisteTable");
+
+        table.setRowFactory(tableView -> {
+
+            TableRow<OrdinataOcrKontrolle> zeile =
+                    new TableRow<>();
+
+            zeile.setOnMouseClicked(event -> {
+
+                if (event.getClickCount() != 2
+                        || zeile.isEmpty()) {
+                    return;
+                }
+
+                OrdinataOcrKontrolle eintrag =
+                        zeile.getItem();
+
+                if (eintrag == null
+                        || beiDoppelklick == null) {
+                    return;
+                }
+
+                beiDoppelklick.accept(eintrag);
+            });
+
+            return zeile;
+        });
 
         TableColumn<OrdinataOcrKontrolle, String> colGebiet =
                 new TableColumn<>("Gebiet");
@@ -857,7 +884,7 @@ public class OrdinataOcrKontrolleDialog {
             );
         }));
 
-        stage.showAndWait();
+        stage.show();
     }
 
     private static void ladeDaten(

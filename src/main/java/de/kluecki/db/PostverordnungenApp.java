@@ -532,7 +532,10 @@ public class PostverordnungenApp extends Application {
             Stage ownerStage =
                     (Stage) menuBar.getScene().getWindow();
 
-            OrdinataOcrKontrolleDialog.show(ownerStage);
+            OrdinataOcrKontrolleDialog.show(
+                    ownerStage,
+                    this::oeffneBandAusOcrKontrollliste
+            );
         });
 
         menuOcr.getItems().addAll(
@@ -604,6 +607,68 @@ public class PostverordnungenApp extends Application {
                 menuOcr,
                 menuHilfe);
         return menuBar;
+    }
+
+    private void oeffneBandAusOcrKontrollliste(
+            OrdinataOcrKontrolle eintrag) {
+
+        if (eintrag == null) {
+            return;
+        }
+
+        Integer quelleId = eintrag.getQuelleID();
+
+        if (quelleId == null || quelleId <= 0) {
+            showAlert(
+                    "OCR-Kontrollliste",
+                    "Für diesen Kontrolllisteneintrag ist noch kein Ordinata-Band angelegt."
+            );
+            return;
+        }
+
+        String gebiet = eintrag.getGebietBezeichnung();
+
+        if (gebiet == null || gebiet.isBlank()) {
+            showAlert(
+                    "OCR-Kontrollliste",
+                    "Für diesen Kontrolllisteneintrag ist kein Gebiet angegeben."
+            );
+            return;
+        }
+
+        boolean bandGeoeffnet =
+                waehleGebietUndBandAus(
+                        gebiet,
+                        quelleId
+                );
+
+        if (!bandGeoeffnet) {
+            return;
+        }
+
+        Platform.runLater(() -> {
+
+            if (aktuelleBildliste.isEmpty()) {
+                showAlert(
+                        "OCR-Kontrollliste",
+                        "Für den ausgewählten Band wurden keine Bildseiten gefunden."
+                );
+                return;
+            }
+
+            wechsleAufBandEbeneFuerFreieNavigation();
+
+            aktuellerBildIndex = 0;
+            ladeAktuellesBild();
+
+            zeigeStatusKurz(
+                    "Band aus OCR-Kontrollliste geöffnet: "
+                            + gebiet
+                            + " – "
+                            + eintrag.getBandJahrAnzeige()
+                            + " / Seite 1"
+            );
+        });
     }
 
     private void oeffneOcrSucheDialog() {
