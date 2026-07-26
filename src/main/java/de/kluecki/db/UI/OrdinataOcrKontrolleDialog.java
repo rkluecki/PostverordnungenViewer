@@ -1409,8 +1409,11 @@ public class OrdinataOcrKontrolleDialog {
                             )
                             .filter(eintrag ->
                                     gebietBezeichnung == null
-                                            || gebietBezeichnung.equals(
-                                            eintrag.getGebietBezeichnung()
+                                            || (
+                                            eintrag.getGebietBezeichnung() != null
+                                                    && gebietBezeichnung.trim().equalsIgnoreCase(
+                                                    eintrag.getGebietBezeichnung().trim()
+                                            )
                                     )
                             )
                             .filter(eintrag ->
@@ -1425,6 +1428,22 @@ public class OrdinataOcrKontrolleDialog {
                                             eintrag.getOcrStatus()
                                     )
                             )
+                            .sorted(
+                                    java.util.Comparator
+                                            .comparing(
+                                                    OrdinataOcrKontrolle::getGebietBezeichnung,
+                                                    java.util.Comparator.nullsLast(
+                                                            String.CASE_INSENSITIVE_ORDER
+                                                    )
+                                            )
+                                            .thenComparing(
+                                                    OrdinataOcrKontrolle::getJahrVon,
+                                                    java.util.Comparator.nullsLast(
+                                                            Integer::compareTo
+                                                    )
+                                            )
+                            )
+
                             .toList();
 
             table.getItems().setAll(
