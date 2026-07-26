@@ -106,6 +106,23 @@ public class OrdinataOcrKontrolleDialog {
                         "Nur offene Einträge anzeigen"
                 );
 
+        Label lblGebietsFilter =
+                new Label("Gebiet:");
+
+        ComboBox<Auswahlwert> cmbGebietsFilter =
+                new ComboBox<>();
+
+        cmbGebietsFilter.getItems().add(
+                new Auswahlwert(null, "Alle Gebiete")
+        );
+
+        cmbGebietsFilter.getSelectionModel()
+                .selectFirst();
+
+        cmbGebietsFilter.setPrefWidth(170);
+
+        ladeGebietsFilter(cmbGebietsFilter);
+
         Label lblPrioritaetsFilter =
                 new Label("Priorität:");
 
@@ -178,6 +195,8 @@ public class OrdinataOcrKontrolleDialog {
                 new HBox(
                         14,
                         chkNurOffeneEintraege,
+                        lblGebietsFilter,
+                        cmbGebietsFilter,
                         lblPrioritaetsFilter,
                         cmbPrioritaetsFilter,
                         lblOcrStatusFilter,
@@ -882,6 +901,25 @@ public class OrdinataOcrKontrolleDialog {
                         lblErledigtWert,
                         lblStatus,
                         chkNurOffeneEintraege.isSelected(),
+                        cmbGebietsFilter.getValue() != null
+                                ? cmbGebietsFilter.getValue().code()
+                                : null,
+                        cmbPrioritaetsFilter.getValue().code(),
+                        cmbOcrStatusFilter.getValue().code()
+                )
+        );
+
+        cmbGebietsFilter.setOnAction(event ->
+                ladeDaten(
+                        table,
+                        lblGesamtWert,
+                        lblOffenWert,
+                        lblErledigtWert,
+                        lblStatus,
+                        chkNurOffeneEintraege.isSelected(),
+                        cmbGebietsFilter.getValue() != null
+                                ? cmbGebietsFilter.getValue().code()
+                                : null,
                         cmbPrioritaetsFilter.getValue().code(),
                         cmbOcrStatusFilter.getValue().code()
                 )
@@ -895,6 +933,9 @@ public class OrdinataOcrKontrolleDialog {
                         lblErledigtWert,
                         lblStatus,
                         chkNurOffeneEintraege.isSelected(),
+                        cmbGebietsFilter.getValue() != null
+                                ? cmbGebietsFilter.getValue().code()
+                                : null,
                         cmbPrioritaetsFilter.getValue().code(),
                         cmbOcrStatusFilter.getValue().code()
                 )
@@ -908,6 +949,9 @@ public class OrdinataOcrKontrolleDialog {
                         lblErledigtWert,
                         lblStatus,
                         chkNurOffeneEintraege.isSelected(),
+                        cmbGebietsFilter.getValue() != null
+                                ? cmbGebietsFilter.getValue().code()
+                                : null,
                         cmbPrioritaetsFilter.getValue().code(),
                         cmbOcrStatusFilter.getValue().code()
                 )
@@ -916,6 +960,9 @@ public class OrdinataOcrKontrolleDialog {
         btnFilterZuruecksetzen.setOnAction(event -> {
 
             chkNurOffeneEintraege.setSelected(false);
+
+            cmbGebietsFilter.getSelectionModel()
+                    .selectFirst();
 
             cmbPrioritaetsFilter.getSelectionModel()
                     .selectFirst();
@@ -930,6 +977,7 @@ public class OrdinataOcrKontrolleDialog {
                     lblErledigtWert,
                     lblStatus,
                     false,
+                    null,
                     null,
                     null
             );
@@ -963,6 +1011,9 @@ public class OrdinataOcrKontrolleDialog {
                     lblErledigtWert,
                     lblStatus,
                     chkNurOffeneEintraege.isSelected(),
+                    cmbGebietsFilter.getValue() != null
+                            ? cmbGebietsFilter.getValue().code()
+                            : null,
                     cmbPrioritaetsFilter.getValue().code(),
                     cmbOcrStatusFilter.getValue().code()
             );
@@ -1021,6 +1072,9 @@ public class OrdinataOcrKontrolleDialog {
                     lblErledigtWert,
                     lblStatus,
                     chkNurOffeneEintraege.isSelected(),
+                    cmbGebietsFilter.getValue() != null
+                            ? cmbGebietsFilter.getValue().code()
+                            : null,
                     cmbPrioritaetsFilter.getValue().code(),
                     cmbOcrStatusFilter.getValue().code()
             );
@@ -1114,6 +1168,9 @@ public class OrdinataOcrKontrolleDialog {
                         lblErledigtWert,
                         lblStatus,
                         chkNurOffeneEintraege.isSelected(),
+                        cmbGebietsFilter.getValue() != null
+                                ? cmbGebietsFilter.getValue().code()
+                                : null,
                         cmbPrioritaetsFilter.getValue().code(),
                         cmbOcrStatusFilter.getValue().code()
                 );
@@ -1157,6 +1214,9 @@ public class OrdinataOcrKontrolleDialog {
                         lblErledigtWert,
                         lblStatus,
                         chkNurOffeneEintraege.isSelected(),
+                        cmbGebietsFilter.getValue() != null
+                                ? cmbGebietsFilter.getValue().code()
+                                : null,
                         cmbPrioritaetsFilter.getValue().code(),
                         cmbOcrStatusFilter.getValue().code()
                 )
@@ -1309,6 +1369,9 @@ public class OrdinataOcrKontrolleDialog {
                 lblErledigtWert,
                 lblStatus,
                 chkNurOffeneEintraege.isSelected(),
+                cmbGebietsFilter.getValue() != null
+                        ? cmbGebietsFilter.getValue().code()
+                        : null,
                 cmbPrioritaetsFilter.getValue().code(),
                 cmbOcrStatusFilter.getValue().code()
         );
@@ -1323,6 +1386,7 @@ public class OrdinataOcrKontrolleDialog {
             Label lblErledigtWert,
             Label lblStatus,
             boolean nurOffeneEintraege,
+            String gebietBezeichnung,
             String prioritaetsCode,
             String ocrStatusCode) {
 
@@ -1342,6 +1406,12 @@ public class OrdinataOcrKontrolleDialog {
                             .filter(eintrag ->
                                     !nurOffeneEintraege
                                             || !eintrag.isIstErledigt()
+                            )
+                            .filter(eintrag ->
+                                    gebietBezeichnung == null
+                                            || gebietBezeichnung.equals(
+                                            eintrag.getGebietBezeichnung()
+                                    )
                             )
                             .filter(eintrag ->
                                     prioritaetsCode == null
@@ -1383,6 +1453,7 @@ public class OrdinataOcrKontrolleDialog {
 
             boolean filterAktiv =
                     nurOffeneEintraege
+                            || gebietBezeichnung != null
                             || prioritaetsCode != null
                             || ocrStatusCode != null;
 
@@ -1423,6 +1494,56 @@ public class OrdinataOcrKontrolleDialog {
 
             e.printStackTrace();
         }
+    }
+
+    private static void ladeGebietsFilter(
+            ComboBox<Auswahlwert> cmbGebietsFilter) {
+
+        cmbGebietsFilter.getItems().clear();
+
+        cmbGebietsFilter.getItems().add(
+                new Auswahlwert(null, "Alle Gebiete")
+        );
+
+        try (Connection connection =
+                     DatabaseConnection.getConnection()) {
+
+            OrdinataOcrKontrolleRepository repository =
+                    new OrdinataOcrKontrolleRepository(
+                            connection
+                    );
+
+            repository.findAll()
+                    .stream()
+                    .map(
+                            OrdinataOcrKontrolle::getGebietBezeichnung
+                    )
+                    .filter(gebiet ->
+                            gebiet != null
+                                    && !gebiet.isBlank()
+                    )
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .forEach(gebiet ->
+                            cmbGebietsFilter.getItems().add(
+                                    new Auswahlwert(
+                                            gebiet,
+                                            gebiet
+                                    )
+                            )
+                    );
+
+        } catch (Exception ex) {
+
+            ex.printStackTrace();
+
+            System.err.println(
+                    "Die Gebiete für den OCR-Kontrolllistenfilter konnten nicht geladen werden."
+            );
+        }
+
+        cmbGebietsFilter.getSelectionModel()
+                .selectFirst();
     }
 
     private static VBox erstelleKennzahlenKarte(
