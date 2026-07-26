@@ -23,17 +23,25 @@ import java.util.List;
 
 public class OrdinataOcrKontrolleDialog {
 
+    private static Stage offeneStage;
+
     public static void show(
             Stage ownerStage,
             Consumer<OrdinataOcrKontrolle> beiDoppelklick) {
 
+        if (offeneStage != null && offeneStage.isShowing()) {
+            offeneStage.setIconified(false);
+            offeneStage.toFront();
+            offeneStage.requestFocus();
+            return;
+        }
+
         Stage stage = new Stage();
+        offeneStage = stage;
+
+        stage.setOnHidden(event -> offeneStage = null);
 
         stage.setTitle("OCR-Kontrollliste");
-
-        if (ownerStage != null) {
-            stage.initOwner(ownerStage);
-        }
 
         Label lblTitel = new Label("OCR-Kontrollliste");
         lblTitel.setStyle("""
@@ -857,38 +865,37 @@ public class OrdinataOcrKontrolleDialog {
         stage.setMinHeight(700);
         stage.setScene(scene);
 
-        stage.setOnShown(event -> Platform.runLater(() -> {
+        stage.sizeToScene();
 
-            if (ownerStage != null) {
-                stage.setX(
-                        ownerStage.getX()
-                                + Math.max(
-                                20,
-                                (ownerStage.getWidth()
-                                        - stage.getWidth()) / 2
-                        )
-                );
-
-                stage.setY(
-                        ownerStage.getY()
-                                + Math.max(
-                                20,
-                                (ownerStage.getHeight()
-                                        - stage.getHeight()) / 2
-                        )
-                );
-            } else {
-                stage.centerOnScreen();
-            }
-
-            ladeDaten(
-                    table,
-                    lblGesamtWert,
-                    lblOffenWert,
-                    lblErledigtWert,
-                    lblStatus
+        if (ownerStage != null) {
+            stage.setX(
+                    ownerStage.getX()
+                            + Math.max(
+                            20,
+                            (ownerStage.getWidth()
+                                    - stage.getWidth()) / 2
+                    )
             );
-        }));
+
+            stage.setY(
+                    ownerStage.getY()
+                            + Math.max(
+                            20,
+                            (ownerStage.getHeight()
+                                    - stage.getHeight()) / 2
+                    )
+            );
+        } else {
+            stage.centerOnScreen();
+        }
+
+        ladeDaten(
+                table,
+                lblGesamtWert,
+                lblOffenWert,
+                lblErledigtWert,
+                lblStatus
+        );
 
         stage.show();
     }
