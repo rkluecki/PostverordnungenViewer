@@ -21,11 +21,45 @@ public class OrdinataOcrKontrolleBearbeitenDialog {
     }
 
     public static boolean zeigeZumAnlegen(Stage ownerStage) {
+        return zeigeDialog(ownerStage, null);
+    }
+
+    public static boolean zeigeZumBearbeiten(
+            Stage ownerStage,
+            OrdinataOcrKontrolle vorhandenerEintrag) {
+
+        if (vorhandenerEintrag == null) {
+            throw new IllegalArgumentException(
+                    "Der zu bearbeitende OCR-Kontrolllisteneintrag darf nicht null sein."
+            );
+        }
+
+        return zeigeDialog(
+                ownerStage,
+                vorhandenerEintrag
+        );
+    }
+
+    private static boolean zeigeDialog(
+            Stage ownerStage,
+            OrdinataOcrKontrolle vorhandenerEintrag) {
+
+        boolean istBearbeiten =
+                vorhandenerEintrag != null;
 
         Dialog<ButtonType> dialog = new Dialog<>();
 
-        dialog.setTitle("OCR-Kontrolllisteneintrag anlegen");
-        dialog.setHeaderText("Neuen Eintrag für die OCR-Kontrollliste erfassen");
+        dialog.setTitle(
+                istBearbeiten
+                        ? "OCR-Kontrolllisteneintrag bearbeiten"
+                        : "OCR-Kontrolllisteneintrag anlegen"
+        );
+
+        dialog.setHeaderText(
+                istBearbeiten
+                        ? "Vorhandenen Eintrag der OCR-Kontrollliste bearbeiten"
+                        : "Neuen Eintrag für die OCR-Kontrollliste erfassen"
+        );
 
         if (ownerStage != null) {
             dialog.initOwner(ownerStage);
@@ -291,6 +325,113 @@ public class OrdinataOcrKontrolleBearbeitenDialog {
                         "Kontrolllisteneintrag ist abgeschlossen"
                 );
 
+        if (istBearbeiten) {
+
+            setzeText(
+                    txtGebiet,
+                    vorhandenerEintrag.getGebietBezeichnung()
+            );
+
+            setzeInteger(
+                    txtJahrVon,
+                    vorhandenerEintrag.getJahrVon()
+            );
+
+            setzeInteger(
+                    txtJahrBis,
+                    vorhandenerEintrag.getJahrBis()
+            );
+
+            setzeText(
+                    txtBandJahrAnzeige,
+                    vorhandenerEintrag.getBandJahrAnzeige()
+            );
+
+            setzeText(
+                    txtUnterbandTitel,
+                    vorhandenerEintrag.getUnterbandTitel()
+            );
+
+            setzeText(
+                    txtArchivName,
+                    vorhandenerEintrag.getArchivName()
+            );
+
+            setzeText(
+                    txtQuellenTitel,
+                    vorhandenerEintrag.getQuellenTitel()
+            );
+
+            setzeText(
+                    txtQuellenUrl,
+                    vorhandenerEintrag.getQuellenUrl()
+            );
+
+            setzeText(
+                    txtManifestId,
+                    vorhandenerEintrag.getManifestId()
+            );
+
+            waehleAuswahlwert(
+                    cmbQuellenStatus,
+                    vorhandenerEintrag.getQuellenStatus()
+            );
+
+            waehleAuswahlwert(
+                    cmbErschliessbarkeit,
+                    vorhandenerEintrag.getErschliessbarkeit()
+            );
+
+            waehleAuswahlwert(
+                    cmbOcrStatus,
+                    vorhandenerEintrag.getOcrStatus()
+            );
+
+            waehleAuswahlwert(
+                    cmbImportStatus,
+                    vorhandenerEintrag.getImportStatus()
+            );
+
+            waehleAuswahlwert(
+                    cmbPruefStatus,
+                    vorhandenerEintrag.getPruefStatus()
+            );
+
+            waehleAuswahlwert(
+                    cmbPrioritaet,
+                    vorhandenerEintrag.getPrioritaet()
+            );
+
+            setzeInteger(
+                    txtSeitenGesamt,
+                    vorhandenerEintrag.getSeitenGesamt()
+            );
+
+            setzeInteger(
+                    txtSeitenMitOcr,
+                    vorhandenerEintrag.getSeitenMitOcr()
+            );
+
+            setzeInteger(
+                    txtSeitenOhneOcr,
+                    vorhandenerEintrag.getSeitenOhneOcr()
+            );
+
+            setzeText(
+                    txtNaechsterSchritt,
+                    vorhandenerEintrag.getNaechsterSchritt()
+            );
+
+            setzeText(
+                    txtBemerkung,
+                    vorhandenerEintrag.getBemerkung()
+            );
+
+            chkIstErledigt.setSelected(
+                    vorhandenerEintrag.isIstErledigt()
+            );
+        }
+
         int zeile = 0;
 
         grid.add(lblBereichBandQuelle, 0, zeile++, 2, 1);
@@ -496,7 +637,23 @@ public class OrdinataOcrKontrolleBearbeitenDialog {
                     OrdinataOcrKontrolle eintrag =
                             new OrdinataOcrKontrolle();
 
-                    eintrag.setQuelleID(null);
+                    if (istBearbeiten) {
+
+                        eintrag.setOrdinataOcrKontrolleID(
+                                vorhandenerEintrag.getOrdinataOcrKontrolleID()
+                        );
+
+                        eintrag.setQuelleID(
+                                vorhandenerEintrag.getQuelleID()
+                        );
+
+                        eintrag.setZuletztGeprueftAm(
+                                vorhandenerEintrag.getZuletztGeprueftAm()
+                        );
+
+                    } else {
+                        eintrag.setQuelleID(null);
+                    }
 
                     eintrag.setGebietBezeichnung(gebiet);
                     eintrag.setJahrVon(jahrVon);
@@ -590,7 +747,11 @@ public class OrdinataOcrKontrolleBearbeitenDialog {
                                         connection
                                 );
 
-                        repository.insert(eintrag);
+                        if (istBearbeiten) {
+                            repository.update(eintrag);
+                        } else {
+                            repository.insert(eintrag);
+                        }
 
                         wurdeGespeichert[0] = true;
 
@@ -600,7 +761,9 @@ public class OrdinataOcrKontrolleBearbeitenDialog {
 
                         zeigeFehler(
                                 "Speicherfehler",
-                                "Der OCR-Kontrolllisteneintrag konnte nicht gespeichert werden."
+                                istBearbeiten
+                                        ? "Der OCR-Kontrolllisteneintrag konnte nicht aktualisiert werden."
+                                        : "Der OCR-Kontrolllisteneintrag konnte nicht gespeichert werden."
                         );
 
                         event.consume();
@@ -611,6 +774,45 @@ public class OrdinataOcrKontrolleBearbeitenDialog {
         dialog.showAndWait();
 
         return wurdeGespeichert[0];
+    }
+
+    private static void setzeText(
+            TextInputControl control,
+            String wert) {
+
+        control.setText(
+                wert != null
+                        ? wert
+                        : ""
+        );
+    }
+
+    private static void setzeInteger(
+            TextField textField,
+            Integer wert) {
+
+        textField.setText(
+                wert != null
+                        ? Integer.toString(wert)
+                        : ""
+        );
+    }
+
+    private static void waehleAuswahlwert(
+            ComboBox<Auswahlwert> comboBox,
+            String code) {
+
+        if (code == null) {
+            return;
+        }
+
+        for (Auswahlwert auswahlwert : comboBox.getItems()) {
+
+            if (code.equals(auswahlwert.code())) {
+                comboBox.getSelectionModel().select(auswahlwert);
+                return;
+            }
+        }
     }
 
     private static Integer parseNullableInteger(
@@ -702,4 +904,3 @@ public class OrdinataOcrKontrolleBearbeitenDialog {
         }
     }
 }
-

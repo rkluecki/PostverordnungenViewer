@@ -817,6 +817,170 @@ public class OrdinataOcrKontrolleDialog {
             );
         });
 
+        Button btnEintragBearbeiten = new Button("Eintrag bearbeiten");
+        btnEintragBearbeiten.setPrefWidth(145);
+
+        btnEintragBearbeiten.setStyle("""
+            -fx-background-color: #dcece7;
+            -fx-border-color: #7fa99f;
+            -fx-border-radius: 4;
+            -fx-background-radius: 4;
+            -fx-padding: 7 16 7 16;
+            """);
+
+        btnEintragBearbeiten.setOnAction(event -> {
+
+            OrdinataOcrKontrolle ausgewaehlterEintrag =
+                    table.getSelectionModel()
+                            .getSelectedItem();
+
+            if (ausgewaehlterEintrag == null) {
+
+                Alert alert =
+                        new Alert(
+                                Alert.AlertType.INFORMATION
+                        );
+
+                alert.setTitle("Kein Eintrag ausgewählt");
+                alert.setHeaderText(null);
+                alert.setContentText(
+                        "Bitte zuerst einen Kontrolllisteneintrag auswählen."
+                );
+
+                alert.initOwner(stage);
+                alert.showAndWait();
+                return;
+            }
+
+            boolean wurdeGespeichert =
+                    OrdinataOcrKontrolleBearbeitenDialog
+                            .zeigeZumBearbeiten(
+                                    stage,
+                                    ausgewaehlterEintrag
+                            );
+
+            if (!wurdeGespeichert) {
+                return;
+            }
+
+            ladeDaten(
+                    table,
+                    lblGesamtWert,
+                    lblOffenWert,
+                    lblErledigtWert,
+                    lblStatus
+            );
+        });
+
+        Button btnEintragLoeschen = new Button("Eintrag löschen");
+        btnEintragLoeschen.setPrefWidth(130);
+
+        btnEintragLoeschen.setStyle("""
+    -fx-background-color: #f3e1de;
+    -fx-border-color: #c28f87;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 7 16 7 16;
+    """);
+
+        btnEintragLoeschen.setOnAction(event -> {
+
+            OrdinataOcrKontrolle ausgewaehlterEintrag =
+                    table.getSelectionModel()
+                            .getSelectedItem();
+
+            if (ausgewaehlterEintrag == null) {
+
+                Alert alert =
+                        new Alert(
+                                Alert.AlertType.INFORMATION
+                        );
+
+                alert.setTitle("Kein Eintrag ausgewählt");
+                alert.setHeaderText(null);
+                alert.setContentText(
+                        "Bitte zuerst einen Kontrolllisteneintrag auswählen."
+                );
+
+                alert.initOwner(stage);
+                alert.showAndWait();
+                return;
+            }
+
+            Alert bestaetigung =
+                    new Alert(
+                            Alert.AlertType.CONFIRMATION
+                    );
+
+            bestaetigung.setTitle(
+                    "Kontrolllisteneintrag löschen"
+            );
+
+            bestaetigung.setHeaderText(
+                    "Soll der ausgewählte Kontrolllisteneintrag wirklich gelöscht werden?"
+            );
+
+            bestaetigung.setContentText(
+                    textOderLeer(
+                            ausgewaehlterEintrag.getGebietBezeichnung()
+                    )
+                            + " – "
+                            + textOderLeer(
+                            ausgewaehlterEintrag.getBandJahrAnzeige()
+                    )
+            );
+
+            bestaetigung.initOwner(stage);
+
+            ButtonType ergebnis =
+                    bestaetigung.showAndWait()
+                            .orElse(ButtonType.CANCEL);
+
+            if (ergebnis != ButtonType.OK) {
+                return;
+            }
+
+            try (Connection connection =
+                         DatabaseConnection.getConnection()) {
+
+                OrdinataOcrKontrolleRepository repository =
+                        new OrdinataOcrKontrolleRepository(
+                                connection
+                        );
+
+                repository.delete(
+                        ausgewaehlterEintrag
+                                .getOrdinataOcrKontrolleID()
+                );
+
+                ladeDaten(
+                        table,
+                        lblGesamtWert,
+                        lblOffenWert,
+                        lblErledigtWert,
+                        lblStatus
+                );
+
+            } catch (Exception ex) {
+
+                ex.printStackTrace();
+
+                Alert alert =
+                        new Alert(
+                                Alert.AlertType.ERROR
+                        );
+
+                alert.setTitle("Löschfehler");
+                alert.setHeaderText(null);
+                alert.setContentText(
+                        "Der OCR-Kontrolllisteneintrag konnte nicht gelöscht werden."
+                );
+
+                alert.initOwner(stage);
+                alert.showAndWait();
+            }
+        });
+
         Button btnAktualisieren = new Button("Aktualisieren");
         btnAktualisieren.setPrefWidth(120);
 
@@ -859,6 +1023,8 @@ public class OrdinataOcrKontrolleDialog {
                 lblStatus,
                 untererAbstand,
                 btnEintragAnlegen,
+                btnEintragBearbeiten,
+                btnEintragLoeschen,
                 btnAktualisieren,
                 btnSchliessen
         );
