@@ -101,6 +101,95 @@ public class OrdinataOcrKontrolleDialog {
 
         kopfBox.setAlignment(Pos.CENTER_LEFT);
 
+        CheckBox chkNurOffeneEintraege =
+                new CheckBox(
+                        "Nur offene Einträge anzeigen"
+                );
+
+        Label lblPrioritaetsFilter =
+                new Label("Priorität:");
+
+        ComboBox<Auswahlwert> cmbPrioritaetsFilter =
+                new ComboBox<>();
+
+        cmbPrioritaetsFilter.getItems().addAll(
+                new Auswahlwert(null, "Alle"),
+                new Auswahlwert("SEHR_HOCH", "Sehr hoch"),
+                new Auswahlwert("HOCH", "Hoch"),
+                new Auswahlwert("MITTEL", "Mittel"),
+                new Auswahlwert("NIEDRIG", "Niedrig")
+        );
+
+        cmbPrioritaetsFilter.getSelectionModel().selectFirst();
+        cmbPrioritaetsFilter.setPrefWidth(120);
+
+        Label lblOcrStatusFilter =
+                new Label("OCR-Status:");
+
+        ComboBox<Auswahlwert> cmbOcrStatusFilter =
+                new ComboBox<>();
+
+        cmbOcrStatusFilter.getItems().addAll(
+                new Auswahlwert(null, "Alle"),
+                new Auswahlwert("UNBEKANNT", "Unbekannt"),
+                new Auswahlwert("OCR_FEHLT", "OCR fehlt"),
+                new Auswahlwert(
+                        "OCR_TEILWEISE",
+                        "OCR teilweise vorhanden"
+                ),
+                new Auswahlwert(
+                        "OCR_VOLLSTAENDIG",
+                        "OCR vollständig"
+                ),
+                new Auswahlwert(
+                        "OCR_FEHLERHAFT",
+                        "OCR fehlerhaft"
+                ),
+                new Auswahlwert(
+                        "EIGENE_OCR_NOETIG",
+                        "Eigene OCR nötig"
+                ),
+                new Auswahlwert(
+                        "MAGISTER_VORGESEHEN",
+                        "Bearbeitung mit Magister vorgesehen"
+                )
+        );
+
+        cmbOcrStatusFilter.getSelectionModel().selectFirst();
+        cmbOcrStatusFilter.setPrefWidth(220);
+
+        Button btnFilterZuruecksetzen =
+                new Button("Filter zurücksetzen");
+
+        btnFilterZuruecksetzen.setStyle("""
+            -fx-background-color: #e6efec;
+            -fx-border-color: #9bbab2;
+            -fx-border-radius: 4;
+            -fx-background-radius: 4;
+            -fx-padding: 5 12 5 12;
+            """);
+
+        chkNurOffeneEintraege.setStyle("""
+            -fx-font-size: 12px;
+            -fx-text-fill: #465e58;
+            """);
+
+        HBox filterLeiste =
+                new HBox(
+                        14,
+                        chkNurOffeneEintraege,
+                        lblPrioritaetsFilter,
+                        cmbPrioritaetsFilter,
+                        lblOcrStatusFilter,
+                        cmbOcrStatusFilter,
+                        btnFilterZuruecksetzen
+                );
+
+        filterLeiste.setAlignment(Pos.CENTER_LEFT);
+        filterLeiste.setPadding(
+                new Insets(2, 0, 0, 0)
+        );
+
         TableView<OrdinataOcrKontrolle> table =
                 new TableView<>();
 
@@ -447,8 +536,6 @@ public class OrdinataOcrKontrolleDialog {
                     }
                 });
 
-        colOcrStatus.setPrefWidth(175);
-
         colOcrStatus.setPrefWidth(125);
 
         TableColumn<OrdinataOcrKontrolle, String> colImportStatus =
@@ -787,6 +874,67 @@ public class OrdinataOcrKontrolleDialog {
             -fx-font-size: 12px;
             """);
 
+        chkNurOffeneEintraege.setOnAction(event ->
+                ladeDaten(
+                        table,
+                        lblGesamtWert,
+                        lblOffenWert,
+                        lblErledigtWert,
+                        lblStatus,
+                        chkNurOffeneEintraege.isSelected(),
+                        cmbPrioritaetsFilter.getValue().code(),
+                        cmbOcrStatusFilter.getValue().code()
+                )
+        );
+
+        cmbPrioritaetsFilter.setOnAction(event ->
+                ladeDaten(
+                        table,
+                        lblGesamtWert,
+                        lblOffenWert,
+                        lblErledigtWert,
+                        lblStatus,
+                        chkNurOffeneEintraege.isSelected(),
+                        cmbPrioritaetsFilter.getValue().code(),
+                        cmbOcrStatusFilter.getValue().code()
+                )
+        );
+
+        cmbOcrStatusFilter.setOnAction(event ->
+                ladeDaten(
+                        table,
+                        lblGesamtWert,
+                        lblOffenWert,
+                        lblErledigtWert,
+                        lblStatus,
+                        chkNurOffeneEintraege.isSelected(),
+                        cmbPrioritaetsFilter.getValue().code(),
+                        cmbOcrStatusFilter.getValue().code()
+                )
+        );
+
+        btnFilterZuruecksetzen.setOnAction(event -> {
+
+            chkNurOffeneEintraege.setSelected(false);
+
+            cmbPrioritaetsFilter.getSelectionModel()
+                    .selectFirst();
+
+            cmbOcrStatusFilter.getSelectionModel()
+                    .selectFirst();
+
+            ladeDaten(
+                    table,
+                    lblGesamtWert,
+                    lblOffenWert,
+                    lblErledigtWert,
+                    lblStatus,
+                    false,
+                    null,
+                    null
+            );
+        });
+
         Button btnEintragAnlegen = new Button("Eintrag anlegen");
         btnEintragAnlegen.setPrefWidth(130);
 
@@ -813,7 +961,10 @@ public class OrdinataOcrKontrolleDialog {
                     lblGesamtWert,
                     lblOffenWert,
                     lblErledigtWert,
-                    lblStatus
+                    lblStatus,
+                    chkNurOffeneEintraege.isSelected(),
+                    cmbPrioritaetsFilter.getValue().code(),
+                    cmbOcrStatusFilter.getValue().code()
             );
         });
 
@@ -868,7 +1019,10 @@ public class OrdinataOcrKontrolleDialog {
                     lblGesamtWert,
                     lblOffenWert,
                     lblErledigtWert,
-                    lblStatus
+                    lblStatus,
+                    chkNurOffeneEintraege.isSelected(),
+                    cmbPrioritaetsFilter.getValue().code(),
+                    cmbOcrStatusFilter.getValue().code()
             );
         });
 
@@ -876,12 +1030,12 @@ public class OrdinataOcrKontrolleDialog {
         btnEintragLoeschen.setPrefWidth(130);
 
         btnEintragLoeschen.setStyle("""
-    -fx-background-color: #f3e1de;
-    -fx-border-color: #c28f87;
-    -fx-border-radius: 4;
-    -fx-background-radius: 4;
-    -fx-padding: 7 16 7 16;
-    """);
+            -fx-background-color: #f3e1de;
+            -fx-border-color: #c28f87;
+            -fx-border-radius: 4;
+            -fx-background-radius: 4;
+            -fx-padding: 7 16 7 16;
+            """);
 
         btnEintragLoeschen.setOnAction(event -> {
 
@@ -958,7 +1112,10 @@ public class OrdinataOcrKontrolleDialog {
                         lblGesamtWert,
                         lblOffenWert,
                         lblErledigtWert,
-                        lblStatus
+                        lblStatus,
+                        chkNurOffeneEintraege.isSelected(),
+                        cmbPrioritaetsFilter.getValue().code(),
+                        cmbOcrStatusFilter.getValue().code()
                 );
 
             } catch (Exception ex) {
@@ -998,7 +1155,10 @@ public class OrdinataOcrKontrolleDialog {
                         lblGesamtWert,
                         lblOffenWert,
                         lblErledigtWert,
-                        lblStatus
+                        lblStatus,
+                        chkNurOffeneEintraege.isSelected(),
+                        cmbPrioritaetsFilter.getValue().code(),
+                        cmbOcrStatusFilter.getValue().code()
                 )
         );
 
@@ -1034,8 +1194,9 @@ public class OrdinataOcrKontrolleDialog {
         VBox.setVgrow(table, Priority.ALWAYS);
 
         VBox root = new VBox(
-                18,
+                14,
                 kopfBox,
+                filterLeiste,
                 table,
                 untereLeiste
         );
@@ -1146,7 +1307,10 @@ public class OrdinataOcrKontrolleDialog {
                 lblGesamtWert,
                 lblOffenWert,
                 lblErledigtWert,
-                lblStatus
+                lblStatus,
+                chkNurOffeneEintraege.isSelected(),
+                cmbPrioritaetsFilter.getValue().code(),
+                cmbOcrStatusFilter.getValue().code()
         );
 
         stage.show();
@@ -1157,7 +1321,10 @@ public class OrdinataOcrKontrolleDialog {
             Label lblGesamtWert,
             Label lblOffenWert,
             Label lblErledigtWert,
-            Label lblStatus) {
+            Label lblStatus,
+            boolean nurOffeneEintraege,
+            String prioritaetsCode,
+            String ocrStatusCode) {
 
         try (Connection connection =
                      DatabaseConnection.getConnection()) {
@@ -1170,7 +1337,29 @@ public class OrdinataOcrKontrolleDialog {
             List<OrdinataOcrKontrolle> eintraege =
                     repository.findAll();
 
-            table.getItems().setAll(eintraege);
+            List<OrdinataOcrKontrolle> angezeigteEintraege =
+                    eintraege.stream()
+                            .filter(eintrag ->
+                                    !nurOffeneEintraege
+                                            || !eintrag.isIstErledigt()
+                            )
+                            .filter(eintrag ->
+                                    prioritaetsCode == null
+                                            || prioritaetsCode.equals(
+                                            eintrag.getPrioritaet()
+                                    )
+                            )
+                            .filter(eintrag ->
+                                    ocrStatusCode == null
+                                            || ocrStatusCode.equals(
+                                            eintrag.getOcrStatus()
+                                    )
+                            )
+                            .toList();
+
+            table.getItems().setAll(
+                    angezeigteEintraege
+            );
 
             long erledigt = eintraege.stream()
                     .filter(
@@ -1192,10 +1381,27 @@ public class OrdinataOcrKontrolleDialog {
                     String.valueOf(erledigt)
             );
 
-            lblStatus.setText(
-                    eintraege.size()
-                            + " Kontrolllisteneinträge geladen"
-            );
+            boolean filterAktiv =
+                    nurOffeneEintraege
+                            || prioritaetsCode != null
+                            || ocrStatusCode != null;
+
+            if (filterAktiv) {
+
+                lblStatus.setText(
+                        angezeigteEintraege.size()
+                                + " von "
+                                + eintraege.size()
+                                + " Kontrolllisteneinträgen angezeigt"
+                );
+
+            } else {
+
+                lblStatus.setText(
+                        eintraege.size()
+                                + " Kontrolllisteneinträge geladen"
+                );
+            }
 
         } catch (Exception e) {
 
@@ -1336,6 +1542,16 @@ public class OrdinataOcrKontrolleDialog {
                         setTooltip(new Tooltip(item));
                     }
                 });
+    }
+
+    private record Auswahlwert(
+            String code,
+            String anzeige) {
+
+        @Override
+        public String toString() {
+            return anzeige;
+        }
     }
 
 }
