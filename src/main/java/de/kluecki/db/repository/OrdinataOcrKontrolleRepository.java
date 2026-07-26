@@ -197,40 +197,40 @@ public class OrdinataOcrKontrolleRepository {
     public void insert(OrdinataOcrKontrolle eintrag) {
 
         String sql = """
-        INSERT INTO dbo.OrdinataOcrKontrolle
-        (
-            QuelleID,
-            GebietBezeichnung,
-            JahrVon,
-            JahrBis,
-            BandJahrAnzeige,
-            UnterbandTitel,
-            QuellenTitel,
-            ArchivName,
-            QuellenUrl,
-            ManifestId,
-            QuellenStatus,
-            Erschliessbarkeit,
-            OcrStatus,
-            ImportStatus,
-            PruefStatus,
-            Prioritaet,
-            SeitenGesamt,
-            SeitenMitOcr,
-            SeitenOhneOcr,
-            NaechsterSchritt,
-            Bemerkung,
-            IstErledigt,
-            GeaendertAm,
-            ZuletztGeprueftAm
-        )
-        VALUES
-        (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?
-        )
-        """;
+            INSERT INTO dbo.OrdinataOcrKontrolle
+            (
+                QuelleID,
+                GebietBezeichnung,
+                JahrVon,
+                JahrBis,
+                BandJahrAnzeige,
+                UnterbandTitel,
+                QuellenTitel,
+                ArchivName,
+                QuellenUrl,
+                ManifestId,
+                QuellenStatus,
+                Erschliessbarkeit,
+                OcrStatus,
+                ImportStatus,
+                PruefStatus,
+                Prioritaet,
+                SeitenGesamt,
+                SeitenMitOcr,
+                SeitenOhneOcr,
+                NaechsterSchritt,
+                Bemerkung,
+                IstErledigt,
+                GeaendertAm,
+                ZuletztGeprueftAm
+            )
+            VALUES
+            (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?
+            )
+            """;
 
         try (var stmt = connection.prepareStatement(sql)) {
 
@@ -300,34 +300,34 @@ public class OrdinataOcrKontrolleRepository {
     public void update(OrdinataOcrKontrolle eintrag) {
 
         String sql = """
-        UPDATE dbo.OrdinataOcrKontrolle
-        SET
-            QuelleID = ?,
-            GebietBezeichnung = ?,
-            JahrVon = ?,
-            JahrBis = ?,
-            BandJahrAnzeige = ?,
-            UnterbandTitel = ?,
-            QuellenTitel = ?,
-            ArchivName = ?,
-            QuellenUrl = ?,
-            ManifestId = ?,
-            QuellenStatus = ?,
-            Erschliessbarkeit = ?,
-            OcrStatus = ?,
-            ImportStatus = ?,
-            PruefStatus = ?,
-            Prioritaet = ?,
-            SeitenGesamt = ?,
-            SeitenMitOcr = ?,
-            SeitenOhneOcr = ?,
-            NaechsterSchritt = ?,
-            Bemerkung = ?,
-            IstErledigt = ?,
-            GeaendertAm = SYSDATETIME(),
-            ZuletztGeprueftAm = ?
-        WHERE OrdinataOcrKontrolleID = ?
-        """;
+            UPDATE dbo.OrdinataOcrKontrolle
+            SET
+                QuelleID = ?,
+                GebietBezeichnung = ?,
+                JahrVon = ?,
+                JahrBis = ?,
+                BandJahrAnzeige = ?,
+                UnterbandTitel = ?,
+                QuellenTitel = ?,
+                ArchivName = ?,
+                QuellenUrl = ?,
+                ManifestId = ?,
+                QuellenStatus = ?,
+                Erschliessbarkeit = ?,
+                OcrStatus = ?,
+                ImportStatus = ?,
+                PruefStatus = ?,
+                Prioritaet = ?,
+                SeitenGesamt = ?,
+                SeitenMitOcr = ?,
+                SeitenOhneOcr = ?,
+                NaechsterSchritt = ?,
+                Bemerkung = ?,
+                IstErledigt = ?,
+                GeaendertAm = SYSDATETIME(),
+                ZuletztGeprueftAm = ?
+            WHERE OrdinataOcrKontrolleID = ?
+            """;
 
         try (var stmt = connection.prepareStatement(sql)) {
 
@@ -399,9 +399,9 @@ public class OrdinataOcrKontrolleRepository {
     public void delete(int ordinataOcrKontrolleID) {
 
         String sql = """
-        DELETE FROM dbo.OrdinataOcrKontrolle
-        WHERE OrdinataOcrKontrolleID = ?
-        """;
+            DELETE FROM dbo.OrdinataOcrKontrolle
+            WHERE OrdinataOcrKontrolleID = ?
+            """;
 
         try (var stmt = connection.prepareStatement(sql)) {
 

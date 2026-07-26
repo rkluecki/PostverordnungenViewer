@@ -3,7 +3,6 @@ package de.kluecki.db.UI;
 import de.kluecki.db.DatabaseConnection;
 import de.kluecki.db.model.OrdinataOcrKontrolle;
 import de.kluecki.db.repository.OrdinataOcrKontrolleRepository;
-import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -17,6 +16,8 @@ import javafx.stage.Stage;
 import javafx.scene.shape.Circle;
 import javafx.scene.Node;
 import java.util.function.Consumer;
+import javafx.geometry.Rectangle2D;
+import javafx.stage.Screen;
 
 import java.sql.Connection;
 import java.util.List;
@@ -786,6 +787,36 @@ public class OrdinataOcrKontrolleDialog {
             -fx-font-size: 12px;
             """);
 
+        Button btnEintragAnlegen = new Button("Eintrag anlegen");
+        btnEintragAnlegen.setPrefWidth(130);
+
+        btnEintragAnlegen.setStyle("""
+            -fx-background-color: #dcece7;
+            -fx-border-color: #7fa99f;
+            -fx-border-radius: 4;
+            -fx-background-radius: 4;
+            -fx-padding: 7 16 7 16;
+            """);
+
+        btnEintragAnlegen.setOnAction(event -> {
+
+            boolean wurdeGespeichert =
+                    OrdinataOcrKontrolleBearbeitenDialog
+                            .zeigeZumAnlegen(stage);
+
+            if (!wurdeGespeichert) {
+                return;
+            }
+
+            ladeDaten(
+                    table,
+                    lblGesamtWert,
+                    lblOffenWert,
+                    lblErledigtWert,
+                    lblStatus
+            );
+        });
+
         Button btnAktualisieren = new Button("Aktualisieren");
         btnAktualisieren.setPrefWidth(120);
 
@@ -827,6 +858,7 @@ public class OrdinataOcrKontrolleDialog {
                 10,
                 lblStatus,
                 untererAbstand,
+                btnEintragAnlegen,
                 btnAktualisieren,
                 btnSchliessen
         );
@@ -889,27 +921,59 @@ public class OrdinataOcrKontrolleDialog {
 
         stage.sizeToScene();
 
-        if (ownerStage != null) {
-            stage.setX(
-                    ownerStage.getX()
-                            + Math.max(
-                            20,
-                            (ownerStage.getWidth()
-                                    - stage.getWidth()) / 2
-                    )
-            );
+        // FIX: feste Scene-Breite/-Höhe statt stage.getWidth()/getHeight() verwenden,
+// da diese vor dem ersten show() noch nicht zuverlässig gesetzt sind.
+        double fensterBreite = 1550;
+        double fensterHoehe = 850;
 
-            stage.setY(
-                    ownerStage.getY()
-                            + Math.max(
-                            20,
-                            (ownerStage.getHeight()
-                                    - stage.getHeight()) / 2
-                    )
-            );
+        Rectangle2D sichtbarerBereich;
+
+        if (ownerStage != null) {
+
+            sichtbarerBereich =
+                    Screen.getScreensForRectangle(
+                                    ownerStage.getX(),
+                                    ownerStage.getY(),
+                                    ownerStage.getWidth(),
+                                    ownerStage.getHeight()
+                            )
+                            .stream()
+                            .findFirst()
+                            .orElse(Screen.getPrimary())
+                            .getVisualBounds();
+
         } else {
-            stage.centerOnScreen();
+
+            sichtbarerBereich =
+                    Screen.getPrimary().getVisualBounds();
         }
+
+        double zielX =
+                sichtbarerBereich.getMinX()
+                        + (sichtbarerBereich.getWidth() - fensterBreite) / 2;
+
+        double zielY =
+                sichtbarerBereich.getMinY()
+                        + (sichtbarerBereich.getHeight() - fensterHoehe) / 2;
+
+        zielX = Math.max(
+                sichtbarerBereich.getMinX(),
+                Math.min(
+                        zielX,
+                        sichtbarerBereich.getMaxX() - fensterBreite
+                )
+        );
+
+        zielY = Math.max(
+                sichtbarerBereich.getMinY(),
+                Math.min(
+                        zielY,
+                        sichtbarerBereich.getMaxY() - fensterHoehe
+                )
+        );
+
+        stage.setX(zielX);
+        stage.setY(zielY);
 
         ladeDaten(
                 table,
