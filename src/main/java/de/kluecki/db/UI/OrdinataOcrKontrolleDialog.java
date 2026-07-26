@@ -97,6 +97,12 @@ public class OrdinataOcrKontrolleDialog {
 
         table.setId("ocrKontrolllisteTable");
 
+        table.setTooltip(
+                new Tooltip(
+                        "Doppelklick auf einen Eintrag öffnet den verknüpften Band auf Seite 1."
+                )
+        );
+
         table.setRowFactory(tableView -> {
 
             TableRow<OrdinataOcrKontrolle> zeile =
