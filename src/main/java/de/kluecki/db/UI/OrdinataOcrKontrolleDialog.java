@@ -786,6 +786,27 @@ public class OrdinataOcrKontrolleDialog {
             -fx-font-size: 12px;
             """);
 
+        Button btnAktualisieren = new Button("Aktualisieren");
+        btnAktualisieren.setPrefWidth(120);
+
+        btnAktualisieren.setStyle("""
+            -fx-background-color: #dcece7;
+            -fx-border-color: #7fa99f;
+            -fx-border-radius: 4;
+            -fx-background-radius: 4;
+            -fx-padding: 7 16 7 16;
+            """);
+
+        btnAktualisieren.setOnAction(event ->
+                ladeDaten(
+                        table,
+                        lblGesamtWert,
+                        lblOffenWert,
+                        lblErledigtWert,
+                        lblStatus
+                )
+        );
+
         Button btnSchliessen = new Button("Schließen");
         btnSchliessen.setPrefWidth(110);
 
@@ -803,9 +824,10 @@ public class OrdinataOcrKontrolleDialog {
         HBox.setHgrow(untererAbstand, Priority.ALWAYS);
 
         HBox untereLeiste = new HBox(
-                15,
+                10,
                 lblStatus,
                 untererAbstand,
+                btnAktualisieren,
                 btnSchliessen
         );
 
