@@ -1450,16 +1450,19 @@ public class OrdinataOcrKontrolleDialog {
                     angezeigteEintraege
             );
 
-            long erledigt = eintraege.stream()
+            long erledigt = angezeigteEintraege.stream()
                     .filter(
                             OrdinataOcrKontrolle::isIstErledigt
                     )
                     .count();
 
-            long offen = eintraege.size() - erledigt;
+            long offen =
+                    angezeigteEintraege.size() - erledigt;
 
             lblGesamtWert.setText(
-                    String.valueOf(eintraege.size())
+                    String.valueOf(
+                            angezeigteEintraege.size()
+                    )
             );
 
             lblOffenWert.setText(
