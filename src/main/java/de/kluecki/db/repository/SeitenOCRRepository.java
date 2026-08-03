@@ -249,6 +249,26 @@ public class SeitenOCRRepository {
             int offset,
             int limit
     ) {
+        return sucheOcrTextImGebiet(
+                gebiet,
+                suchbegriff,
+                suchart,
+                null,
+                null,
+                offset,
+                limit
+        );
+    }
+
+    public List<SeitenOCRSuchtreffer> sucheOcrTextImGebiet(
+            String gebiet,
+            String suchbegriff,
+            String suchart,
+            Integer jahrVon,
+            Integer jahrBis,
+            int offset,
+            int limit
+    ) {
 
         List<SeitenOCRSuchtreffer> treffer = new ArrayList<>();
 
@@ -262,6 +282,17 @@ public class SeitenOCRRepository {
 
         int offsetBereinigt = bereinigeOffset(offset);
         int limitBereinigt = bereinigeLimit(limit);
+
+        boolean enthaeltAlleWoerter =
+                "enthält alle Wörter".equals(suchart);
+
+        String[] suchwoerter = enthaeltAlleWoerter
+                ? suchbegriff.trim().split("\\s+")
+                : new String[0];
+
+        String ocrSuchbedingung = enthaeltAlleWoerter
+                ? baueAlleWoerterSqlBedingung(suchwoerter.length)
+                : "s.OCRText LIKE ? OR s.OCRTextKorrigiert LIKE ?";
 
         String sql = """
         SELECT
@@ -284,16 +315,23 @@ public class SeitenOCRRepository {
         WHERE q.EbeneTyp = 'BAND'
           AND q.Land = ?
           AND (
-                s.OCRText LIKE ?
-                OR s.OCRTextKorrigiert LIKE ?
+                ? IS NULL
+                OR COALESCE(q.JahrBis, q.Jahr, q.JahrVon) >= ?
               )
+          AND (
+                ? IS NULL
+                OR COALESCE(q.JahrVon, q.Jahr, q.JahrBis) <= ?
+              )
+          AND (
+                %s
+                    )
         ORDER BY
             q.Jahr,
             q.JahrVon,
             s.BildIndex
         OFFSET ? ROWS
         FETCH NEXT ? ROWS ONLY
-        """;
+        """.formatted(ocrSuchbedingung);
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -301,11 +339,34 @@ public class SeitenOCRRepository {
             String suchbegriffBereinigt = suchbegriff.trim();
             String muster = baueLikeMuster(suchbegriffBereinigt, suchart);
 
-            stmt.setString(1, gebiet.trim());
-            stmt.setString(2, muster);
-            stmt.setString(3, muster);
-            stmt.setInt(4, offsetBereinigt);
-            stmt.setInt(5, limitBereinigt);
+            int parameterIndex = 1;
+
+            stmt.setString(parameterIndex++, gebiet.trim());
+
+            stmt.setObject(parameterIndex++, jahrVon);
+            stmt.setObject(parameterIndex++, jahrVon);
+
+            stmt.setObject(parameterIndex++, jahrBis);
+            stmt.setObject(parameterIndex++, jahrBis);
+
+            if (enthaeltAlleWoerter) {
+
+                for (String wort : suchwoerter) {
+                    stmt.setString(parameterIndex++, "%" + wort + "%");
+                }
+
+                for (String wort : suchwoerter) {
+                    stmt.setString(parameterIndex++, "%" + wort + "%");
+                }
+
+            } else {
+
+                stmt.setString(parameterIndex++, muster);
+                stmt.setString(parameterIndex++, muster);
+            }
+
+            stmt.setInt(parameterIndex++, offsetBereinigt);
+            stmt.setInt(parameterIndex, limitBereinigt);
 
             try (ResultSet rs = stmt.executeQuery()) {
 
@@ -339,9 +400,9 @@ public class SeitenOCRRepository {
                         textFuerAusschnitt = ocrText;
                     }
 
-                    Integer jahr = (Integer) rs.getObject("Jahr");
-                    Integer jahrVon = (Integer) rs.getObject("JahrVon");
-                    Integer jahrBis = (Integer) rs.getObject("JahrBis");
+                    Integer bandJahr = (Integer) rs.getObject("Jahr");
+                    Integer bandJahrVon = (Integer) rs.getObject("JahrVon");
+                    Integer bandJahrBis = (Integer) rs.getObject("JahrBis");
 
                     suchtreffer.setSeitenOCRID(rs.getInt("SeitenOCRID"));
                     suchtreffer.setBandID(rs.getInt("BandID"));
@@ -352,13 +413,19 @@ public class SeitenOCRRepository {
                     suchtreffer.setOcrFormat(rs.getString("OCRFormat"));
 
                     suchtreffer.setGebiet(rs.getString("Land"));
-                    suchtreffer.setBandAnzeige(baueBandAnzeige(jahr, jahrVon, jahrBis));
+                    suchtreffer.setBandAnzeige(
+                            baueBandAnzeige(bandJahr, bandJahrVon, bandJahrBis)
+                    );
 
                     suchtreffer.setTrefferArt(trefferArt);
                     suchtreffer.setSuchbegriff(suchbegriffBereinigt);
                     suchtreffer.setSuchart(suchart);
                     suchtreffer.setTextAusschnitt(
-                            erstelleTextAusschnitt(textFuerAusschnitt, suchbegriffBereinigt, suchart)
+                            erstelleTextAusschnitt(
+                                    textFuerAusschnitt,
+                                    suchbegriffBereinigt,
+                                    suchart
+                            )
                     );
 
                     treffer.add(suchtreffer);
@@ -393,36 +460,36 @@ public class SeitenOCRRepository {
         int limitBereinigt = bereinigeLimit(limit);
 
         String sql = """
-        SELECT
-            s.SeitenOCRID,
-            s.BandID,
-            s.BildIndex,
-            s.Dateiname,
-            s.LogischeSeite,
-            s.OCRQuelle,
-            s.OCRFormat,
-            s.OCRText,
-            s.OCRTextKorrigiert,
-            q.Land,
-            q.Jahr,
-            q.JahrVon,
-            q.JahrBis
-        FROM dbo.SeitenOCR s
-        INNER JOIN dbo.Quelle q
-            ON q.QuelleID = s.BandID
-        WHERE q.EbeneTyp = 'BAND'
-          AND (
-                s.OCRText LIKE ?
-                OR s.OCRTextKorrigiert LIKE ?
-              )
-        ORDER BY
-            q.Land,
-            q.Jahr,
-            q.JahrVon,
-            s.BildIndex
-        OFFSET ? ROWS
-        FETCH NEXT ? ROWS ONLY
-        """;
+            SELECT
+                s.SeitenOCRID,
+                s.BandID,
+                s.BildIndex,
+                s.Dateiname,
+                s.LogischeSeite,
+                s.OCRQuelle,
+                s.OCRFormat,
+                s.OCRText,
+                s.OCRTextKorrigiert,
+                q.Land,
+                q.Jahr,
+                q.JahrVon,
+                q.JahrBis
+            FROM dbo.SeitenOCR s
+            INNER JOIN dbo.Quelle q
+                ON q.QuelleID = s.BandID
+            WHERE q.EbeneTyp = 'BAND'
+              AND (
+                    s.OCRText LIKE ?
+                    OR s.OCRTextKorrigiert LIKE ?
+                  )
+            ORDER BY
+                q.Land,
+                q.Jahr,
+                q.JahrVon,
+                s.BildIndex
+            OFFSET ? ROWS
+            FETCH NEXT ? ROWS ONLY
+            """;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -521,6 +588,33 @@ public class SeitenOCRRepository {
         return "";
     }
 
+    private String baueAlleWoerterSqlBedingung(int anzahlWoerter) {
+
+        if (anzahlWoerter <= 0) {
+            return "1 = 0";
+        }
+
+        StringBuilder originalBedingung = new StringBuilder();
+        StringBuilder korrigiertBedingung = new StringBuilder();
+
+        for (int i = 0; i < anzahlWoerter; i++) {
+
+            if (i > 0) {
+                originalBedingung.append(" AND ");
+                korrigiertBedingung.append(" AND ");
+            }
+
+            originalBedingung.append("s.OCRText LIKE ?");
+            korrigiertBedingung.append("s.OCRTextKorrigiert LIKE ?");
+        }
+
+        return "("
+                + originalBedingung
+                + ") OR ("
+                + korrigiertBedingung
+                + ")";
+    }
+
     private String baueLikeMuster(String suchbegriff, String suchart) {
 
         if (suchbegriff == null) {
@@ -565,9 +659,31 @@ public class SeitenOCRRepository {
             case "beginnt mit" -> passtWortBeginntMit(text, suchbegriff);
             case "endet mit" -> passtWortEndetMit(text, suchbegriff);
             case "Wildcard" -> passtWildcardMuster(textKlein, suchbegriffKlein);
+            case "enthält alle Wörter" -> passtAlleWoerter(textKlein, suchbegriffKlein);
             case "enthält" -> textKlein.contains(suchbegriffKlein);
             default -> textKlein.contains(suchbegriffKlein);
         };
+    }
+
+    private boolean passtAlleWoerter(String text, String suchbegriffe) {
+
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        if (suchbegriffe == null || suchbegriffe.isBlank()) {
+            return false;
+        }
+
+        String[] woerter = suchbegriffe.trim().split("\\s+");
+
+        for (String wort : woerter) {
+            if (!text.contains(wort)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private boolean passtWortBeginntMit(String text, String suchbegriff) {
@@ -709,6 +825,19 @@ public class SeitenOCRRepository {
 
         if (suchbegriff == null || suchbegriff.isBlank()) {
             return -1;
+        }
+
+        if ("enthält alle Wörter".equals(suchart)) {
+
+            String[] woerter = suchbegriff.trim().split("\\s+");
+
+            if (woerter.length == 0) {
+                return -1;
+            }
+
+            return text.toLowerCase().indexOf(
+                    woerter[0].toLowerCase()
+            );
         }
 
         if ("exakt".equals(suchart)) {

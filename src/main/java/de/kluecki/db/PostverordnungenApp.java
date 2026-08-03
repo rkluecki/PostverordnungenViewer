@@ -695,11 +695,18 @@ public class PostverordnungenApp extends Application {
 
         String bandAnzeige = aktuellesGebiet + " – " + aktuellesBand;
 
+        Integer aktuellesJahr = null;
+
+        if (aktuellerBandNavigationEintrag != null) {
+            aktuellesJahr = aktuellerBandNavigationEintrag.getJahr();
+        }
+
         OcrSucheDialog.show(
                 ownerStage,
                 bandId,
                 aktuellesGebiet,
                 bandAnzeige,
+                aktuellesJahr,
                 treffer -> springeZuOcrSuchtreffer(treffer)
         );
     }
@@ -850,6 +857,11 @@ public class PostverordnungenApp extends Application {
             return;
         }
 
+        if ("enthält alle Wörter".equals(suchart)) {
+            ermittleOcrTrefferPositionenAlleWoerter(text, suchbegriff);
+            return;
+        }
+
         if ("exakt".equals(suchart)) {
             ermittleExakteOcrTrefferPositionen(text, suchbegriff);
             return;
@@ -886,6 +898,65 @@ public class PostverordnungenApp extends Application {
             aktuelleOcrTrefferLaengen.add(suchbegriff.length());
 
             position += suchbegriffKlein.length();
+        }
+    }
+
+    private void ermittleOcrTrefferPositionenAlleWoerter(
+            String text,
+            String suchbegriffe
+    ) {
+
+        if (text == null || text.isBlank()) {
+            return;
+        }
+
+        if (suchbegriffe == null || suchbegriffe.isBlank()) {
+            return;
+        }
+
+        String textKlein = text.toLowerCase();
+
+        Set<String> woerter = new LinkedHashSet<>(
+                Arrays.asList(
+                        suchbegriffe
+                                .trim()
+                                .toLowerCase()
+                                .split("\\s+")
+                )
+        );
+
+        List<int[]> fundstellen = new ArrayList<>();
+
+        for (String wort : woerter) {
+
+            int position = 0;
+
+            while (true) {
+
+                position = textKlein.indexOf(wort, position);
+
+                if (position < 0) {
+                    break;
+                }
+
+                fundstellen.add(
+                        new int[] {
+                                position,
+                                wort.length()
+                        }
+                );
+
+                position += wort.length();
+            }
+        }
+
+        fundstellen.sort(
+                Comparator.comparingInt(fundstelle -> fundstelle[0])
+        );
+
+        for (int[] fundstelle : fundstellen) {
+            aktuelleOcrTrefferPositionen.add(fundstelle[0]);
+            aktuelleOcrTrefferLaengen.add(fundstelle[1]);
         }
     }
 

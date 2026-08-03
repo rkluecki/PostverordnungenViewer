@@ -30,8 +30,10 @@ public class OcrSucheDialog {
             int bandId,
             String gebiet,
             String bandAnzeige,
+            Integer aktuellesJahr,
             Consumer<SeitenOCRSuchtreffer> onTrefferAuswahl
     ) {
+
         Stage dialog = new Stage();
         dialog.setTitle("OCR-Text suchen");
         dialog.initOwner(owner);
@@ -57,18 +59,57 @@ public class OcrSucheDialog {
                         : "(kein Gebiet verfügbar)"
         );
 
+        TextField txtJahrVon = new TextField();
+        txtJahrVon.setPromptText("Jahr von");
+        txtJahrVon.setPrefWidth(90);
+
+        txtJahrVon.setTextFormatter(new TextFormatter<>(change -> {
+            String neuerText = change.getControlNewText();
+
+            if (neuerText.matches("\\d{0,4}")) {
+                return change;
+            }
+
+            return null;
+        }));
+
+        TextField txtJahrBis = new TextField();
+        txtJahrBis.setPromptText("Jahr bis");
+        txtJahrBis.setPrefWidth(90);
+
+        txtJahrBis.setTextFormatter(new TextFormatter<>(change -> {
+            String neuerText = change.getControlNewText();
+
+            if (neuerText.matches("\\d{0,4}")) {
+                return change;
+            }
+
+            return null;
+        }));
+
+        if (aktuellesJahr != null) {
+            txtJahrVon.setText(String.valueOf(aktuellesJahr));
+            txtJahrBis.setText(String.valueOf(aktuellesJahr));
+        }
+
         TextField txtSuche = new TextField();
         txtSuche.setPromptText("Suchbegriff eingeben...");
         txtSuche.setPrefColumnCount(30);
 
+        txtJahrVon.setOnAction(e -> txtJahrBis.requestFocus());
+        txtJahrBis.setOnAction(e -> txtSuche.requestFocus());
+
         ComboBox<String> cmbSuchart = new ComboBox<>();
+
         cmbSuchart.getItems().addAll(
                 "enthält",
+                "enthält alle Wörter",
                 "exakt",
                 "beginnt mit",
                 "endet mit",
                 "Wildcard"
         );
+
         cmbSuchart.getSelectionModel().select("enthält");
         cmbSuchart.setPrefWidth(130);
 
@@ -295,6 +336,47 @@ public class OcrSucheDialog {
                 return;
             }
 
+            String jahrVonText = txtJahrVon.getText() != null
+                    ? txtJahrVon.getText().trim()
+                    : "";
+
+            String jahrBisText = txtJahrBis.getText() != null
+                    ? txtJahrBis.getText().trim()
+                    : "";
+
+            if ((!jahrVonText.isBlank() && jahrVonText.length() != 4)
+                    || (!jahrBisText.isBlank() && jahrBisText.length() != 4)) {
+
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("OCR-Suche");
+                alert.setHeaderText("Ungültige Jahresangabe");
+                alert.setContentText("Jahresangaben müssen leer oder vierstellig sein.");
+                alert.initOwner(dialog);
+                alert.showAndWait();
+                return;
+            }
+
+            Integer jahrVon = jahrVonText.isBlank()
+                    ? null
+                    : Integer.parseInt(jahrVonText);
+
+            Integer jahrBis = jahrBisText.isBlank()
+                    ? null
+                    : Integer.parseInt(jahrBisText);
+
+            if (jahrVon != null && jahrBis != null && jahrVon > jahrBis) {
+
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("OCR-Suche");
+                alert.setHeaderText("Ungültiger Jahrbereich");
+                alert.setContentText("„Jahr von“ darf nicht größer als „Jahr bis“ sein.");
+                alert.initOwner(dialog);
+                alert.showAndWait();
+
+                txtJahrVon.requestFocus();
+                return;
+            }
+
             SeitenOCRRepository repository = new SeitenOCRRepository();
 
             String suchart = cmbSuchart.getValue() != null
@@ -313,6 +395,8 @@ public class OcrSucheDialog {
                         gebiet,
                         suchbegriff,
                         suchart,
+                        jahrVon,
+                        jahrBis,
                         aktuellerOffset[0],
                         TREFFER_PRO_SEITE
                 );
@@ -440,6 +524,11 @@ public class OcrSucheDialog {
         Label lblSuchbereich = new Label("Suchbereich:");
         Label lblSuchart = new Label("Suchart:");
         Label lblSuchbegriff = new Label("Suchbegriff:");
+        Label lblJahrVon = new Label("Jahr von:");
+        Label lblJahrBis = new Label("Jahr bis:");
+
+        lblJahrVon.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a4632;");
+        lblJahrBis.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a4632;");
 
         lblSuchbereich.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a4632;");
         lblSuchart.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a4632;");
@@ -457,17 +546,23 @@ public class OcrSucheDialog {
         grid.add(lblBand, 0, 1);
         grid.add(lblBandWert, 1, 1);
 
-        grid.add(lblSuchbereich, 0, 2);
-        grid.add(cmbSuchbereich, 1, 2);
+        grid.add(lblJahrVon, 0, 2);
+        grid.add(txtJahrVon, 1, 2);
 
-        grid.add(lblSuchart, 0, 3);
-        grid.add(cmbSuchart, 1, 3);
+        grid.add(lblJahrBis, 0, 3);
+        grid.add(txtJahrBis, 1, 3);
 
-        grid.add(lblSuchbegriff, 0, 4);
-        grid.add(txtSuche, 1, 4);
-        grid.add(btnSuchen, 2, 4);
-        grid.add(btnZuruecksetzen, 3, 4);
-        grid.add(btnSuchhilfe, 4, 4);
+        grid.add(lblSuchbereich, 0, 4);
+        grid.add(cmbSuchbereich, 1, 4);
+
+        grid.add(lblSuchart, 0, 5);
+        grid.add(cmbSuchart, 1, 5);
+
+        grid.add(lblSuchbegriff, 0, 6);
+        grid.add(txtSuche, 1, 6);
+        grid.add(btnSuchen, 2, 6);
+        grid.add(btnZuruecksetzen, 3, 6);
+        grid.add(btnSuchhilfe, 4, 6);
 
         Label lblTrefferNavigation = new Label("Trefferblöcke:");
         lblTrefferNavigation.setStyle("""
