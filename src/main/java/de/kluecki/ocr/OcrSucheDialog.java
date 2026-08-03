@@ -476,6 +476,14 @@ public class OcrSucheDialog {
         btnZuruecksetzen.setOnAction(e -> {
             txtSuche.clear();
 
+            if (aktuellesJahr != null) {
+                txtJahrVon.setText(String.valueOf(aktuellesJahr));
+                txtJahrBis.setText(String.valueOf(aktuellesJahr));
+            } else {
+                txtJahrVon.clear();
+                txtJahrBis.clear();
+            }
+
             aktuellerOffset[0] = 0;
             offsetVorSucheZuruecksetzen[0] = true;
 
@@ -526,6 +534,25 @@ public class OcrSucheDialog {
         Label lblSuchbegriff = new Label("Suchbegriff:");
         Label lblJahrVon = new Label("Jahr von:");
         Label lblJahrBis = new Label("Jahr bis:");
+
+        Runnable aktualisiereJahrbereichZustand = () -> {
+
+            boolean jahrbereichAktiv =
+                    "aktuelles Gebiet".equals(cmbSuchbereich.getValue());
+
+            txtJahrVon.setDisable(!jahrbereichAktiv);
+            txtJahrBis.setDisable(!jahrbereichAktiv);
+
+            lblJahrVon.setDisable(!jahrbereichAktiv);
+            lblJahrBis.setDisable(!jahrbereichAktiv);
+        };
+
+        cmbSuchbereich.valueProperty().addListener(
+                (obs, alterBereich, neuerBereich) ->
+                        aktualisiereJahrbereichZustand.run()
+        );
+
+        aktualisiereJahrbereichZustand.run();
 
         lblJahrVon.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a4632;");
         lblJahrBis.setStyle("-fx-font-weight: bold; -fx-text-fill: #5a4632;");
@@ -617,7 +644,10 @@ public class OcrSucheDialog {
             -fx-text-fill: #2b2b2b;
             """);
 
-        Label lblUntertitel = new Label("Suchbereiche, Sucharten, Trefferblöcke und Wildcards");
+        Label lblUntertitel = new Label(
+                "Suchbereiche, Jahrbereich, Sucharten, Trefferblöcke und Wildcards"
+        );
+
         lblUntertitel.setStyle("""
             -fx-font-size: 13px;
             -fx-text-fill: #666666;
@@ -671,6 +701,35 @@ public class OcrSucheDialog {
                 Diese Suche ist besonders nützlich, wenn man nicht weiß, in welchem
                 Gebiet oder Jahr ein Begriff vorkommt.
         
+            
+                JAHRBEREICH
+                ============================================================
+
+                Die Felder „Jahr von“ und „Jahr bis“ grenzen die Suche
+                zeitlich ein.
+
+                Der Jahrbereich wird derzeit bei der Suche im
+                „aktuellen Gebiet“ berücksichtigt.
+
+                Beispiele:
+
+                  Jahr von: 1853
+                  Jahr bis: 1855
+
+                Die Suche berücksichtigt dann die Bände des aktuellen Gebietes,
+                die in diesen Zeitraum fallen.
+
+                Beide Jahresangaben müssen leer oder vierstellig sein.
+
+                „Jahr von“ darf nicht größer als „Jahr bis“ sein.
+
+                Bleibt eines der Felder leer, wird für diese Seite des
+                Zeitraums keine Grenze verwendet.
+
+                Beim Öffnen der OCR-Suche werden beide Felder zunächst mit
+                dem Jahr des aktuell ausgewählten Bandes vorbelegt.
+
+                
         
                 SUCHARTEN
                 ============================================================
@@ -689,7 +748,44 @@ public class OcrSucheDialog {
                   Königreich
         
         
-                2) exakt
+                2) enthält alle Wörter
+                ------------------------------------------------------------
+                Findet OCR-Seiten, auf denen alle eingegebenen Suchwörter
+                vorkommen.
+
+                Die Wörter werden durch Leerzeichen getrennt.
+
+                Beispiel:
+                  Suchbegriff: Augsburg München
+
+                Gefunden werden auch Seiten, auf denen die Wörter:
+
+                  • in anderer Reihenfolge stehen
+                  • weit auseinanderliegen
+                  • mehrfach vorkommen
+
+                Es können auch mehr als zwei Wörter eingegeben werden.
+
+                Beispiel:
+                  Augsburg München Nürnberg Bahnpost Grenze
+
+                Alle Wörter müssen auf derselben OCR-Seite vorkommen.
+
+                Sie müssen außerdem gemeinsam entweder:
+
+                  • im Original-OCR oder
+                  • in der korrigierten OCR-Fassung
+
+                enthalten sein.
+
+                Ein Wort nur im Original-OCR und ein anderes Wort nur in der
+                korrigierten Fassung zählt nicht als Treffer.
+
+                Nach dem Öffnen eines Treffers werden alle einzelnen
+                Suchwörter im OCR-Fenster markiert.
+
+                
+                3) exakt
                 ------------------------------------------------------------
                 Findet den Suchbegriff als eigenes Wort oder genaue Phrase.
         
@@ -707,7 +803,7 @@ public class OcrSucheDialog {
                   eines längeren Wortes gefunden werden soll.
         
         
-                3) beginnt mit
+                4) beginnt mit
                 ------------------------------------------------------------
                 Findet Wörter, die mit dem Suchbegriff beginnen.
         
@@ -724,7 +820,7 @@ public class OcrSucheDialog {
                   großköniglich, wenn könig nicht am Wortanfang steht.
         
         
-                4) endet mit
+                5) endet mit
                 ------------------------------------------------------------
                 Findet Wörter, die mit dem Suchbegriff enden.
         
@@ -740,7 +836,7 @@ public class OcrSucheDialog {
                   lichter, weil nach lich noch weitere Buchstaben folgen.
         
         
-                5) Wildcard
+                6) Wildcard
                 ------------------------------------------------------------
                 Erlaubt Platzhalter.
         

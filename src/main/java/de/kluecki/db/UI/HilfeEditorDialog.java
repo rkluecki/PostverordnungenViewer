@@ -37,17 +37,14 @@ public class HilfeEditorDialog {
 
                 if (hinweis == null) return;
 
-                TextInputDialog dialog = new TextInputDialog(hinweis.getText());
-                dialog.setTitle("Hinweis bearbeiten");
-                dialog.setHeaderText("Hinweis ändern");
-                dialog.setContentText("Text:");
+                HilfeHinweisTextDialog.anzeigen(
+                        stage,
+                        "Hinweis bearbeiten",
+                        "Hinweis ändern",
+                        hinweis.getText()
+                ).ifPresent(neuText -> {
 
-                dialog.showAndWait().ifPresent(neuText -> {
-
-                    String clean = neuText.trim();
-                    if (clean.isEmpty()) return;
-
-                    hinweis.setText(clean);
+                    hinweis.setText(neuText);
 
                     repo.updateHinweis(hinweis);
 
@@ -60,20 +57,37 @@ public class HilfeEditorDialog {
 
                         lstHinweise.getItems().setAll(neu);
                     }
+
                 });
             }
         });
 
         lstHinweise.setCellFactory(param -> new ListCell<>() {
+
+            private final Label label = new Label();
+
+            {
+                label.setWrapText(true);
+                label.setPadding(new Insets(6));
+                label.maxWidthProperty().bind(
+                        lstHinweise.widthProperty().subtract(30)
+                );
+            }
+
             @Override
             protected void updateItem(HilfeHinweis item, boolean empty) {
                 super.updateItem(item, empty);
 
                 if (empty || item == null) {
                     setText(null);
-                } else {
-                    setText(item.getTyp() + ": " + item.getText());
+                    setGraphic(null);
+                    return;
                 }
+
+                label.setText(item.getTyp() + ": " + item.getText());
+
+                setText(null);
+                setGraphic(label);
             }
         });
 
@@ -361,23 +375,17 @@ public class HilfeEditorDialog {
                 return;
             }
 
-            TextInputDialog dialog = new TextInputDialog();
-            dialog.setTitle("Neuer Hinweis");
-            dialog.setHeaderText("Hinweis erfassen");
-            dialog.setContentText("Text:");
-
-            dialog.showAndWait().ifPresent(text -> {
-
-                String clean = text.trim();
-
-                if (clean.isEmpty()) {
-                    return;
-                }
+            HilfeHinweisTextDialog.anzeigen(
+                    stage,
+                    "Neuer Hinweis",
+                    "Hinweis erfassen",
+                    ""
+            ).ifPresent(text -> {
 
                 HilfeHinweis hinweis = new HilfeHinweis();
                 hinweis.setHilfeSchrittID(schritt.getHilfeSchrittID());
                 hinweis.setTyp("INFO");
-                hinweis.setText(clean);
+                hinweis.setText(text);
                 hinweis.setIstAktiv(true);
 
                 repo.insertHinweis(hinweis);
