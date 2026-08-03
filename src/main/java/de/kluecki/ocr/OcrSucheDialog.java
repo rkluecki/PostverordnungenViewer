@@ -36,7 +36,6 @@ public class OcrSucheDialog {
 
         Stage dialog = new Stage();
         dialog.setTitle("OCR-Text suchen");
-        dialog.initOwner(owner);
         dialog.initModality(Modality.NONE);
 
         Label lblTitel = new Label("OCR-Text suchen");
